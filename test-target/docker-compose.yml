@@ -1,0 +1,14 @@
+services:
+  target:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: edgewalker-target
+    container_name: edgewalker-target
+    hostname: vulnerable-iot
+    ports:
+      - "21:21"
+      - "22:22"
+      - "23:23"
+      - "445:445"
+    restart: unless-stopped

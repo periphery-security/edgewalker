@@ -1,0 +1,33 @@
+name: "Stale"
+
+on:
+  schedule:
+    - cron: '30 1 * * *'
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+    - uses: actions/github-script@v8
+      with:
+        script: |
+          const { owner, repo } = context.repo;
+          const staleLabel = 'stale';
+          const daysBeforeStale = 60;
+          const daysBeforeClose = 7;
+
+          // This is a simplified version, usually people use actions/stale
+          // but I'll use the official one for better reliability.
+    - uses: actions/stale@v10
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        stale-issue-message: 'This issue is stale because it has been open 60 days with no activity. Remove stale label or comment or this will be closed in 7 days.'
+        stale-pr-message: 'This PR is stale because it has been open 60 days with no activity. Remove stale label or comment or this will be closed in 7 days.'
+        stale-issue-label: 'stale'
+        stale-pr-label: 'stale'
+        days-before-stale: 60
+        days-before-close: 7

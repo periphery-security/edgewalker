@@ -1,0 +1,40 @@
+metadata:
+  name: "Tokyo Night"
+  author: "Periphery"
+
+theme:
+  primary: "#7aa2f7"
+  secondary: "#7dcfff"
+  warning: "#e0af68"
+  error: "#f7768e"
+  success: "#9ece6a"
+  accent: "#bb9af7"
+  foreground: "#c0caf5"
+  background: "#1a1b26"
+  surface: "#24283b"
+  panel: "#414868"
+  boost: "#2f3549"
+  dark: true
+  variables:
+    muted: "#565f89"
+    text: "#c0caf5"
+    danger: "#f7768e"
+    surface-alt: "#414868"
+
+icons:
+  scan: "⌕"
+  check: "✔"
+  fail: "✘"
+  bullet: "•"
+  arrow: "→"
+  warn: "⚠"
+  skull: "☠"
+  circle: "○"
+  vulnerable: "✘"
+  circle_filled: "●"
+  step: "↳"
+  bar_full: "█"
+  bar_empty: "░"
+  plus: "[+]"
+  info: "[*]"
+  alert: "[!]"

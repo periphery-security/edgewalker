@@ -1,0 +1,11 @@
+# Bandit configuration file
+# Exclude test directories from security scans
+exclude_dirs:
+  - tests
+  - .venv
+  - .git
+  - .pytest_cache
+  - .ruff_cache
+
+# Skip specific tests if necessary
+# skips: ["B101"] # Example: skip assert checks

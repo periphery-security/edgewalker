@@ -1,0 +1,52 @@
+name: Commit Lint
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+jobs:
+  main:
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Configure which types are allowed.
+          # Default: https://github.com/commitizen/conventional-commit-types
+          types: |
+            fix
+            feat
+            docs
+            style
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          # Configure that the PR title must contain a scope. (optional)
+          requireScope: false
+          # Configure which scopes are allowed. (optional)
+          # allowedScopes: |
+          #   core
+          #   ui
+          # Configure that the PR title must not include a case-sensitive scope. (optional)
+          # scopeCaseAnalyzer: |
+          #   (scope) => scope.toLowerCase() === scope
+          # If the PR title contains a breaking change, it must be indicated by a `!`
+          # before the colon. (optional)
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject must start with a lowercase letter.
+          # If the PR title contains a breaking change, it must be indicated by a `!`
+          # before the colon. (optional)
+          headerPattern: '^(\w+)(\(([\w\$\.\-\* ]+)\))?(!?): (.*)$'
+          headerPatternError: |
+            The PR title does not match the Conventional Commits spec.
+            Example: "feat(ui): add new button"

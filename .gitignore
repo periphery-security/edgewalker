@@ -1,0 +1,48 @@
+# Claude Code
+.claude/
+
+# EdgeWalker runtime data
+.edgewalker/
+results/
+api/pulls/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+*.egg
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Environment / secrets
+.env
+.env.*
+
+.coverage
+coverage.xml
+
+# AI Assistant directories and files
+.agent-os/
+agent-os/
+.serena/
+.claude/
+CLAUDE.md
+*.gemini*
+
+.ruff_cache
+.pytest_cache
+.mypy_cache
+.demo_mode

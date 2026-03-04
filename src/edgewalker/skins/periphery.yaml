@@ -1,0 +1,40 @@
+metadata:
+  name: "Periphery EdgeWalker"
+  author: "Periphery"
+
+theme:
+  primary: "#5A00FF"
+  secondary: "#8F88FF"
+  warning: "#ffb800"
+  error: "#DC0000"
+  success: "#00ff41"
+  accent: "#00FFFF"
+  foreground: "#c0c0c0"
+  background: "#0f0f1a"
+  surface: "#1a1a2e"
+  panel: "#16213e"
+  boost: "#1e1e3a"
+  dark: true
+  variables:
+    muted: "#555555"
+    text: "#c0c0c0"
+    danger: "#DC0000"
+    surface-alt: "#16213e"
+
+icons:
+  scan: "⌕"
+  check: "✔"
+  fail: "✘"
+  bullet: "•"
+  arrow: "→"
+  warn: "⚠"
+  skull: "☠"
+  circle: "○"
+  vulnerable: "✘"
+  circle_filled: "●"
+  step: "↳"
+  bar_full: "█"
+  bar_empty: "░"
+  plus: "[+]"
+  info: "[*]"
+  alert: "[!]"

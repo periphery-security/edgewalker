@@ -1,0 +1,40 @@
+metadata:
+  name: "Catppuccin Mocha"
+  author: "Catppuccin Org"
+
+theme:
+  primary: "#F5C2E7"
+  secondary: "#cba6f7"
+  warning: "#FAE3B0"
+  error: "#F28FAD"
+  success: "#ABE9B3"
+  accent: "#fab387"
+  foreground: "#cdd6f4"
+  background: "#181825"
+  surface: "#313244"
+  panel: "#45475a"
+  boost: "#585b70"
+  dark: true
+  variables:
+    muted: "#6c7086"
+    text: "#cdd6f4"
+    danger: "#F28FAD"
+    surface-alt: "#45475a"
+
+icons:
+  scan: "⌕"
+  check: "✔"
+  fail: "✘"
+  bullet: "•"
+  arrow: "→"
+  warn: "⚠"
+  skull: "☠"
+  circle: "○"
+  vulnerable: "✘"
+  circle_filled: "●"
+  step: "↳"
+  bar_full: "█"
+  bar_empty: "░"
+  plus: "[+]"
+  info: "[*]"
+  alert: "[!]"

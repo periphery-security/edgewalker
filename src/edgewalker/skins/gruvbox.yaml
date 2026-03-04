@@ -1,0 +1,40 @@
+metadata:
+  name: "Gruvbox"
+  author: "Pavel Pertsev"
+
+theme:
+  primary: "#85A598"
+  secondary: "#A89A85"
+  warning: "#fe8019"
+  error: "#fb4934"
+  success: "#b8bb26"
+  accent: "#fabd2f"
+  foreground: "#fbf1c7"
+  background: "#282828"
+  surface: "#3c3836"
+  panel: "#504945"
+  boost: "#665c54"
+  dark: true
+  variables:
+    muted: "#928374"
+    text: "#fbf1c7"
+    danger: "#fb4934"
+    surface-alt: "#504945"
+
+icons:
+  scan: "⌕"
+  check: "✔"
+  fail: "✘"
+  bullet: "•"
+  arrow: "→"
+  warn: "⚠"
+  skull: "☠"
+  circle: "○"
+  vulnerable: "✘"
+  circle_filled: "●"
+  step: "↳"
+  bar_full: "█"
+  bar_empty: "░"
+  plus: "[+]"
+  info: "[*]"
+  alert: "[!]"

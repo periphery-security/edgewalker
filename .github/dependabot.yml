@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Since we use uv, dependabot's pip support will work with requirements.txt or pyproject.toml
+    # but uv.lock is not yet natively supported by dependabot.
+    # However, it can still update pyproject.toml.

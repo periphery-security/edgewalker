@@ -1,0 +1,56 @@
+name: Bug Report
+description: Report a bug in Edgewalker
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+    validations:
+      required: true
+
+  - type: input
+    id: reproduction
+    attributes:
+      label: Please provide instructions for reproducing this issue
+
+  - type: textarea
+    id: exception-or-error
+    attributes:
+      label: Please provide the exception or error you saw
+      render: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Please provide the environment you discovered this bug in (run `edgewalker version`)
+      render: true
+      placeholder: |
+        EdgeWalker CLI: 0.1.0
+        Python: 3.13.11
+        Package Manager: uv 0.8.6
+        OS: Darwin arm64
+
+        EdgeWalker: 0.1.0
+        ... core, modules, tui, cli, utils
+
+        Package                         Version
+        ---------------------------------------------------------
+        asyncssh                         2.22.0
+        httpx                            0.28.1
+        impacket                         0.13.0
+        loguru                           0.7.3
+        platformdirs                     4.9.2
+        pydantic                         2.12.5
+        pydantic-settings                2.13.1
+        pyyaml                           6.0.3
+        rich                             14.3.3
+        semver                           3.0.4
+        textual                          8.0.0
+        typer                            0.24.1
+        validators                       0.35.0
+
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else?

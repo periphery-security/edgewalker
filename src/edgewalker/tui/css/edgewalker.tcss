@@ -1,0 +1,340 @@
+/* EdgeWalker TCSS stylesheet */
+
+Screen {
+    background: $background;
+}
+
+HomeScreen, GuidedAssessmentScreen, ModalScreen {
+    align: center middle;
+}
+
+/* ── Home Screen ── */
+
+#home-container {
+    width: 80;
+    height: auto;
+    align: center middle;
+}
+
+#home-logo {
+    height: auto;
+    max-height: 12;
+    width: 100%;
+    content-align: center middle;
+    background: transparent;
+}
+
+#home-tagline {
+    width: 100%;
+    text-align: center;
+    color: $accent;
+    text-style: italic;
+}
+
+#home-desc {
+    color: $foreground;
+    width: 100%;
+    text-align: center;
+    margin: 2 0;
+}
+
+#home-prompt {
+    width: 100%;
+    text-align: center;
+    color: $foreground 50%;
+    margin-top: 1;
+}
+
+#home-buttons {
+    width: 100%;
+    height: 3;
+    align: center middle;
+    margin: 1 0;
+}
+
+#home-buttons Button {
+    margin: 0 1;
+}
+
+#home-contributors {
+    width: 100%;
+    text-align: center;
+    color: $foreground 50%;
+    margin-top: 2;
+}
+
+/* ── Dashboard Layout ── */
+
+#nav-panel {
+    width: 24;
+    height: 100%;
+    background: $surface;
+    border-right: tall $primary;
+    padding: 1 1;
+}
+
+#main-content {
+    width: 1fr;
+    height: 100%;
+    background: $background;
+}
+
+#log-container {
+    height: 1fr;
+    width: 100%;
+    padding: 1 2;
+}
+
+#wizard-log, #report-container {
+    width: 100%;
+    height: 100%;
+}
+
+#report-content {
+    width: 100%;
+    height: auto;
+    padding: 0 1;
+}
+#button-bar {
+    height: 3;
+    width: 100%;
+    align: center middle;
+    background: $surface;
+    dock: bottom;
+}
+
+/* ── Navigation Sidebar ── */
+
+#nav-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+#nav-subtitle {
+    text-style: bold;
+    color: $primary;
+    margin: 1 0;
+}
+
+.nav-link {
+    color: $foreground;
+    padding-left: 1;
+}
+
+StatusBadge {
+    margin: 0 0;
+}
+
+#nav-bottom-spacer {
+    height: 1fr;
+}
+
+#telemetry-status {
+    margin-top: 1;
+    padding: 0 1;
+    height: auto;
+    min-height: 1;
+    text-style: italic;
+}
+
+/* ── Wizard / Guided Assessment ── */
+
+#wizard-outer {
+    width: 100%;
+    height: 100%;
+    align: center middle;
+}
+
+.wizard-text {
+    color: $foreground;
+    margin-bottom: 1;
+}
+
+.wizard-options {
+    height: 3;
+    width: 100%;
+    align: center middle;
+    margin-top: 1;
+}
+
+.wizard-options Button {
+    margin: 0 1;
+}
+
+Checkbox {
+    margin: 0 0;
+    color: $foreground;
+}
+
+Checkbox:focus {
+    color: $accent;
+    text-style: bold;
+}
+
+Checkbox > .toggle {
+    color: $foreground 50%;
+}
+
+Checkbox.-on > .toggle {
+    color: $success;
+    text-style: bold;
+}
+
+RadioButton > .toggle {
+    color: $foreground 50%;
+}
+
+RadioButton.-on > .toggle {
+    color: $accent;
+    text-style: bold;
+}
+
+/* ── Modals ── */
+
+.modal-container {
+    width: 64;
+    height: auto;
+    background: $surface;
+    border: thick $primary;
+    padding: 1 2;
+}
+
+.modal-title {
+    text-style: bold;
+    color: $accent;
+    width: 100%;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+.modal-body {
+    height: auto;
+    width: 100%;
+}
+
+.modal-buttons {
+    margin-top: 1;
+    height: 3;
+    align: center middle;
+}
+
+.modal-buttons Button {
+    margin: 0 1;
+}
+
+/* ── Common ── */
+
+Header {
+    background: $surface;
+    color: $accent;
+    text-style: bold;
+}
+
+Footer {
+    background: $surface;
+    color: $foreground 50%;
+}
+
+Input {
+    background: $panel;
+    border: solid $foreground 50%;
+    color: $foreground;
+}
+
+Input:focus {
+    border: solid $accent;
+}
+
+/* ── Configuration Screen ── */
+
+#config-layout {
+    width: 100%;
+    height: 100%;
+}
+
+#config-sidebar {
+    width: 24;
+    height: 100%;
+    background: $surface;
+    border-right: tall $primary;
+    padding: 1 1;
+}
+
+#config-sidebar-title {
+    text-style: bold;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+#config-nav {
+    height: 1fr;
+    background: transparent;
+    border: none;
+}
+
+#config-sidebar-bottom {
+    height: auto;
+    margin-top: 1;
+}
+
+.sidebar-btn {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#config-main {
+    width: 1fr;
+    height: 100%;
+    background: $background;
+}
+
+#config-switcher {
+    width: 100%;
+    height: 100%;
+}
+
+.config-section {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+}
+
+.config-section-header {
+    width: 100%;
+    text-style: bold;
+    color: $primary;
+    background: $panel;
+    padding: 0 1;
+    margin: 1 0;
+}
+
+.config-row {
+    height: 3;
+    width: 100%;
+    align: left middle;
+}
+
+.config-row-v {
+    height: auto;
+    width: 100%;
+}
+
+.config-label {
+    width: 30;
+    color: $foreground;
+    text-style: bold;
+}
+
+.config-help {
+    width: 100%;
+    color: $foreground 50%;
+    text-style: italic;
+    margin-bottom: 1;
+    padding-left: 2;
+}
+
+.config-row-v .config-label {
+    width: 100%;
+    margin-bottom: 0;
+}

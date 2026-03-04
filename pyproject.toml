@@ -1,0 +1,136 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "edgewalker"
+version = "0.1.0"
+description = "IoT Home Network Security Scanner"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Periphery", email = "hello@periphery.security"},
+]
+requires-python = ">=3.13"
+dependencies = [
+    "asyncssh>=2.21.0",
+    "impacket>=0.13.0",
+    "loguru>=0.7.2",
+    "platformdirs>=4.2.2",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.13.1",
+    "pyyaml>=6.0.3",
+    "httpx>=0.28.1",
+    "rich>=14.3.3",
+    "semver>=3.0.2",
+    "textual>=8.0.0",
+    "typer>=0.15.1",
+    "validators>=0.35.0",
+]
+
+[dependency-groups]
+dev = [
+    "bandit>=1.9.4",
+    "interrogate>=1.7.0",
+    "isort>=8.0.0",
+    "mypy>=1.15.0",
+    "types-PyYAML>=6.0.12.20241230",
+    "pre-commit>=4.5.1",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.15.2",
+    "taskipy>=1.14.1",
+]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_return_any = false
+warn_unused_configs = true
+disable_error_code = ["attr-defined", "name-defined", "import-untyped", "arg-type", "call-arg", "assignment", "return-value", "var-annotated", "no-any-return", "misc", "index", "list-item", "call-overload", "override", "abstract", "unused-coroutine"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/edgewalker"]
+
+[tool.hatch.build.targets.sdist]
+# Ensures data files are included in source distributions
+include = [
+    "src/edgewalker",
+]
+
+[project.scripts]
+edgewalker = "edgewalker.main:main"
+
+[tool.taskipy.tasks]
+isort = "uv run isort ."
+isort_check = "uv run isort --check-only ."
+ruff_lint = "uv run ruff check"
+ruff_lint_fix = "uv run ruff check --fix"
+ruff_format = "uv run ruff format"
+interrogate = "uv run interrogate -vv ."
+bandit = "uv run bandit -c .banditrc -x '**/tests/*' -r app"
+test-coverage =  "uv run pytest --cov --cov-report term-missing"
+
+[tool.ruff]
+preview = true
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "ANN",     # flake8-annotations
+    "D",       # pydocstyle
+    "E",       # pycodestyle
+    "F",       # Pyflakes
+    "PLC0415", # import-outside-top-level
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "PLC0415", "E501", "F841", "E402", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 20
+
+[tool.isort]
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+line_length = 100
+wrap_length = 100
+split_on_trailing_comma = true
+combine_as_imports = true
+
+import_heading_firstparty = "First Party"
+import_heading_stdlib = "Standard Library"
+import_heading_thirdparty = "Third Party"
+
+known_first_party = ["edgewalker"]
+
+[tool.interrogate]
+ignore-init-method = true
+ignore-init-module = false
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = false
+ignore-property-decorators = false
+ignore-module = true
+ignore-nested-functions = false
+ignore-nested-classes = true
+ignore-setters = false
+fail-under = 80
+exclude = ["docs", "build", ".cache", "tests"]
+ignore-regex = ["^get$", "^mock_.*", ".*BaseClass.*"]
+verbose = 0
+quiet = false
+color = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=85"

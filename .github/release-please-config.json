@@ -1,0 +1,34 @@
+{
+  "separate-pull-requests": true,
+  "pull-request-header": "**Release Time!** This PR contains the next release for our project.",
+  "pull-request-footer": "---\n\nThis PR was generated automatically by Release Please.",
+  "changelog-sections": [
+    {"type": "feat", "section": "New Features"},
+    {"type": "fix", "section": "Bug Fixes"},
+    {"type": "perf", "section": "Performance Improvements"},
+    {"type": "deps", "section": "Dependency Updates"},
+    {"type": "docs", "section": "Documentation", "hidden": false},
+    {"type": "chore", "section": "Maintenance", "hidden": true},
+    {"type": "test", "section": "Tests", "hidden": true}
+  ],
+  "packages": {
+    ".": {
+      "package-name": "edgewalker",
+      "release-type": "python",
+      "changelog-path": "CHANGELOG.md",
+      "initial-version": "0.1.0",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "draft": false,
+      "prerelease": false
+    }
+  },
+  "extra-files": [
+    {
+      "path": "uv.lock",
+      "type": "toml",
+      "jsonpath": "$.package[?(@.name.value=='edgewalker')].version"
+    }
+  ],
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+}

@@ -1,0 +1,40 @@
+metadata:
+  name: "Dracula"
+  author: "Zeno Rocha"
+
+theme:
+  primary: "#BD93F9"
+  secondary: "#6272A4"
+  warning: "#FFB86C"
+  error: "#FF5555"
+  success: "#50FA7B"
+  accent: "#FF79C6"
+  foreground: "#F8F8F2"
+  background: "#282A36"
+  surface: "#2B2E3B"
+  panel: "#313442"
+  boost: "#44475a"
+  dark: true
+  variables:
+    muted: "#6272A4"
+    text: "#F8F8F2"
+    danger: "#FF5555"
+    surface-alt: "#313442"
+
+icons:
+  scan: "⌕"
+  check: "✔"
+  fail: "✘"
+  bullet: "•"
+  arrow: "→"
+  warn: "⚠"
+  skull: "☠"
+  circle: "○"
+  vulnerable: "✘"
+  circle_filled: "●"
+  step: "↳"
+  bar_full: "█"
+  bar_empty: "░"
+  plus: "[+]"
+  info: "[*]"
+  alert: "[!]"

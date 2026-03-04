@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Generate a token
+        id: generate_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_PRIV_KEY }}
+
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          config-file: ".github/release-please-config.json"
+          manifest-file: ".github/release-please-manifest.json"
+
+  #publish:
+  #  name: Publish to PyPI
+  #  needs: release-please
+  #  if: ${{ needs.release-please.outputs.release_created }}
+  #  runs-on: ubuntu-latest
+  #  environment:
+  #    name: pypi
+  #    url: https://pypi.org/p/edgewalker
+  #  permissions:
+  #    id-token: write # Required for trusted publishing
+  #  steps:
+  #    - uses: actions/checkout@v6
+  #    - name: Install uv
+  #      uses: astral-sh/setup-uv@v5
+  #      with:
+  #        enable-cache: true
+  #    - name: Set up Python
+  #      run: uv python install 3.13
+  #    - name: Build package
+  #      run: uv build
+  #    - name: Publish package
+  #      uses: pypa/gh-action-pypi-publish@release/v1
