@@ -15,8 +15,10 @@ def global_telemetry_safety():
     settings.telemetry_enabled = False
 
     # Mock both sync and async httpx post calls globally
-    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_async_post, \
-         patch("httpx.Client.post") as mock_sync_post:
+    with (
+        patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_async_post,
+        patch("httpx.Client.post") as mock_sync_post,
+    ):
         mock_async_post.return_value = MagicMock(status_code=201)
         mock_sync_post.return_value = MagicMock(status_code=201)
         yield
