@@ -40,13 +40,13 @@ def test_base_model():
         id="test-id",
         device_id="test-device",
         version="1.0.0",
-        module="test-module",
+        module="unspecified",
         module_version="0.1.0",
         timestamp=now,
     )
 
     assert base["id"] == "test-id"
-    assert base.get("module") == "test-module"
+    assert base.get("module") == "unspecified"
     assert base.get("nonexistent", "default") == "default"
     assert base.get(123, "default") == "default"
 

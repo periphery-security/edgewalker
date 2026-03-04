@@ -90,7 +90,7 @@ class Base(BaseModel):
         Field(default="0.1.0", description="Version number of the CLI."),
         BeforeValidator(valid_version),
     ]
-    module: str = Field(default="test-module", description="Name of the module that ran.")
+    module: str = Field(default="unspecified", description="Name of the module that ran.")
     module_version: Annotated[
         semver.VersionInfo,
         Field(default="0.1.0", description="Version number of the module."),

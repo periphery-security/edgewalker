@@ -75,7 +75,8 @@ async def test_run_port_scan(mock_submit, mock_save, mock_input, mock_quick, moc
 @patch("edgewalker.core.scanner_service.port_scan.full_scan", new_callable=AsyncMock)
 @patch("edgewalker.utils.get_input", return_value="1.1.1.1")
 @patch("edgewalker.core.scanner_service.save_results", return_value="path")
-async def test_run_port_scan_full(mock_save, mock_input, mock_full, mock_results):
+@patch("edgewalker.core.scanner_service.submit_scan_data")
+async def test_run_port_scan_full(mock_submit, mock_save, mock_input, mock_full, mock_results):
     mock_full.return_value = mock_results
     res = await cli.ScanController().run_port_scan(full=True)
     assert res.model_dump(mode="json") == mock_results.model_dump(mode="json")

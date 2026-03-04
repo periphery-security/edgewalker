@@ -124,8 +124,9 @@ async def test_telemetry_status_reactive():
             status_widget = app.screen.query_one("#telemetry-status")
 
             # Initial status
-            assert app.telemetry_status == "idle"
-            assert "Ready" in str(status_widget.render())
+            assert app.telemetry_status == "disabled"
+
+            assert "Disabled" in str(status_widget.render())
 
             # Update status
             app.telemetry_status = "sending"

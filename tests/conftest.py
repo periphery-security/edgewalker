@@ -1,7 +1,25 @@
 # Standard Library
+from unittest.mock import AsyncMock, MagicMock, patch
 
 # Third Party
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def global_telemetry_safety():
+    """Ensure telemetry remains disabled and network calls remain mocked globally."""
+    # First Party
+    from edgewalker.core.config import settings
+
+    # Reset telemetry setting for every test
+    settings.telemetry_enabled = False
+
+    # Mock both sync and async httpx post calls globally
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_async_post, \
+         patch("httpx.Client.post") as mock_sync_post:
+        mock_async_post.return_value = MagicMock(status_code=201)
+        mock_sync_post.return_value = MagicMock(status_code=201)
+        yield
 
 
 @pytest.fixture
