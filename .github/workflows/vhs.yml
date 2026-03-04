@@ -19,7 +19,7 @@ jobs:
           sudo apt-get install -y nmap
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -37,7 +37,7 @@ jobs:
           vhs demo.tape
       - name: Commit changes
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore: update demo visuals [skip ci]"
           file_pattern: "images/demo.gif images/scan-report.png"
