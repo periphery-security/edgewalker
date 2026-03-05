@@ -823,6 +823,10 @@ async def ping_sweep(
     if progress_callback:
         progress_callback("phase", "Discovering devices on the network...")
 
+    err = validate_target(target)
+    if err:
+        raise ValueError(err)
+
     cmd = get_nmap_command() + ["-sn", "-T4", target]
     live_hosts = []
     try:
