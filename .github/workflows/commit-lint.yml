@@ -47,6 +47,7 @@ jobs:
           # If the PR title contains a breaking change, it must be indicated by a `!`
           # before the colon. (optional)
           headerPattern: '^(\w+)(\(([\w\$\.\-\* ]+)\))?(!?): (.*)$'
+          headerPatternCorrespondence: type, scope, breaking, subject
           headerPatternError: |
             The PR title does not match the Conventional Commits spec.
             Example: "feat(ui): add new button"
