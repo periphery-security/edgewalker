@@ -32,22 +32,8 @@ jobs:
             revert
           # Configure that the PR title must contain a scope. (optional)
           requireScope: false
-          # Configure which scopes are allowed. (optional)
-          # allowedScopes: |
-          #   core
-          #   ui
-          # Configure that the PR title must not include a case-sensitive scope. (optional)
-          # scopeCaseAnalyzer: |
-          #   (scope) => scope.toLowerCase() === scope
-          # If the PR title contains a breaking change, it must be indicated by a `!`
-          # before the colon. (optional)
           subjectPattern: ^(?![A-Z]).+$
           subjectPatternError: |
             The subject must start with a lowercase letter.
           # If the PR title contains a breaking change, it must be indicated by a `!`
           # before the colon. (optional)
-          headerPattern: '^(\w+)(\(([\w\$\.\-\* ]+)\))?(!?): (.*)$'
-          headerPatternCorrespondence: type, scope, breaking, subject
-          headerPatternError: |
-            The PR title does not match the Conventional Commits spec.
-            Example: "feat(ui): add new button"
