@@ -1,6 +1,6 @@
 # Configuration
 
-All settings can be overridden via environment variables prefixed with `EW_`. Defaults are defined in `edgewalker/config.py`.
+Environment variables prefixed with `EW_` override all settings. `edgewalker/config.py` defines the default values.
 
 ## Environment Variables
 
@@ -10,6 +10,7 @@ All settings can be overridden via environment variables prefixed with `EW_`. De
 |---|---|---|
 | `EW_API_URL` | `https://api.periphery.security/edgewalker/v1` | EdgeWalker API endpoint |
 | `EW_API_TIMEOUT` | `10` | API request timeout (seconds) |
+| `EW_MAC_API_URL` | `https://api.maclookup.app/v2/macs` | MACLookup API base URL |
 | `EW_MAC_API_KEY` | `None` | MACLookup API key (increases rate limit) |
 
 ### Scan Timeouts
@@ -45,6 +46,38 @@ All settings can be overridden via environment variables prefixed with `EW_`. De
 | `EW_TELEMETRY_ENABLED` | `None` | User opt-in status for anonymous data sharing |
 | `EW_CONFIG_DIR` | `~/.config/edgewalker` | Configuration directory override |
 | `EW_CACHE_DIR` | `~/.cache/edgewalker` | Cache directory override |
+| `EW_DEMO_MODE` | `0` | Set to `1` to enable demo mode with mock data |
+
+## Security Validation
+
+EdgeWalker enforces security best practices for its configuration:
+
+- **HTTPS Enforcement:** All API URLs (`EW_API_URL`, `EW_NVD_API_URL`, `EW_MAC_API_URL`) must use `https://` unless pointing to `localhost` or `127.0.0.1`.
+- **Domain Verification:** EdgeWalker warns you if API endpoints point to non-standard domains, as these endpoints receive sensitive information like your API keys.
+- **File Permissions:** EdgeWalker saves configuration files with restricted permissions (`0o600`) and creates configuration directories with `0o700` to ensure only the owner can read or modify them.
+
+## CLI Configuration Management
+
+Manage your configuration directly from the CLI:
+
+```bash
+# Show current configuration and active overrides
+edgewalker config show
+
+# Update a setting
+edgewalker config set theme dracula
+
+# Print the path to the config file
+edgewalker config path
+```
+
+### Handling Overrides
+
+When environment variables or a `.env` file override your `config.yaml` settings, EdgeWalker displays a warning. To proceed with a scan while overrides remain active without a confirmation prompt, use the `--allow-override` flag:
+
+```bash
+EW_SCAN_WORKERS=8 edgewalker scan --allow-override
+```
 
 ## Examples
 
@@ -65,4 +98,5 @@ EW_NVD_API_URL=https://my-proxy.example.com/nvd edgewalker cve
 |---|---|
 | `CACHE_DIR/` | Cached vendor data (e.g., `~/Library/Caches/edgewalker/` on macOS) |
 | `CONFIG_DIR/` | Configuration and session data (e.g., `~/Library/Application Support/edgewalker/` on macOS) |
-| `CONFIG_DIR/scans/` | Scan output files |
+| `CONFIG_DIR/scans/` | Scan output files (standard mode) |
+| `CONFIG_DIR/demo_scans/` | Scan output files (demo mode) |

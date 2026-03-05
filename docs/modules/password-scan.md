@@ -6,7 +6,7 @@ Tests default and weak credentials against SSH, FTP, Telnet, and SMB services fo
 
 ## Credential Database
 
-Credentials are stored locally in `edgewalker/data/creds.csv` — a plain CSV file you can inspect, edit, or extend. No network calls are made to load credentials.
+EdgeWalker stores credentials locally in `edgewalker/data/creds.csv` — a plain CSV file you can inspect, edit, or extend. No network calls occur when loading credentials.
 
 The database contains ~430 entries sourced from known IoT default credentials:
 
@@ -42,18 +42,18 @@ Add rows to `data/creds.csv` following the same format. The module reads the ent
 
 ### Concurrency
 
-Testing is concurrent at two levels:
+Testing occurs concurrently at two levels:
 
-1. **Across hosts** — up to 8 hosts tested in parallel (configurable via `EW_CRED_WORKERS`)
-2. **Within each host** — SSH, FTP, Telnet, and SMB are tested simultaneously
+1. **Across hosts** — up to 8 hosts tested in parallel (configure this via `EW_CRED_WORKERS`)
+2. **Within each host** — SSH, FTP, Telnet, and SMB tests run simultaneously
 
 ### Early Exit
 
-Scanning stops at the first successful login per service. If `admin:admin` works on SSH, it doesn't keep testing more credentials.
+Scanning stops at the first successful login per service. If `admin:admin` works on SSH, EdgeWalker ceases testing further credentials for that service.
 
 ### Top-N Mode
 
-By default, only the top 10 credentials are tested per service for speed. Use `--top 50` or select "all" in interactive mode for more thorough testing.
+By default, EdgeWalker tests only the top 10 credentials per service for speed. Use `--top 50` or select "all" in interactive mode for more thorough testing.
 
 ## Public API
 
@@ -72,6 +72,7 @@ results = scan(hosts=port_scan_hosts, top_n=10, verbose=True)
 
 ```json
 {
+  "is_demo": false,
   "results": [
     {
       "ip": "192.168.1.50",
@@ -101,6 +102,12 @@ results = scan(hosts=port_scan_hosts, top_n=10, verbose=True)
   }
 }
 ```
+
+## Security & Permissions
+
+- **File Permissions:** EdgeWalker saves scan results with `0o600` permissions (read/write for owner only).
+- **Directory Permissions:** EdgeWalker creates the output directory with `0o700` permissions.
+- **Demo Mode:** When setting `EW_DEMO_MODE=1`, EdgeWalker saves results to a separate `demo_scans` directory and sets the `is_demo` field to `true`.
 
 ## Requirements
 

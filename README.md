@@ -81,7 +81,7 @@ NOTE: We are currently awaiting approval of the package on pypi.org to allow `ed
 ```bash
 edgewalker
 ```
-> **Note:** On macOS, use `sudo edgewalker`. On Linux, the installer configures `nmap` capabilities so `sudo` is not required.
+> **Note:** On macOS, use `sudo edgewalker`. On Linux, the installer configures `nmap` capabilities, removing the need for `sudo`.
 
 ### CLI Mode
 ```bash
@@ -97,19 +97,19 @@ edgewalker report                  # View security report
 
 ## The Periphery Mission
 
-We frequently encounter vendors who promise their devices are "secure by design." We don't buy it. EdgeWalker was born at **Periphery's 2025 Hackathon**, built in 48 hours by Dr Lina Anaya, Travis Pell, Steven Marks, and Adam Massey. It represents our commitment to transparency and evidence-based security in the IoT era.
+We frequently encounter vendors who promise "secure by design" devices. We don't buy it. EdgeWalker began at **Periphery's 2025 Hackathon**, built in 48 hours by Dr Lina Anaya, Travis Pell, Steven Marks, and Adam Massey. It represents our commitment to transparency and evidence-based security in the IoT era.
 
 ---
 
 ## Contributing
 
-### Contributing Guielines
+### Contributing Guidelines
 
-Read through our [contributing guidelines](CONTRIBUTING.md) to learn acout our submission process, coding rules and more.
+Read through our [contributing guidelines](CONTRIBUTING.md) to learn about our submission process, coding rules, and more.
 
 ### Want to help?
 
-Want to report a bug, contribute some code, or improve the documentation? Excellent! Read up on our guidelines for [contributing](CONTRIBUTING.md) and then check out one of our issues labeled as `help wanted` or `good first issue`.
+Want to report a bug, contribute some code, or improve the documentation? Excellent! Read our guidelines for [contributing](CONTRIBUTING.md) and then check out one of our issues labeled as `help wanted` or `good first issue`.
 
 ### Code of Conduct
 Help us keep Edgewalker open and inclusive. Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).

@@ -16,7 +16,7 @@ echo -e "${CYAN}EdgeWalker Installer${NC}"
 echo "===================="
 echo
 
-# -- Check Python 3.9+ ---------------------------------------------------
+# -- Check Python 3.13+ ---------------------------------------------------
 
 if ! command -v python3 &>/dev/null; then
     echo -e "${RED}Python 3 not found.${NC}"
@@ -30,8 +30,8 @@ PY_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.versi
 PY_MAJOR=$(echo "$PY_VERSION" | cut -d. -f1)
 PY_MINOR=$(echo "$PY_VERSION" | cut -d. -f2)
 
-if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 9 ]; }; then
-    echo -e "${RED}Python 3.9+ required (found $PY_VERSION)${NC}"
+if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 13 ]; }; then
+    echo -e "${RED}Python 3.13+ required (found $PY_VERSION)${NC}"
     exit 1
 fi
 
