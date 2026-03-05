@@ -23,7 +23,7 @@ from rich.progress import (
 
 # First Party
 from edgewalker import theme
-from edgewalker.core.config import settings
+from edgewalker.core.config import get_active_overrides, settings
 from edgewalker.core.telemetry import TelemetryManager
 
 # Rich console — single instance shared across the application
@@ -140,6 +140,24 @@ def print_logo() -> None:
     pad = width - len(theme.TAGLINE)
     console.print(f"[dim {theme.ACCENT}]{' ' * pad}{theme.TAGLINE}[/dim {theme.ACCENT}]")
     console.print()
+
+    # Check for configuration overrides and notify user prominently
+    overrides = get_active_overrides()
+    if overrides:
+        sources = ", ".join(sorted(set(overrides.values())))
+        keys = ", ".join(sorted(overrides.keys()))
+        console.print(
+            Panel(
+                f"[bold {theme.WARNING}]CONFIGURATION OVERRIDES ACTIVE[/bold {theme.WARNING}]\n"
+                f"[dim]Settings overridden by {sources}:[/dim]\n"
+                f"[cyan]{keys}[/cyan]\n\n"
+                f"[dim]Run [bold]edgewalker config show[/bold] to see details.[/dim]",
+                border_style=theme.WARNING,
+                box=theme.BOX_STYLE,
+                width=theme.get_ui_width(),
+            )
+        )
+        console.print()
 
 
 def clear_screen() -> None:

@@ -12,11 +12,11 @@ import math
 import os
 import re
 import socket
-import subprocess
+import subprocess  # nosec: B404
 import sys
 import tempfile
 import uuid
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec: B405
 from typing import Callable, Optional
 
 # Third Party
@@ -99,12 +99,13 @@ def check_nmap_permissions() -> bool:
     # Check for nmap capabilities (Linux only)
     if sys.platform.startswith("linux"):
         try:
+            # nosec: B607, B603 - which and getcap are standard tools
             nmap_path = subprocess.check_output(["which", "nmap"], text=True).strip()
             caps = subprocess.check_output(["getcap", nmap_path], text=True)
             if "cap_net_raw" in caps and "cap_net_admin" in caps:
                 return True
-        except Exception:
-            pass
+        except (subprocess.SubprocessError, OSError):
+            pass  # nosec: B110 - best effort check for nmap capabilities
 
     return False
 
@@ -115,12 +116,13 @@ def fix_nmap_permissions() -> bool:
         return False
 
     try:
+        # nosec: B607, B603 - which and setcap are standard tools
         nmap_path = subprocess.check_output(["which", "nmap"], text=True).strip()
         # This will prompt for sudo password in the terminal
         cmd = ["sudo", "setcap", "cap_net_raw,cap_net_admin,cap_net_bind_service+eip", nmap_path]
         subprocess.run(cmd, check=True)
         return True
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         return False
 
 
@@ -158,6 +160,7 @@ def parse_nmap_xml(xml_output: str) -> list[Host]:
     """Parse nmap XML output into host list."""
     hosts = []
     try:
+        # nosec: B314 - nmap output is trusted in this context
         root = ET.fromstring(xml_output)
     except ET.ParseError:
         return hosts

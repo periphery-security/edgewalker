@@ -21,7 +21,7 @@ from textual.widgets import (
 from textual.widgets.option_list import Option
 
 # First Party
-from edgewalker.core.config import settings, update_setting
+from edgewalker.core.config import get_active_overrides, settings, update_setting
 from edgewalker.core.theme_manager import theme_manager
 
 
@@ -32,6 +32,28 @@ class ConfigScreen(Screen):
         Binding("escape,q", "app.pop_screen", "Back", show=True),
         Binding("s", "save_and_exit", "Save & Exit", show=True),
     ]
+
+    def _get_override_label(self, field_name: str) -> str:
+        """Return an override label if the field is currently overridden.
+
+        Args:
+            field_name: The name of the configuration field.
+
+        Returns:
+            A formatted string indicating the override source, or an empty string.
+        """
+        overrides = get_active_overrides()
+        env_key = f"EW_{field_name.upper()}"
+
+        # Handle aliases
+        field = settings.__class__.model_fields.get(field_name)
+        alias = field.alias if field and field.alias else None
+
+        if env_key in overrides:
+            return f" [dim](overridden by {overrides[env_key]})[/dim]"
+        if alias and alias in overrides:
+            return f" [dim](overridden by {overrides[alias]})[/dim]"
+        return ""
 
     def compose(self) -> ComposeResult:
         """Compose the configuration screen layout."""
@@ -64,7 +86,10 @@ class ConfigScreen(Screen):
                         yield Label("GENERAL SETTINGS", classes="config-section-header")
 
                         with Horizontal(classes="config-row"):
-                            yield Label("Enable Telemetry", classes="config-label")
+                            yield Label(
+                                f"Enable Telemetry{self._get_override_label('telemetry_enabled')}",
+                                classes="config-label",
+                            )
                             yield Switch(
                                 value=settings.telemetry_enabled or False, id="telemetry_enabled"
                             )
@@ -86,7 +111,10 @@ class ConfigScreen(Screen):
                         yield Label("APPEARANCE", classes="config-section-header")
 
                         with Vertical(classes="config-row-v"):
-                            yield Label("Active Theme", classes="config-label")
+                            yield Label(
+                                f"Active Theme{self._get_override_label('theme')}",
+                                classes="config-label",
+                            )
 
                             themes = theme_manager.list_themes()
                             # Sort to put periphery at the top
@@ -110,7 +138,10 @@ class ConfigScreen(Screen):
                         yield Label("API & EXTERNAL SERVICES", classes="config-section-header")
 
                         with Vertical(classes="config-row-v"):
-                            yield Label("NVD API Key", classes="config-label")
+                            yield Label(
+                                f"NVD API Key{self._get_override_label('nvd_api_key')}",
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=settings.nvd_api_key or "",
                                 placeholder="Enter NVD API Key",
@@ -119,7 +150,10 @@ class ConfigScreen(Screen):
                         yield Label("Increases rate limits for CVE lookups.", classes="config-help")
 
                         with Vertical(classes="config-row-v"):
-                            yield Label("MAC Lookup API Key", classes="config-label")
+                            yield Label(
+                                f"MAC Lookup API Key{self._get_override_label('mac_api_key')}",
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=settings.mac_api_key or "",
                                 placeholder="Enter MACLookup API Key",
@@ -131,7 +165,10 @@ class ConfigScreen(Screen):
                         )
 
                         with Vertical(classes="config-row-v"):
-                            yield Label("NVD API URL", classes="config-label")
+                            yield Label(
+                                f"NVD API URL{self._get_override_label('nvd_api_url')}",
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=settings.nvd_api_url,
                                 placeholder="https://services.nvd.nist.gov/...",
@@ -139,15 +176,21 @@ class ConfigScreen(Screen):
                             )
 
                         with Vertical(classes="config-row-v"):
-                            yield Label("EdgeWalker API URL", classes="config-label")
+                            yield Label(
+                                f"EdgeWalker API URL{self._get_override_label('api_url')}",
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=settings.api_url,
                                 placeholder="https://api.periphery.security/edgewalker/v1...",
                                 id="api_url",
                             )
 
-                        with Horizontal(classes="config-row"):
-                            yield Label("API Timeout (sec)", classes="config-label")
+                        with Vertical(classes="config-row-v"):
+                            yield Label(
+                                f"API Timeout (sec){self._get_override_label('api_timeout')}",
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.api_timeout), placeholder="10", id="api_timeout"
                             )
@@ -157,7 +200,10 @@ class ConfigScreen(Screen):
                         yield Label("SCAN TIMEOUTS", classes="config-section-header")
 
                         with Horizontal(classes="config-row"):
-                            yield Label("Nmap Timeout (sec)", classes="config-label")
+                            yield Label(
+                                f"Nmap Timeout (sec){self._get_override_label('nmap_timeout')}",
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.nmap_timeout),
                                 placeholder="900",
@@ -165,7 +211,14 @@ class ConfigScreen(Screen):
                             )
 
                         with Horizontal(classes="config-row"):
-                            yield Label("Nmap Full Timeout (sec)", classes="config-label")
+                            label_text = (
+                                "Nmap Full Timeout (sec)"
+                                f"{self._get_override_label('nmap_full_timeout')}"
+                            )
+                            yield Label(
+                                label_text,
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.nmap_full_timeout),
                                 placeholder="7200",
@@ -173,7 +226,14 @@ class ConfigScreen(Screen):
                             )
 
                         with Horizontal(classes="config-row"):
-                            yield Label("Ping Sweep Timeout (sec)", classes="config-label")
+                            label_text = (
+                                "Ping Sweep Timeout (sec)"
+                                f"{self._get_override_label('ping_sweep_timeout')}"
+                            )
+                            yield Label(
+                                label_text,
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.ping_sweep_timeout),
                                 placeholder="300",
@@ -181,13 +241,27 @@ class ConfigScreen(Screen):
                             )
 
                         with Horizontal(classes="config-row"):
-                            yield Label("Connection Timeout (sec)", classes="config-label")
+                            label_text = (
+                                "Connection Timeout (sec)"
+                                f"{self._get_override_label('conn_timeout')}"
+                            )
+                            yield Label(
+                                label_text,
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.conn_timeout), placeholder="5", id="conn_timeout"
                             )
 
                         with Horizontal(classes="config-row"):
-                            yield Label("NVD Rate Limit Delay (sec)", classes="config-label")
+                            label_text = (
+                                "NVD Rate Limit Delay (sec)"
+                                f"{self._get_override_label('nvd_rate_limit_delay')}"
+                            )
+                            yield Label(
+                                label_text,
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.nvd_rate_limit_delay),
                                 placeholder="6",
@@ -199,14 +273,24 @@ class ConfigScreen(Screen):
                         yield Label("PERFORMANCE", classes="config-section-header")
 
                         with Horizontal(classes="config-row"):
-                            yield Label("Scan Workers", classes="config-label")
+                            label_text = f"Scan Workers{self._get_override_label('scan_workers')}"
+                            yield Label(
+                                label_text,
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.scan_workers), placeholder="4", id="scan_workers"
                             )
                         yield Label("Number of parallel nmap processes.", classes="config-help")
 
                         with Horizontal(classes="config-row"):
-                            yield Label("Credential Workers", classes="config-label")
+                            label_text = (
+                                f"Credential Workers{self._get_override_label('cred_workers')}"
+                            )
+                            yield Label(
+                                label_text,
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.cred_workers), placeholder="8", id="cred_workers"
                             )
@@ -220,7 +304,14 @@ class ConfigScreen(Screen):
                         yield Label("RISK SCORING DEFAULTS", classes="config-section-header")
 
                         with Horizontal(classes="config-row"):
-                            yield Label("Port Severity Default", classes="config-label")
+                            label_text = (
+                                "Port Severity Default"
+                                f"{self._get_override_label('port_severity_default')}"
+                            )
+                            yield Label(
+                                label_text,
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.port_severity_default),
                                 placeholder="10",
@@ -228,7 +319,14 @@ class ConfigScreen(Screen):
                             )
 
                         with Horizontal(classes="config-row"):
-                            yield Label("Port Extra Penalty", classes="config-label")
+                            label_text = (
+                                "Port Extra Penalty"
+                                f"{self._get_override_label('port_extra_penalty')}"
+                            )
+                            yield Label(
+                                label_text,
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.port_extra_penalty),
                                 placeholder="3",
@@ -236,7 +334,14 @@ class ConfigScreen(Screen):
                             )
 
                         with Horizontal(classes="config-row"):
-                            yield Label("Cred Severity Default", classes="config-label")
+                            label_text = (
+                                "Cred Severity Default"
+                                f"{self._get_override_label('cred_severity_default')}"
+                            )
+                            yield Label(
+                                label_text,
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.cred_severity_default),
                                 placeholder="80",
@@ -244,7 +349,14 @@ class ConfigScreen(Screen):
                             )
 
                         with Horizontal(classes="config-row"):
-                            yield Label("Cred Extra Penalty", classes="config-label")
+                            label_text = (
+                                "Cred Extra Penalty"
+                                f"{self._get_override_label('cred_extra_penalty')}"
+                            )
+                            yield Label(
+                                label_text,
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.cred_extra_penalty),
                                 placeholder="5",
@@ -252,7 +364,14 @@ class ConfigScreen(Screen):
                             )
 
                         with Horizontal(classes="config-row"):
-                            yield Label("CVE Severity Default", classes="config-label")
+                            label_text = (
+                                "CVE Severity Default"
+                                f"{self._get_override_label('cve_severity_default')}"
+                            )
+                            yield Label(
+                                label_text,
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.cve_severity_default),
                                 placeholder="25",
@@ -260,7 +379,10 @@ class ConfigScreen(Screen):
                             )
 
                         with Horizontal(classes="config-row"):
-                            yield Label("CVE Extra Penalty", classes="config-label")
+                            yield Label(
+                                f"CVE Extra Penalty{self._get_override_label('cve_extra_penalty')}",
+                                classes="config-label",
+                            )
                             yield Input(
                                 value=str(settings.cve_extra_penalty),
                                 placeholder="5",
@@ -272,15 +394,24 @@ class ConfigScreen(Screen):
                         yield Label("PATHS", classes="config-section-header")
 
                         with Vertical(classes="config-row-v"):
-                            yield Label("Cache Directory", classes="config-label")
+                            yield Label(
+                                f"Cache Directory{self._get_override_label('cache_dir')}",
+                                classes="config-label",
+                            )
                             yield Input(value=str(settings.cache_dir), id="cache_dir")
 
                         with Vertical(classes="config-row-v"):
-                            yield Label("Output Directory", classes="config-label")
+                            yield Label(
+                                f"Output Directory{self._get_override_label('output_dir')}",
+                                classes="config-label",
+                            )
                             yield Input(value=str(settings.output_dir), id="output_dir")
 
                         with Vertical(classes="config-row-v"):
-                            yield Label("Credentials File", classes="config-label")
+                            yield Label(
+                                f"Credentials File{self._get_override_label('creds_file')}",
+                                classes="config-label",
+                            )
                             yield Input(value=str(settings.creds_file), id="creds_file")
 
         yield Footer()
@@ -303,8 +434,8 @@ class ConfigScreen(Screen):
                 if t["slug"] == current_theme:
                     theme_selector.highlighted = i
                     break
-        except Exception:
-            pass
+        except (AttributeError, KeyError, IndexError):
+            pass  # nosec: B110 - best effort theme selection highlight
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Switch the content area when a sidebar option is selected."""

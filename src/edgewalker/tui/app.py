@@ -199,6 +199,7 @@ class EdgeWalkerApp(App):
                     self.telemetry_status = "disabled"
                 self._check_nmap_permissions()
                 self._check_previous_results()
+                self._check_config_overrides()
 
             self.push_screen(HomeScreen())
             self.push_screen(TelemetryModal(), on_optin)
@@ -206,6 +207,28 @@ class EdgeWalkerApp(App):
             self.push_screen(HomeScreen())
             self._check_nmap_permissions()
             self._check_previous_results()
+            self._check_config_overrides()
+
+    def _check_config_overrides(self) -> bool:
+        """Check for configuration overrides and notify the user.
+
+        Returns:
+            True if overrides were detected, False otherwise.
+        """
+        # First Party
+        from edgewalker.core.config import get_active_overrides  # noqa: PLC0415
+
+        overrides = get_active_overrides()
+        if overrides:
+            sources = ", ".join(sorted(set(overrides.values())))
+            self.notify(
+                f"Configuration overrides active from {sources}. "
+                "Some config.yaml settings may be ignored.",
+                severity="warning",
+                timeout=15,
+            )
+            return True
+        return False
 
     def _check_nmap_permissions(self) -> None:
         """Check nmap permissions early and offer fix if on Linux."""

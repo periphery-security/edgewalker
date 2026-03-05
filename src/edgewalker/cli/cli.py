@@ -27,7 +27,12 @@ from edgewalker.cli.controller import ScanController
 from edgewalker.cli.guided import GuidedScanner
 from edgewalker.cli.menu import InteractiveMenu
 from edgewalker.cli.results import ResultManager
-from edgewalker.core.config import CONFIG_DIR, settings, update_setting
+from edgewalker.core.config import (
+    CONFIG_DIR,
+    get_active_overrides,
+    settings,
+    update_setting,
+)
 from edgewalker.core.logger_config import setup_logging
 from edgewalker.tui.app import EdgeWalkerApp
 from edgewalker.utils import (
@@ -77,13 +82,26 @@ def config_show() -> None:
         "device_id", settings.device_id, "Unique identifier for this installation (Read-only)"
     )
 
+    overrides = get_active_overrides()
+
     for name, field in settings.__class__.model_fields.items():
         if name in skip_fields or name == "device_id":
             continue
 
         value = getattr(settings, name)
         description = field.description or ""
-        table.add_row(name, str(value), description)
+
+        # Check if this specific field is overridden
+        env_key = f"EW_{name.upper()}"
+        alias = field.alias if field.alias else None
+        is_overridden = env_key in overrides or (alias and alias in overrides)
+
+        display_value = str(value)
+        if is_overridden:
+            source = overrides.get(env_key) or overrides.get(alias)
+            display_value = f"[yellow]{value}[/yellow] [dim](via {source})[/dim]"
+
+        table.add_row(name, display_value, description)
 
     console.print(
         Panel(
@@ -95,6 +113,11 @@ def config_show() -> None:
         )
     )
     console.print(f"\n[dim]Config file: {CONFIG_DIR / 'config.yaml'}[/dim]")
+    if overrides:
+        sources = ", ".join(sorted(set(overrides.values())))
+        console.print(
+            f"[yellow]Note: Some settings are currently overridden by {sources}.[/yellow]"
+        )
 
 
 @config_app.command("set")
@@ -129,6 +152,12 @@ def run_guided_scan(
     target: Optional[str] = typer.Option(
         None, "--target", "-t", help="Target IP address or range."
     ),
+    allow_override: bool = typer.Option(
+        False,
+        "--allow-override",
+        "-ao",
+        help="Allow scan to proceed with active configuration overrides.",
+    ),
 ) -> None:
     """Run a guided security scan.
 
@@ -136,6 +165,31 @@ def run_guided_scan(
     then generates a final security report.
     """
     print_logo()
+
+    # Check for overrides and require confirmation/flag
+    overrides = get_active_overrides()
+    if overrides and not allow_override:
+        sources = ", ".join(sorted(set(overrides.values())))
+        msg = (
+            f"[bold {theme.WARNING}]WARNING: Configuration overrides active "
+            f"from {sources}.[/bold {theme.WARNING}]"
+        )
+        console.print(msg)
+        console.print("[dim]Overridden settings:[/dim]")
+        for key, source in sorted(overrides.items()):
+            console.print(f"  [cyan]• {key}[/cyan] [dim](via {source})[/dim]")
+
+        console.print(
+            "\n[dim]These settings will take precedence over your config.yaml file.[/dim]\n"
+        )
+        confirm = typer.confirm("Do you want to proceed with the scan using these overrides?")
+        if not confirm:
+            console.print(
+                "\n[dim]Scan cancelled. Use [bold]--allow-override[/bold] or [bold]-ao[/bold] "
+                "to bypass this check in the future.[/dim]"
+            )
+            raise typer.Exit()
+
     ensure_telemetry_choice()
     controller = ScanController()
     guided = GuidedScanner(controller)
@@ -182,9 +236,10 @@ def version() -> None:
     pm_info = "unknown"
     if shutil.which("uv"):
         try:
+            # nosec: B607, B603 - uv is a known tool, and we're just getting its version
             uv_ver = subprocess.check_output(["uv", "--version"], text=True).strip().split()[1]
             pm_info = f"uv {uv_ver}"
-        except Exception:
+        except (subprocess.SubprocessError, IndexError, OSError):
             pm_info = "uv"
     elif shutil.which("pip"):
         pm_info = "pip"
@@ -247,8 +302,8 @@ def version() -> None:
                         dep_name = dep_name.split("[")[0].split(";")[0].strip()
                         if dep_name:
                             deps.append(dep_name)
-        except Exception:
-            pass
+        except (OSError, UnicodeDecodeError):
+            pass  # nosec: B110 - fallback to hardcoded list is intentional if parsing fails
 
     # Final fallback to hardcoded list if all else fails
     if not deps:

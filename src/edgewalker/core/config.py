@@ -263,11 +263,57 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
+def get_active_overrides() -> dict[str, str]:
+    """Identify settings currently overridden by environment variables or .env.
+
+    Returns:
+        A dictionary mapping the environment variable key to its source
+        ('environment variable' or '.env file').
+    """
+    # Skip overrides during tests to ensure consistent behavior
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return {}
+
+    overrides = {}
+
+    # Check .env file first (lower precedence than env vars)
+    env_file = Path(".env")
+    if env_file.exists():
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        key = line.split("=")[0].strip()
+                        if key.startswith("EW_"):
+                            overrides[key] = ".env file"
+        except (OSError, UnicodeDecodeError):
+            pass  # nosec: B110 - best effort loading of .env file
+
+    # Check environment variables (higher precedence)
+    for key in os.environ:
+        if key.startswith("EW_"):
+            overrides[key] = "environment variable"
+
+    return overrides
+
+
 def init_config() -> None:
     """Initialize the config file with default settings if it does not exist."""
     get_config_dir().mkdir(parents=True, exist_ok=True)
     settings.output_dir.mkdir(parents=True, exist_ok=True)
     config_file = settings.config_file
+
+    # Check for overrides and notify user
+    overrides = get_active_overrides()
+    if overrides:
+        sources = ", ".join(sorted(set(overrides.values())))
+        logger.warning(
+            f"Configuration overrides detected from {sources}. "
+            "These settings will take precedence over config.yaml."
+        )
+        for key, source in overrides.items():
+            logger.debug(f"Override active: {key} from {source}")
 
     if not config_file.exists():
         save_settings(settings)

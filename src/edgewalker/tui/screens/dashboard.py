@@ -20,7 +20,7 @@ from textual.widgets import Button, Footer, Header, RichLog, Static
 
 # First Party
 from edgewalker import theme
-from edgewalker.core.config import settings
+from edgewalker.core.config import get_active_overrides, settings
 from edgewalker.display import (
     build_credential_display,
     build_port_scan_display,
@@ -114,9 +114,31 @@ class DashboardScreen(Screen):
         if self._initial_report:
             self.action_show_report()
         elif self._auto_target and not self.app.is_scanning:
-            # Start guided flow from config
-            self._auto_step = 1
-            self._next_guided_step()
+            # Check for overrides before starting guided flow
+            overrides = get_active_overrides()
+            if overrides:
+                sources = ", ".join(sorted(set(overrides.values())))
+                keys = ", ".join(sorted(overrides.keys()))
+
+                def on_confirm(confirmed: bool) -> None:
+                    if confirmed:
+                        self._auto_step = 1
+                        self._next_guided_step()
+                    else:
+                        self._show_welcome()
+
+                self.app.push_screen(
+                    ConfirmModal(
+                        "CONFIGURATION OVERRIDES ACTIVE",
+                        f"Settings overridden by {sources}:\n{keys}\n\n"
+                        "Do you want to proceed with the scan using these overrides?",
+                    ),
+                    on_confirm,
+                )
+            else:
+                # Start guided flow from config
+                self._auto_step = 1
+                self._next_guided_step()
         elif not self.app.is_scanning and not self.app.scan_progress_log:
             self._show_welcome()
 
@@ -278,6 +300,30 @@ class DashboardScreen(Screen):
         if not getattr(self.app, "has_nmap_permissions", True):
             self.notify("Port scanning requires elevated privileges.", severity="error")
             return
+
+        # Check for overrides and require confirmation
+        overrides = get_active_overrides()
+        if overrides:
+            sources = ", ".join(sorted(set(overrides.values())))
+            keys = ", ".join(sorted(overrides.keys()))
+
+            def on_confirm(confirmed: bool) -> None:
+                if confirmed:
+                    self._start_quick_scan_flow()
+
+            self.app.push_screen(
+                ConfirmModal(
+                    "CONFIGURATION OVERRIDES ACTIVE",
+                    f"Settings overridden by {sources}:\n{keys}\n\n"
+                    "Do you want to proceed with the scan using these overrides?",
+                ),
+                on_confirm,
+            )
+        else:
+            self._start_quick_scan_flow()
+
+    def _start_quick_scan_flow(self) -> None:
+        """Internal flow to start a quick scan after checks."""
         self._full_scan = False
         self._run_creds = True
         self._run_cves = True
@@ -297,6 +343,30 @@ class DashboardScreen(Screen):
         if not getattr(self.app, "has_nmap_permissions", True):
             self.notify("Port scanning requires elevated privileges.", severity="error")
             return
+
+        # Check for overrides and require confirmation
+        overrides = get_active_overrides()
+        if overrides:
+            sources = ", ".join(sorted(set(overrides.values())))
+            keys = ", ".join(sorted(overrides.keys()))
+
+            def on_confirm(confirmed: bool) -> None:
+                if confirmed:
+                    self._start_full_scan_flow()
+
+            self.app.push_screen(
+                ConfirmModal(
+                    "CONFIGURATION OVERRIDES ACTIVE",
+                    f"Settings overridden by {sources}:\n{keys}\n\n"
+                    "Do you want to proceed with the scan using these overrides?",
+                ),
+                on_confirm,
+            )
+        else:
+            self._start_full_scan_flow()
+
+    def _start_full_scan_flow(self) -> None:
+        """Internal flow to start a full scan after checks."""
         self._full_scan = True
         self._run_creds = True
         self._run_cves = True
