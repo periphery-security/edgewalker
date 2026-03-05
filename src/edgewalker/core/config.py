@@ -446,8 +446,10 @@ def get_active_overrides() -> dict[str, str]:
 
 def init_config() -> None:
     """Initialize the config file with default settings if it does not exist."""
-    get_config_dir().mkdir(parents=True, exist_ok=True)
-    settings.output_dir.mkdir(parents=True, exist_ok=True)
+    get_config_dir().mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(get_config_dir(), 0o700)
+    settings.output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(settings.output_dir, 0o700)
     config_file = settings.config_file
 
     # Check for overrides and notify user
@@ -481,7 +483,8 @@ def init_config() -> None:
 
 def save_settings(settings_obj: Settings) -> None:
     """Save settings to the YAML configuration file."""
-    get_config_dir().mkdir(parents=True, exist_ok=True)
+    get_config_dir().mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(get_config_dir(), 0o700)
     config_file = settings_obj.config_file
 
     data = settings_obj.model_dump(mode="json")
@@ -491,7 +494,9 @@ def save_settings(settings_obj: Settings) -> None:
     data["output_dir"] = str(settings_obj.output_dir.absolute())
     data["theme"] = settings_obj.theme
 
-    with open(config_file, "w", encoding="utf-8") as f:
+    # Open with restricted permissions (0o600: read/write for owner only)
+    fd = os.open(config_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         yaml.dump(data, f, sort_keys=False)
 
 

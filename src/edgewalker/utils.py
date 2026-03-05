@@ -54,12 +54,15 @@ def get_output_dir() -> Path:
 
 
 def save_results(data: dict, filename: str) -> Path:
-    """Save results to JSON file."""
+    """Save results to JSON file with restricted permissions."""
     output_dir = get_output_dir()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(output_dir, 0o700)
     output_path = output_dir / filename
 
-    with open(output_path, "w") as f:
+    # Open with restricted permissions (0o600: read/write for owner only)
+    fd = os.open(output_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
         json.dump(data, f, indent=2, default=json_serial)
 
     return output_path
