@@ -113,8 +113,8 @@ class ThemeManager:
             try:
                 with open(default_path, "r", encoding="utf-8") as f:
                     base_data = yaml.safe_load(f) or {}
-            except Exception:
-                pass
+            except (OSError, yaml.YAMLError):
+                pass  # nosec: B110 - best effort loading of default theme
 
         if slug == "periphery" or slug == "default" or slug not in self._themes:
             return base_data

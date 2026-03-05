@@ -100,6 +100,7 @@ class Base(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc),
         description="Timestamp when the module was run.",
     )
+    is_demo: bool = Field(default=False, description="True if results are from demo mode.")
 
     @field_serializer("version")
     def serialize_version(self, version: semver.VersionInfo, _info: object) -> str:

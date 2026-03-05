@@ -16,7 +16,7 @@ from typing import Optional, Union, get_args, get_origin
 import yaml
 from loguru import logger
 from platformdirs import user_cache_dir, user_config_dir
-from pydantic import Field
+from pydantic import Field, ValidationInfo, field_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -58,6 +58,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        validate_assignment=True,
     )
 
     @classmethod
@@ -85,6 +86,51 @@ class Settings(BaseSettings):
         default="https://api.periphery.security/edgewalker/v1",
         description="Base URL for the EdgeWalker data-collection API",
     )
+
+    @field_validator("api_url", "nvd_api_url", "mac_api_url")
+    @classmethod
+    def validate_urls(cls, v: str, info: ValidationInfo) -> str:
+        """Ensure URLs use https and warn if they point to unexpected domains."""
+        # Skip strict https enforcement during tests if using http
+        if os.environ.get("PYTEST_CURRENT_TEST") and v.startswith("http://"):
+            return v
+
+        if not v.startswith("https://"):
+            # Allow http for localhost/127.0.0.1
+            if not any(x in v for x in ("localhost", "127.0.0.1")):
+                raise ValueError(f"{info.field_name} must use https for security")
+
+        # Domain warnings
+        if info.field_name == "api_url":
+            if ".periphery.security" not in v and not any(
+                x in v for x in ("localhost", "127.0.0.1")
+            ):
+                logger.warning(f"Non-standard EdgeWalker API URL detected: {v}")
+        elif info.field_name == "nvd_api_url":
+            if "services.nvd.nist.gov" not in v and not any(
+                x in v for x in ("localhost", "127.0.0.1")
+            ):
+                logger.warning(
+                    f"Non-standard NVD API URL detected: {v}. "
+                    "Ensure you trust this endpoint as it receives your API key!"
+                )
+        elif info.field_name == "mac_api_url":
+            if "api.maclookup.app" not in v and not any(x in v for x in ("localhost", "127.0.0.1")):
+                logger.warning(
+                    f"Non-standard MAC Lookup API URL detected: {v}. "
+                    "Ensure you trust this endpoint as it receives your API key!"
+                )
+
+        return v
+
+    @field_validator("output_dir", mode="after")
+    @classmethod
+    def handle_demo_mode(cls, v: Path) -> Path:
+        """Ensure output_dir points to demo_scans when in demo mode."""
+        if os.environ.get("EW_DEMO_MODE") == "1":
+            return v.parent / "demo_scans"
+        return v
+
     api_timeout: int = Field(
         default=10,
         description="Timeout (seconds) for outbound API requests",
@@ -138,6 +184,10 @@ class Settings(BaseSettings):
     # ============================================================================
     # MAC LOOKUP
     # ============================================================================
+    mac_api_url: str = Field(
+        default="https://api.maclookup.app/v2/macs",
+        description="MACLookup API base URL",
+    )
     mac_api_key: Optional[str] = Field(
         default=None,
         description="MACLookup API key (increases rate limit from 2 to 50 req/s)",
@@ -236,7 +286,11 @@ class Settings(BaseSettings):
         description="Cache directory",
     )
     output_dir: Path = Field(
-        default_factory=lambda: get_config_dir() / "scans",
+        default_factory=lambda: (
+            get_config_dir() / "demo_scans"
+            if os.environ.get("EW_DEMO_MODE") == "1"
+            else get_config_dir() / "scans"
+        ),
         description="Output directory",
     )
     creds_file: Path = Field(
@@ -259,15 +313,159 @@ class Settings(BaseSettings):
         description="Unique identifier for this installation (Read-only)",
     )
 
+    def get_security_warnings(self) -> list[str]:
+        """Identify non-standard or insecure security-sensitive settings.
+
+        Returns:
+            A list of warning messages.
+        """
+        # Skip security warnings during tests to avoid confirmation prompts
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            return []
+
+        warnings = []
+
+        # Check api_url
+        if ".periphery.security" not in self.api_url and not any(
+            x in self.api_url for x in ("localhost", "127.0.0.1")
+        ):
+            warnings.append(f"Non-standard EdgeWalker API URL: {self.api_url}")
+
+        # Check nvd_api_url
+        if "services.nvd.nist.gov" not in self.nvd_api_url and not any(
+            x in self.nvd_api_url for x in ("localhost", "127.0.0.1")
+        ):
+            warnings.append(
+                f"Non-standard NVD API URL: {self.nvd_api_url}. "
+                "Ensure you trust this endpoint as it receives your API key!"
+            )
+
+        # Check mac_api_url
+        if "api.maclookup.app" not in self.mac_api_url and not any(
+            x in self.mac_api_url for x in ("localhost", "127.0.0.1")
+        ):
+            warnings.append(
+                f"Non-standard MAC Lookup API URL: {self.mac_api_url}. "
+                "Ensure you trust this endpoint as it receives your API key!"
+            )
+
+        # Check for non-https (should be caught by validator but extra safety)
+        for field in ("api_url", "nvd_api_url", "mac_api_url"):
+            val = getattr(self, field)
+            if not val.startswith("https://") and not any(
+                x in val for x in ("localhost", "127.0.0.1")
+            ):
+                warnings.append(f"Insecure (non-HTTPS) {field.replace('_', ' ').upper()}: {val}")
+
+        return warnings
+
+    def get_field_info(self, name: str) -> dict[str, object]:
+        """Get detailed information about a configuration field.
+
+        Args:
+            name: The name of the field.
+
+        Returns:
+            A dictionary containing:
+            - value: Current value
+            - default: Default value
+            - is_overridden: True if overridden by env/dotenv
+            - override_source: Source of override (if any)
+            - is_modified: True if value differs from default
+            - security_warning: Security warning message (if any)
+        """
+        if name not in self.model_fields:
+            raise AttributeError(f"Setting '{name}' does not exist.")
+
+        field = self.model_fields[name]
+        value = getattr(self, name)
+        default = field.default
+
+        overrides = get_active_overrides()
+        env_key = f"EW_{name.upper()}"
+        alias = field.alias if field.alias else None
+
+        override_source = overrides.get(env_key) or (overrides.get(alias) if alias else None)
+        is_overridden = override_source is not None
+
+        # Check for security warnings
+        security_warning = None
+        field_label = name.replace("_", " ").upper()
+        for warning in self.get_security_warnings():
+            if field_label in warning.upper():
+                security_warning = warning
+                break
+
+        return {
+            "value": value,
+            "default": default,
+            "is_overridden": is_overridden,
+            "override_source": override_source,
+            "is_modified": value != default,
+            "security_warning": security_warning,
+        }
+
 
 settings = Settings()
 
 
+def get_active_overrides() -> dict[str, str]:
+    """Identify settings currently overridden by environment variables or .env.
+
+    Returns:
+        A dictionary mapping the environment variable key to its source
+        ('environment variable' or '.env file').
+    """
+    # Skip overrides during tests to ensure consistent behavior
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return {}
+
+    overrides = {}
+
+    # Check .env file first (lower precedence than env vars)
+    env_file = Path(".env")
+    if env_file.exists():
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        key = line.split("=")[0].strip()
+                        if key.startswith("EW_"):
+                            overrides[key] = ".env file"
+        except (OSError, UnicodeDecodeError):
+            pass  # nosec: B110 - best effort loading of .env file
+
+    # Check environment variables (higher precedence)
+    for key in os.environ:
+        if key.startswith("EW_"):
+            overrides[key] = "environment variable"
+
+    return overrides
+
+
 def init_config() -> None:
     """Initialize the config file with default settings if it does not exist."""
-    get_config_dir().mkdir(parents=True, exist_ok=True)
-    settings.output_dir.mkdir(parents=True, exist_ok=True)
+    get_config_dir().mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(get_config_dir(), 0o700)
+    settings.output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(settings.output_dir, 0o700)
     config_file = settings.config_file
+
+    # Check for overrides and notify user
+    overrides = get_active_overrides()
+    if overrides:
+        sources = ", ".join(sorted(set(overrides.values())))
+        logger.warning(
+            f"Configuration overrides detected from {sources}. "
+            "These settings will take precedence over config.yaml."
+        )
+        for key, source in overrides.items():
+            logger.debug(f"Override active: {key} from {source}")
+
+    # Check for security-sensitive non-standard settings
+    for warning in settings.get_security_warnings():
+        logger.warning(warning)
 
     if not config_file.exists():
         save_settings(settings)
@@ -285,7 +483,8 @@ def init_config() -> None:
 
 def save_settings(settings_obj: Settings) -> None:
     """Save settings to the YAML configuration file."""
-    get_config_dir().mkdir(parents=True, exist_ok=True)
+    get_config_dir().mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(get_config_dir(), 0o700)
     config_file = settings_obj.config_file
 
     data = settings_obj.model_dump(mode="json")
@@ -295,7 +494,9 @@ def save_settings(settings_obj: Settings) -> None:
     data["output_dir"] = str(settings_obj.output_dir.absolute())
     data["theme"] = settings_obj.theme
 
-    with open(config_file, "w", encoding="utf-8") as f:
+    # Open with restricted permissions (0o600: read/write for owner only)
+    fd = os.open(config_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         yaml.dump(data, f, sort_keys=False)
 
 

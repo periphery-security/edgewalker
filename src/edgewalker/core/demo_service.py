@@ -60,6 +60,7 @@ class DemoService:
             module_version="0.1.0",
             target=target,
             scan_type="demo",
+            is_demo=True,
             hosts=[
                 Host(
                     ip="192.168.1.1",
@@ -116,6 +117,7 @@ class DemoService:
             version=__version__,
             module="password_scan",
             module_version="0.1.0",
+            is_demo=True,
             results=[
                 PasswordScanResultModel(
                     ip="192.168.1.15",
@@ -149,6 +151,7 @@ class DemoService:
             version=__version__,
             module="cve_scan",
             module_version="0.1.0",
+            is_demo=True,
             results=[
                 CveScanResultModel(
                     ip="192.168.1.1",

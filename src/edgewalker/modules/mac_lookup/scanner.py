@@ -31,9 +31,6 @@ _lookup_cache: dict[str, tuple[str, str | None]] = {}
 # Rate limiting state
 _last_request_time: float = 0.0
 
-# MACLookup API base URL
-MAC_API_URL = "https://api.maclookup.app/v2/macs"
-
 
 def _rate_limit_delay() -> float:
     """Return the minimum delay between API requests in seconds."""
@@ -71,7 +68,7 @@ def _lookup_mac_api(mac: str) -> dict | None:
     try:
         with httpx.Client() as client:
             resp = client.get(
-                f"{MAC_API_URL}/{mac}",
+                f"{settings.mac_api_url}/{mac}",
                 params=params,
                 timeout=settings.api_timeout,
             )
@@ -85,7 +82,7 @@ def _lookup_mac_api(mac: str) -> dict | None:
         try:
             with httpx.Client() as client:
                 resp = client.get(
-                    f"{MAC_API_URL}/{mac}",
+                    f"{settings.mac_api_url}/{mac}",
                     params=params,
                     timeout=settings.api_timeout,
                 )

@@ -5,7 +5,10 @@ from __future__ import annotations
 # Standard Library
 import sys
 import threading
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
+
+if TYPE_CHECKING:
+    from loguru import Message
 
 # Third Party
 from textual.app import App
@@ -180,8 +183,35 @@ class EdgeWalkerApp(App):
 
     def on_mount(self) -> None:
         """Initialize the application on mount."""
+        # Third Party
+        from loguru import logger  # noqa: PLC0415
+
         # First Party
         from edgewalker.tui.screens.home import HomeScreen  # noqa: PLC0415
+
+        # Add a log sink to redirect warnings/errors to TUI notifications
+        def tui_log_sink(message: Message) -> None:
+            record = message.record
+            # Avoid notifying about the same thing multiple times if possible
+            # or if it's too verbose. For now, just show warnings and errors.
+            severity = record["level"].name.lower()
+            msg = record["message"]
+
+            def do_notify() -> None:
+                self.notify(msg, severity=severity, timeout=10 if severity == "warning" else 15)
+
+            self.call_from_thread(do_notify)
+
+        logger.add(
+            tui_log_sink,
+            level="WARNING",
+            filter=lambda r: r["level"].no >= 30,  # WARNING or higher
+            format="{message}",
+        )
+
+        # Trigger validation for current settings to show warnings if any
+        for warning in settings.get_security_warnings():
+            self.notify(warning, severity="warning", timeout=10)
 
         self.telemetry = TelemetryManager(settings)
 
@@ -199,6 +229,7 @@ class EdgeWalkerApp(App):
                     self.telemetry_status = "disabled"
                 self._check_nmap_permissions()
                 self._check_previous_results()
+                self._check_config_overrides()
 
             self.push_screen(HomeScreen())
             self.push_screen(TelemetryModal(), on_optin)
@@ -206,6 +237,28 @@ class EdgeWalkerApp(App):
             self.push_screen(HomeScreen())
             self._check_nmap_permissions()
             self._check_previous_results()
+            self._check_config_overrides()
+
+    def _check_config_overrides(self) -> bool:
+        """Check for configuration overrides and notify the user.
+
+        Returns:
+            True if overrides were detected, False otherwise.
+        """
+        # First Party
+        from edgewalker.core.config import get_active_overrides  # noqa: PLC0415
+
+        overrides = get_active_overrides()
+        if overrides:
+            sources = ", ".join(sorted(set(overrides.values())))
+            self.notify(
+                f"Configuration overrides active from {sources}. "
+                "Some config.yaml settings may be ignored.",
+                severity="warning",
+                timeout=15,
+            )
+            return True
+        return False
 
     def _check_nmap_permissions(self) -> None:
         """Check nmap permissions early and offer fix if on Linux."""

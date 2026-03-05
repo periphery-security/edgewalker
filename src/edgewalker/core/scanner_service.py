@@ -36,9 +36,7 @@ class ScannerService:
         self.progress_callback = progress_callback
         self.telemetry_callback = telemetry_callback
         self.telemetry = TelemetryManager(settings)
-        self.demo_mode = os.environ.get("EDGEWALKER_DEMO_MODE") == "1" or os.path.exists(
-            ".demo_mode"
-        )
+        self.demo_mode = os.environ.get("EW_DEMO_MODE") == "1"
         self.demo_service = DemoService(progress_callback) if self.demo_mode else None
 
     def _notify(self, event_type: str, message: str) -> None:

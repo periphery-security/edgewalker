@@ -150,6 +150,16 @@ async def test_ping_sweep_extended(mock_exec):
     assert "1.1.1.1" in res
 
 
+@pytest.mark.asyncio
+async def test_ping_sweep_invalid_target():
+    """Verify that ping_sweep raises ValueError for invalid targets."""
+    with pytest.raises(ValueError, match="Invalid target"):
+        await scanner.ping_sweep("-iL /etc/passwd")
+
+    with pytest.raises(ValueError, match="Target cannot be empty"):
+        await scanner.ping_sweep(" ")
+
+
 def test_validate_target():
     assert scanner.validate_target("1.1.1.1") is None
     assert scanner.validate_target("1.1.1.0/24") is None

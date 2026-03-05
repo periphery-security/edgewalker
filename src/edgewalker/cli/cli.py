@@ -27,7 +27,12 @@ from edgewalker.cli.controller import ScanController
 from edgewalker.cli.guided import GuidedScanner
 from edgewalker.cli.menu import InteractiveMenu
 from edgewalker.cli.results import ResultManager
-from edgewalker.core.config import CONFIG_DIR, settings, update_setting
+from edgewalker.core.config import (
+    CONFIG_DIR,
+    get_active_overrides,
+    settings,
+    update_setting,
+)
 from edgewalker.core.logger_config import setup_logging
 from edgewalker.tui.app import EdgeWalkerApp
 from edgewalker.utils import (
@@ -77,13 +82,27 @@ def config_show() -> None:
         "device_id", settings.device_id, "Unique identifier for this installation (Read-only)"
     )
 
-    for name, field in settings.__class__.model_fields.items():
+    overrides = get_active_overrides()
+
+    for name in settings.model_fields:
         if name in skip_fields or name == "device_id":
             continue
 
-        value = getattr(settings, name)
-        description = field.description or ""
-        table.add_row(name, str(value), description)
+        info = settings.get_field_info(name)
+        value = info["value"]
+        description = settings.model_fields[name].description or ""
+
+        display_value = str(value)
+        if info["is_overridden"]:
+            display_value = f"[yellow]{value}[/yellow] [dim](via {info['override_source']})[/dim]"
+        elif info["is_modified"]:
+            display_value = f"[yellow]{value}[/yellow] [dim](modified in config.yaml)[/dim]"
+
+        display_name = name
+        if info["security_warning"]:
+            display_name = f"[bold yellow]⚠[/bold yellow] {name}"
+
+        table.add_row(display_name, display_value, description)
 
     console.print(
         Panel(
@@ -95,6 +114,20 @@ def config_show() -> None:
         )
     )
     console.print(f"\n[dim]Config file: {CONFIG_DIR / 'config.yaml'}[/dim]")
+    if overrides:
+        sources = ", ".join(sorted(set(overrides.values())))
+        console.print(
+            f"[yellow]Note: Some settings are currently overridden by {sources}.[/yellow]"
+        )
+
+    # Add security warnings
+    security_warnings = settings.get_security_warnings()
+    if security_warnings:
+        console.print(
+            f"\n[bold {theme.RISK_CRITICAL}]SECURITY WARNINGS:[/bold {theme.RISK_CRITICAL}]"
+        )
+        for warning in security_warnings:
+            console.print(f"  [bold yellow]⚠[/bold yellow] {warning}")
 
 
 @config_app.command("set")
@@ -129,6 +162,12 @@ def run_guided_scan(
     target: Optional[str] = typer.Option(
         None, "--target", "-t", help="Target IP address or range."
     ),
+    allow_override: bool = typer.Option(
+        False,
+        "--allow-override",
+        "-ao",
+        help="Allow scan to proceed with active configuration overrides.",
+    ),
 ) -> None:
     """Run a guided security scan.
 
@@ -136,6 +175,45 @@ def run_guided_scan(
     then generates a final security report.
     """
     print_logo()
+
+    # Check for security warnings and overrides
+    security_warnings = settings.get_security_warnings()
+    overrides = get_active_overrides()
+
+    if (security_warnings or overrides) and not allow_override:
+        if security_warnings:
+            console.print(
+                f"\n[bold {theme.RISK_CRITICAL}]SECURITY WARNING: "
+                f"Non-standard or insecure API endpoints detected![/bold {theme.RISK_CRITICAL}]"
+            )
+            for warning in security_warnings:
+                console.print(f"  [bold yellow]⚠[/bold yellow] {warning}")
+            console.print(
+                "\n[dim]Ensure you trust these endpoints as they may receive "
+                "sensitive data like API keys.[/dim]"
+            )
+
+        if overrides:
+            sources = ", ".join(sorted(set(overrides.values())))
+            console.print(
+                f"\n[bold {theme.WARNING}]CONFIGURATION OVERRIDES ACTIVE "
+                f"from {sources}[/bold {theme.WARNING}]"
+            )
+            for key, source in sorted(overrides.items()):
+                console.print(f"  [cyan]• {key}[/cyan] [dim](via {source})[/dim]")
+            console.print(
+                "\n[dim]These settings will take precedence over your config.yaml file.[/dim]"
+            )
+
+        console.print("")
+        confirm = typer.confirm("Do you want to proceed with the scan using these settings?")
+        if not confirm:
+            console.print(
+                "\n[dim]Scan cancelled. Use [bold]--allow-override[/bold] or "
+                "[bold]-ao[/bold] to bypass this check.[/dim]"
+            )
+            raise typer.Exit()
+
     ensure_telemetry_choice()
     controller = ScanController()
     guided = GuidedScanner(controller)
@@ -182,9 +260,10 @@ def version() -> None:
     pm_info = "unknown"
     if shutil.which("uv"):
         try:
+            # nosec: B607, B603 - uv is a known tool, and we're just getting its version
             uv_ver = subprocess.check_output(["uv", "--version"], text=True).strip().split()[1]
             pm_info = f"uv {uv_ver}"
-        except Exception:
+        except (subprocess.SubprocessError, IndexError, OSError):
             pm_info = "uv"
     elif shutil.which("pip"):
         pm_info = "pip"
@@ -247,8 +326,8 @@ def version() -> None:
                         dep_name = dep_name.split("[")[0].split(";")[0].strip()
                         if dep_name:
                             deps.append(dep_name)
-        except Exception:
-            pass
+        except (OSError, UnicodeDecodeError):
+            pass  # nosec: B110 - fallback to hardcoded list is intentional if parsing fails
 
     # Final fallback to hardcoded list if all else fails
     if not deps:

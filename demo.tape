@@ -14,10 +14,10 @@ Set Theme "Catppuccin Mocha"
 # Start EdgeWalker
 # Note: Run 'sudo -v' in your terminal before running 'vhs' to cache credentials.
 Hide
-Type "touch .demo_mode"
+Type "export EW_DEMO_MODE=1"
 Enter
 Show
-Type "sudo uv run python -m edgewalker"
+Type "sudo -E uv run python -m edgewalker"
 Enter
 
 # Step 0: Handle Telemetry Opt-in

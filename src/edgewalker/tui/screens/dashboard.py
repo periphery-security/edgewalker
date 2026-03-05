@@ -20,7 +20,7 @@ from textual.widgets import Button, Footer, Header, RichLog, Static
 
 # First Party
 from edgewalker import theme
-from edgewalker.core.config import settings
+from edgewalker.core.config import get_active_overrides, settings
 from edgewalker.display import (
     build_credential_display,
     build_port_scan_display,
@@ -114,9 +114,12 @@ class DashboardScreen(Screen):
         if self._initial_report:
             self.action_show_report()
         elif self._auto_target and not self.app.is_scanning:
-            # Start guided flow from config
-            self._auto_step = 1
-            self._next_guided_step()
+            # Check for security warnings and overrides first
+            def proceed_with_scan() -> None:
+                self._auto_step = 1
+                self._next_guided_step()
+
+            self._check_security_warnings(proceed_with_scan)
         elif not self.app.is_scanning and not self.app.scan_progress_log:
             self._show_welcome()
 
@@ -271,6 +274,42 @@ class DashboardScreen(Screen):
 
     # --- Actions ---
 
+    def _check_security_warnings(self, on_confirm: Callable[[], None]) -> None:
+        """Check for security warnings and overrides, requiring confirmation.
+
+        Args:
+            on_confirm: Callback to execute if the user confirms.
+        """
+        warnings = settings.get_security_warnings()
+        overrides = get_active_overrides()
+
+        if warnings or overrides:
+            msg_parts = []
+            if warnings:
+                msg_parts.append("[bold red]SECURITY WARNINGS:[/bold red]")
+                for w in warnings:
+                    msg_parts.append(f"• {w}")
+                msg_parts.append("")
+
+            if overrides:
+                sources = ", ".join(sorted(set(overrides.values())))
+                msg_parts.append(f"[bold yellow]OVERRIDES ACTIVE (via {sources}):[/bold yellow]")
+                for key in sorted(overrides.keys()):
+                    msg_parts.append(f"• {key}")
+                msg_parts.append("")
+
+            msg_parts.append("Do you want to proceed with the scan using these settings?")
+
+            self.app.push_screen(
+                ConfirmModal(
+                    "SECURITY & CONFIGURATION CHECK",
+                    "\n".join(msg_parts),
+                ),
+                lambda confirmed: on_confirm() if confirmed else None,
+            )
+        else:
+            on_confirm()
+
     def action_quick_scan(self) -> None:
         """Start a guided quick scan."""
         if self.app.is_scanning:
@@ -278,6 +317,12 @@ class DashboardScreen(Screen):
         if not getattr(self.app, "has_nmap_permissions", True):
             self.notify("Port scanning requires elevated privileges.", severity="error")
             return
+
+        # Check security warnings and overrides first
+        self._check_security_warnings(self._start_quick_scan_flow)
+
+    def _start_quick_scan_flow(self) -> None:
+        """Internal flow to start a quick scan after checks."""
         self._full_scan = False
         self._run_creds = True
         self._run_cves = True
@@ -297,6 +342,12 @@ class DashboardScreen(Screen):
         if not getattr(self.app, "has_nmap_permissions", True):
             self.notify("Port scanning requires elevated privileges.", severity="error")
             return
+
+        # Check security warnings and overrides first
+        self._check_security_warnings(self._start_full_scan_flow)
+
+    def _start_full_scan_flow(self) -> None:
+        """Internal flow to start a full scan after checks."""
         self._full_scan = True
         self._run_creds = True
         self._run_cves = True

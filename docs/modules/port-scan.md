@@ -43,7 +43,7 @@ Checks all 65,535 ports per host in three phases:
 
 ## Parallelisation
 
-Hosts are split into batches across multiple `nmap` processes. Configurable via `EW_SCAN_WORKERS` (default: 4).
+EdgeWalker splits hosts into batches across multiple `nmap` processes. Configure this via `EW_SCAN_WORKERS` (default: 4).
 
 ## Public API
 
@@ -68,6 +68,7 @@ target = get_default_target()
   "success": true,
   "scan_type": "quick",
   "target": "192.168.1.0/24",
+  "is_demo": false,
   "hosts": [
     {
       "ip": "192.168.1.1",
@@ -89,7 +90,13 @@ target = get_default_target()
 }
 ```
 
+## Security & Permissions
+
+- **File Permissions:** EdgeWalker saves scan results with `0o600` permissions (read/write for owner only).
+- **Directory Permissions:** EdgeWalker creates the output directory with `0o700` permissions.
+- **Demo Mode:** When setting `EW_DEMO_MODE=1`, EdgeWalker saves results to a separate `demo_scans` directory and sets the `is_demo` field to `true`.
+
 ## Requirements
 
-- `nmap` must be installed and on PATH
-- Root/sudo privileges required for SYN scanning
+- `nmap` must exist on the system PATH
+- SYN scanning requires root/sudo privileges
