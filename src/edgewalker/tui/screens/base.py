@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+# Standard Library
+import os
+
 # Third Party
 from textual.app import ComposeResult
 from textual.screen import Screen
@@ -16,7 +19,12 @@ class BaseScreen(Screen):
 
     def compose(self) -> ComposeResult:
         """Compose the screen layout with header and footer."""
-        yield Static("EDGEWALKER", id="header-title")
+        is_demo = os.environ.get("EW_DEMO_MODE") == "1"
+        header_text = "EDGEWALKER"
+        if is_demo:
+            header_text += " [bold red]⚠ DEMO MODE ⚠[/bold red]"
+
+        yield Static(header_text, id="header-title")
         yield from self.compose_content()
         yield Static(self.get_footer_text(), id="app-footer")
 

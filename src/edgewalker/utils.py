@@ -6,6 +6,7 @@ Console helpers, file I/O, and shared state used across the application.
 # Standard Library
 import ipaddress
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -44,10 +45,19 @@ def json_serial(obj: object) -> str:
     raise TypeError(f"Type {type(obj)} not serializable")
 
 
+def get_output_dir() -> Path:
+    """Return the active output directory, accounting for demo mode."""
+    output_dir = settings.output_dir
+    if os.environ.get("EW_DEMO_MODE") == "1":
+        return output_dir.parent / "demo_scans"
+    return output_dir
+
+
 def save_results(data: dict, filename: str) -> Path:
     """Save results to JSON file."""
-    settings.output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = settings.output_dir / filename
+    output_dir = get_output_dir()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / filename
 
     with open(output_path, "w") as f:
         json.dump(data, f, indent=2, default=json_serial)
@@ -82,12 +92,13 @@ def get_device_id(macs: str | list[str] | None = None) -> str:
 
 def has_port_scan() -> bool:
     """Check if port scan results exist."""
-    return (settings.output_dir / "port_scan.json").exists()
+    return (get_output_dir() / "port_scan.json").exists()
 
 
 def has_any_results() -> bool:
     """Check if any results exist."""
-    return settings.output_dir.exists() and any(settings.output_dir.glob("*.json"))
+    output_dir = get_output_dir()
+    return output_dir.exists() and any(output_dir.glob("*.json"))
 
 
 def get_scan_status() -> dict:
@@ -102,7 +113,8 @@ def get_scan_status() -> dict:
         "cves_found": 0,
     }
 
-    port_file = settings.output_dir / "port_scan.json"
+    output_dir = get_output_dir()
+    port_file = output_dir / "port_scan.json"
     if port_file.exists():
         status["port_scan"] = True
         with open(port_file) as f:
@@ -110,14 +122,14 @@ def get_scan_status() -> dict:
         status["port_scan_type"] = data.get("scan_type", "quick")
         status["devices_found"] = len([h for h in data.get("hosts", []) if h.get("state") == "up"])
 
-    pwd_file = settings.output_dir / "password_scan.json"
+    pwd_file = output_dir / "password_scan.json"
     if pwd_file.exists():
         status["password_scan"] = True
         with open(pwd_file) as f:
             data = json.load(f)
         status["vulnerable_devices"] = data.get("summary", {}).get("vulnerable_hosts", 0)
 
-    cve_file = settings.output_dir / "cve_scan.json"
+    cve_file = output_dir / "cve_scan.json"
     if cve_file.exists():
         status["cve_scan"] = True
         with open(cve_file) as f:
@@ -143,6 +155,21 @@ def print_logo() -> None:
 
     # Check for configuration overrides and notify user prominently
     overrides = get_active_overrides()
+    is_demo = os.environ.get("EW_DEMO_MODE") == "1"
+
+    if is_demo:
+        console.print(
+            Panel(
+                f"[bold {theme.RISK_CRITICAL}]⚠ DEMO MODE ACTIVE ⚠[/bold {theme.RISK_CRITICAL}]\n"
+                "[dim]EdgeWalker is running with mock data. No real scanning is being performed.\n"
+                "Results are simulated and saved to a separate demo directory.[/dim]",
+                border_style=theme.RISK_CRITICAL,
+                box=theme.BOX_STYLE,
+                width=theme.get_ui_width(),
+            )
+        )
+        console.print()
+
     if overrides:
         sources = ", ".join(sorted(set(overrides.values())))
         keys = ", ".join(sorted(overrides.keys()))

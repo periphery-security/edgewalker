@@ -123,6 +123,14 @@ class Settings(BaseSettings):
 
         return v
 
+    @field_validator("output_dir", mode="after")
+    @classmethod
+    def handle_demo_mode(cls, v: Path) -> Path:
+        """Ensure output_dir points to demo_scans when in demo mode."""
+        if os.environ.get("EW_DEMO_MODE") == "1":
+            return v.parent / "demo_scans"
+        return v
+
     api_timeout: int = Field(
         default=10,
         description="Timeout (seconds) for outbound API requests",
@@ -278,7 +286,11 @@ class Settings(BaseSettings):
         description="Cache directory",
     )
     output_dir: Path = Field(
-        default_factory=lambda: get_config_dir() / "scans",
+        default_factory=lambda: (
+            get_config_dir() / "demo_scans"
+            if os.environ.get("EW_DEMO_MODE") == "1"
+            else get_config_dir() / "scans"
+        ),
         description="Output directory",
     )
     creds_file: Path = Field(
