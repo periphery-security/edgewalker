@@ -114,9 +114,12 @@ echo
 pipx uninstall git++https://github.com/periphery-security/edgewalker.git &>/dev/null || true
 if [ -n "$SUDO_USER" ]; then
     # Running as root — also clean the invoking user's pipx install
-    USER_HOME=$(eval echo "~$SUDO_USER")
-    sudo rm -rf "$USER_HOME/.local/pipx/venvs/edgewalker" 2>/dev/null || true
-    sudo rm -f  "$USER_HOME/.local/bin/edgewalker" 2>/dev/null || true
+    # Use python3 to safely resolve the home directory (avoids eval injection)
+    USER_HOME=$(python3 -c "import os, pwd; print(pwd.getpwnam(os.environ.get('SUDO_USER')).pw_dir)" 2>/dev/null || true)
+    if [ -n "$USER_HOME" ] && [ "$USER_HOME" != "/" ]; then
+        sudo rm -rf "$USER_HOME/.local/pipx/venvs/edgewalker" 2>/dev/null || true
+        sudo rm -f  "$USER_HOME/.local/bin/edgewalker" 2>/dev/null || true
+    fi
 fi
 PIPX_VENV="$HOME/.local/pipx/venvs/edgewalker"
 if [ -d "$PIPX_VENV" ]; then
