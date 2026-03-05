@@ -114,31 +114,12 @@ class DashboardScreen(Screen):
         if self._initial_report:
             self.action_show_report()
         elif self._auto_target and not self.app.is_scanning:
-            # Check for overrides before starting guided flow
-            overrides = get_active_overrides()
-            if overrides:
-                sources = ", ".join(sorted(set(overrides.values())))
-                keys = ", ".join(sorted(overrides.keys()))
-
-                def on_confirm(confirmed: bool) -> None:
-                    if confirmed:
-                        self._auto_step = 1
-                        self._next_guided_step()
-                    else:
-                        self._show_welcome()
-
-                self.app.push_screen(
-                    ConfirmModal(
-                        "CONFIGURATION OVERRIDES ACTIVE",
-                        f"Settings overridden by {sources}:\n{keys}\n\n"
-                        "Do you want to proceed with the scan using these overrides?",
-                    ),
-                    on_confirm,
-                )
-            else:
-                # Start guided flow from config
+            # Check for security warnings and overrides first
+            def proceed_with_scan() -> None:
                 self._auto_step = 1
                 self._next_guided_step()
+
+            self._check_security_warnings(proceed_with_scan)
         elif not self.app.is_scanning and not self.app.scan_progress_log:
             self._show_welcome()
 
@@ -293,6 +274,42 @@ class DashboardScreen(Screen):
 
     # --- Actions ---
 
+    def _check_security_warnings(self, on_confirm: Callable[[], None]) -> None:
+        """Check for security warnings and overrides, requiring confirmation.
+
+        Args:
+            on_confirm: Callback to execute if the user confirms.
+        """
+        warnings = settings.get_security_warnings()
+        overrides = get_active_overrides()
+
+        if warnings or overrides:
+            msg_parts = []
+            if warnings:
+                msg_parts.append("[bold red]SECURITY WARNINGS:[/bold red]")
+                for w in warnings:
+                    msg_parts.append(f"• {w}")
+                msg_parts.append("")
+
+            if overrides:
+                sources = ", ".join(sorted(set(overrides.values())))
+                msg_parts.append(f"[bold yellow]OVERRIDES ACTIVE (via {sources}):[/bold yellow]")
+                for key in sorted(overrides.keys()):
+                    msg_parts.append(f"• {key}")
+                msg_parts.append("")
+
+            msg_parts.append("Do you want to proceed with the scan using these settings?")
+
+            self.app.push_screen(
+                ConfirmModal(
+                    "SECURITY & CONFIGURATION CHECK",
+                    "\n".join(msg_parts),
+                ),
+                lambda confirmed: on_confirm() if confirmed else None,
+            )
+        else:
+            on_confirm()
+
     def action_quick_scan(self) -> None:
         """Start a guided quick scan."""
         if self.app.is_scanning:
@@ -301,26 +318,8 @@ class DashboardScreen(Screen):
             self.notify("Port scanning requires elevated privileges.", severity="error")
             return
 
-        # Check for overrides and require confirmation
-        overrides = get_active_overrides()
-        if overrides:
-            sources = ", ".join(sorted(set(overrides.values())))
-            keys = ", ".join(sorted(overrides.keys()))
-
-            def on_confirm(confirmed: bool) -> None:
-                if confirmed:
-                    self._start_quick_scan_flow()
-
-            self.app.push_screen(
-                ConfirmModal(
-                    "CONFIGURATION OVERRIDES ACTIVE",
-                    f"Settings overridden by {sources}:\n{keys}\n\n"
-                    "Do you want to proceed with the scan using these overrides?",
-                ),
-                on_confirm,
-            )
-        else:
-            self._start_quick_scan_flow()
+        # Check security warnings and overrides first
+        self._check_security_warnings(self._start_quick_scan_flow)
 
     def _start_quick_scan_flow(self) -> None:
         """Internal flow to start a quick scan after checks."""
@@ -344,26 +343,8 @@ class DashboardScreen(Screen):
             self.notify("Port scanning requires elevated privileges.", severity="error")
             return
 
-        # Check for overrides and require confirmation
-        overrides = get_active_overrides()
-        if overrides:
-            sources = ", ".join(sorted(set(overrides.values())))
-            keys = ", ".join(sorted(overrides.keys()))
-
-            def on_confirm(confirmed: bool) -> None:
-                if confirmed:
-                    self._start_full_scan_flow()
-
-            self.app.push_screen(
-                ConfirmModal(
-                    "CONFIGURATION OVERRIDES ACTIVE",
-                    f"Settings overridden by {sources}:\n{keys}\n\n"
-                    "Do you want to proceed with the scan using these overrides?",
-                ),
-                on_confirm,
-            )
-        else:
-            self._start_full_scan_flow()
+        # Check security warnings and overrides first
+        self._check_security_warnings(self._start_full_scan_flow)
 
     def _start_full_scan_flow(self) -> None:
         """Internal flow to start a full scan after checks."""

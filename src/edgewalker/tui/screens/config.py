@@ -55,6 +55,23 @@ class ConfigScreen(Screen):
             return f" [dim](overridden by {overrides[alias]})[/dim]"
         return ""
 
+    def _get_security_warning_label(self, field_name: str) -> str:
+        """Return a security warning label if the field has a non-standard value.
+
+        Args:
+            field_name: The name of the configuration field.
+
+        Returns:
+            A formatted string with a warning icon, or an empty string.
+        """
+        warnings = settings.get_security_warnings()
+        field_label = field_name.replace("_", " ").upper()
+
+        for warning in warnings:
+            if field_label in warning.upper():
+                return " [bold yellow]⚠[/bold yellow]"
+        return ""
+
     def compose(self) -> ComposeResult:
         """Compose the configuration screen layout."""
         yield Header()
@@ -166,7 +183,20 @@ class ConfigScreen(Screen):
 
                         with Vertical(classes="config-row-v"):
                             yield Label(
-                                f"NVD API URL{self._get_override_label('nvd_api_url')}",
+                                f"MAC Lookup API URL{self._get_override_label('mac_api_url')}"
+                                f"{self._get_security_warning_label('mac_api_url')}",
+                                classes="config-label",
+                            )
+                            yield Input(
+                                value=settings.mac_api_url,
+                                placeholder="https://api.maclookup.app/v2/macs",
+                                id="mac_api_url",
+                            )
+
+                        with Vertical(classes="config-row-v"):
+                            yield Label(
+                                f"NVD API URL{self._get_override_label('nvd_api_url')}"
+                                f"{self._get_security_warning_label('nvd_api_url')}",
                                 classes="config-label",
                             )
                             yield Input(
@@ -177,7 +207,8 @@ class ConfigScreen(Screen):
 
                         with Vertical(classes="config-row-v"):
                             yield Label(
-                                f"EdgeWalker API URL{self._get_override_label('api_url')}",
+                                f"EdgeWalker API URL{self._get_override_label('api_url')}"
+                                f"{self._get_security_warning_label('api_url')}",
                                 classes="config-label",
                             )
                             yield Input(
@@ -451,6 +482,7 @@ class ConfigScreen(Screen):
                 "nvd_api_key",
                 "mac_api_key",
                 "nvd_api_url",
+                "mac_api_url",
                 "api_url",
                 "api_timeout",
                 "nmap_timeout",

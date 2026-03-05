@@ -84,24 +84,25 @@ def config_show() -> None:
 
     overrides = get_active_overrides()
 
-    for name, field in settings.__class__.model_fields.items():
+    for name in settings.model_fields:
         if name in skip_fields or name == "device_id":
             continue
 
-        value = getattr(settings, name)
-        description = field.description or ""
-
-        # Check if this specific field is overridden
-        env_key = f"EW_{name.upper()}"
-        alias = field.alias if field.alias else None
-        is_overridden = env_key in overrides or (alias and alias in overrides)
+        info = settings.get_field_info(name)
+        value = info["value"]
+        description = settings.model_fields[name].description or ""
 
         display_value = str(value)
-        if is_overridden:
-            source = overrides.get(env_key) or overrides.get(alias)
-            display_value = f"[yellow]{value}[/yellow] [dim](via {source})[/dim]"
+        if info["is_overridden"]:
+            display_value = f"[yellow]{value}[/yellow] [dim](via {info['override_source']})[/dim]"
+        elif info["is_modified"]:
+            display_value = f"[yellow]{value}[/yellow] [dim](modified in config.yaml)[/dim]"
 
-        table.add_row(name, display_value, description)
+        display_name = name
+        if info["security_warning"]:
+            display_name = f"[bold yellow]⚠[/bold yellow] {name}"
+
+        table.add_row(display_name, display_value, description)
 
     console.print(
         Panel(
@@ -118,6 +119,15 @@ def config_show() -> None:
         console.print(
             f"[yellow]Note: Some settings are currently overridden by {sources}.[/yellow]"
         )
+
+    # Add security warnings
+    security_warnings = settings.get_security_warnings()
+    if security_warnings:
+        console.print(
+            f"\n[bold {theme.RISK_CRITICAL}]SECURITY WARNINGS:[/bold {theme.RISK_CRITICAL}]"
+        )
+        for warning in security_warnings:
+            console.print(f"  [bold yellow]⚠[/bold yellow] {warning}")
 
 
 @config_app.command("set")
@@ -166,27 +176,41 @@ def run_guided_scan(
     """
     print_logo()
 
-    # Check for overrides and require confirmation/flag
+    # Check for security warnings and overrides
+    security_warnings = settings.get_security_warnings()
     overrides = get_active_overrides()
-    if overrides and not allow_override:
-        sources = ", ".join(sorted(set(overrides.values())))
-        msg = (
-            f"[bold {theme.WARNING}]WARNING: Configuration overrides active "
-            f"from {sources}.[/bold {theme.WARNING}]"
-        )
-        console.print(msg)
-        console.print("[dim]Overridden settings:[/dim]")
-        for key, source in sorted(overrides.items()):
-            console.print(f"  [cyan]• {key}[/cyan] [dim](via {source})[/dim]")
 
-        console.print(
-            "\n[dim]These settings will take precedence over your config.yaml file.[/dim]\n"
-        )
-        confirm = typer.confirm("Do you want to proceed with the scan using these overrides?")
+    if (security_warnings or overrides) and not allow_override:
+        if security_warnings:
+            console.print(
+                f"\n[bold {theme.RISK_CRITICAL}]SECURITY WARNING: "
+                f"Non-standard or insecure API endpoints detected![/bold {theme.RISK_CRITICAL}]"
+            )
+            for warning in security_warnings:
+                console.print(f"  [bold yellow]⚠[/bold yellow] {warning}")
+            console.print(
+                "\n[dim]Ensure you trust these endpoints as they may receive "
+                "sensitive data like API keys.[/dim]"
+            )
+
+        if overrides:
+            sources = ", ".join(sorted(set(overrides.values())))
+            console.print(
+                f"\n[bold {theme.WARNING}]CONFIGURATION OVERRIDES ACTIVE "
+                f"from {sources}[/bold {theme.WARNING}]"
+            )
+            for key, source in sorted(overrides.items()):
+                console.print(f"  [cyan]• {key}[/cyan] [dim](via {source})[/dim]")
+            console.print(
+                "\n[dim]These settings will take precedence over your config.yaml file.[/dim]"
+            )
+
+        console.print("")
+        confirm = typer.confirm("Do you want to proceed with the scan using these settings?")
         if not confirm:
             console.print(
-                "\n[dim]Scan cancelled. Use [bold]--allow-override[/bold] or [bold]-ao[/bold] "
-                "to bypass this check in the future.[/dim]"
+                "\n[dim]Scan cancelled. Use [bold]--allow-override[/bold] or "
+                "[bold]-ao[/bold] to bypass this check.[/dim]"
             )
             raise typer.Exit()
 
