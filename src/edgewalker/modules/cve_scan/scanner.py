@@ -53,7 +53,7 @@ async def search_cves_async(
             response = await client.get(
                 settings.nvd_api_url, params=params, headers=headers, timeout=30
             )
-            if response.status_code == 403:
+            if response.status_code == 429:
                 # Rate limit hit, wait and retry once
                 await asyncio.sleep(settings.nvd_rate_limit_delay * 2)
                 response = await client.get(
@@ -257,41 +257,6 @@ class CveScanner(ScanModule):
         if rich_progress:
             progress, task_id = rich_progress
             progress.update(task_id, advance=1)
-
-        return CveScanResultModel(
-            ip=svc["ip"],
-            port=svc["port"],
-            service=svc["service"],
-            product=svc["product"],
-            version=svc["version"],
-            cves=cves,
-        )
-        """Scan a single service for CVEs asynchronously."""
-        if self.progress_callback:
-            self.progress_callback(
-                "cve_check",
-                f"Checking {svc['product']} {svc['version']} on {svc['ip']}:{svc['port']}",
-            )
-
-        cve_dicts = await search_cves_async(
-            client, svc["product"], svc["version"], self.verbose, semaphore
-        )
-
-        cves = [
-            CveModel(
-                id=c["id"],
-                description=c.get("description", ""),
-                severity=c["severity"],
-                score=c["score"],
-            )
-            for c in cve_dicts
-        ]
-
-        if cves and self.progress_callback:
-            self.progress_callback(
-                "cve_found",
-                f"{len(cves)} CVE(s) found for {svc['product']} {svc['version']}",
-            )
 
         return CveScanResultModel(
             ip=svc["ip"],
