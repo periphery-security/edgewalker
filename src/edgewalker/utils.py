@@ -173,7 +173,7 @@ def print_logo() -> None:
         )
         console.print()
 
-    if overrides:
+    if overrides and not settings.suppress_warnings:
         sources = ", ".join(sorted(set(overrides.values())))
         keys = ", ".join(sorted(overrides.keys()))
         console.print(
@@ -230,6 +230,9 @@ def print_error(msg: str) -> None:
 
 def get_input(prompt: str, default: str = None) -> str:
     """Get user input with optional default."""
+    if settings.silent_mode:
+        return default
+
     if default:
         prompt_text = (
             f"[{theme.PRIMARY}]{theme.ICON_ARROW} {prompt}[/{theme.PRIMARY}] "
@@ -248,6 +251,9 @@ def get_input(prompt: str, default: str = None) -> str:
 
 def press_enter() -> None:
     """Wait for user to press enter."""
+    if settings.silent_mode:
+        return
+
     console.print()
     console.print(f"[{theme.MUTED}]Press Enter to continue...[/{theme.MUTED}]", end="")
     try:
@@ -269,7 +275,36 @@ def is_telemetry_enabled() -> bool:
 def ensure_telemetry_choice() -> None:
     """Ensure the user has seen the telemetry opt-in prompt and made a choice."""
     telemetry = TelemetryManager(settings)
+
+    # Handle silent mode flags first
+    if settings.accept_telemetry:
+        telemetry.set_telemetry_status(True)
+        return
+    if settings.decline_telemetry:
+        telemetry.set_telemetry_status(False)
+        return
+
     if not telemetry.has_seen_telemetry_prompt():
+        if settings.silent_mode:
+            # Third Party
+            import typer  # noqa: PLC0415
+
+            console.print()
+            console.print(
+                Panel(
+                    f"[bold {theme.DANGER}]ERROR: Telemetry choice required in silent mode."
+                    f"[/bold {theme.DANGER}]\n\n"
+                    "When running with [bold]--silent[/bold], you must explicitly provide a "
+                    "telemetry choice if one has not been set yet.\n\n"
+                    "Use [bold]--accept-telemetry[/bold] to opt-in or "
+                    "[bold]--decline-telemetry[/bold] to opt-out.",
+                    border_style=theme.DANGER,
+                    box=theme.BOX_STYLE,
+                    width=theme.get_ui_width(),
+                )
+            )
+            raise typer.Exit(code=1)
+
         # First Party
         from edgewalker.display import build_telemetry_panel  # noqa: PLC0415
 

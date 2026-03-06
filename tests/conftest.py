@@ -11,8 +11,12 @@ def global_telemetry_safety():
     # First Party
     from edgewalker.core.config import settings
 
-    # Reset telemetry setting for every test
+    # Reset telemetry and silent mode settings for every test
     settings.telemetry_enabled = False
+    settings.silent_mode = False
+    settings.suppress_warnings = False
+    settings.accept_telemetry = False
+    settings.decline_telemetry = False
 
     # Mock both sync and async httpx post calls globally
     with (

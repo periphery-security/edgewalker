@@ -50,13 +50,17 @@ def test_print_helpers():
 
 @patch("builtins.input", return_value="test")
 def test_get_input(mock_input):
-    assert utils.get_input("prompt") == "test"
-    assert utils.get_input("prompt", "default") == "test"
+    with patch("edgewalker.utils.settings") as mock_settings:
+        mock_settings.silent_mode = False
+        assert utils.get_input("prompt") == "test"
+        assert utils.get_input("prompt", "default") == "test"
 
 
 @patch("builtins.input", return_value="")
 def test_get_input_default(mock_input):
-    assert utils.get_input("prompt", "default") == "default"
+    with patch("edgewalker.utils.settings") as mock_settings:
+        mock_settings.silent_mode = False
+        assert utils.get_input("prompt", "default") == "default"
 
 
 def test_is_physical_mac():

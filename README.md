@@ -93,6 +93,14 @@ edgewalker cve                     # Check for known CVEs
 edgewalker report                  # View security report
 ```
 
+### CI/CD & Automation
+EdgeWalker supports non-interactive execution for automated environments:
+```bash
+# Run a silent scan with explicit telemetry opt-in
+edgewalker --silent --accept-telemetry scan --target 192.168.1.0/24
+```
+See the [Configuration Guide](docs/configuration.md#non-interactive-silent-mode) for more details.
+
 ---
 
 ## The Periphery Mission

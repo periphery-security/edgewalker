@@ -21,6 +21,7 @@ from typing import Callable, Optional
 
 # Third Party
 import validators
+from loguru import logger
 
 # First Party
 from edgewalker import __version__, theme, utils
@@ -159,10 +160,14 @@ def _chunk_hosts(hosts: list[str], n: int) -> list[list[str]]:
 def parse_nmap_xml(xml_output: str) -> list[Host]:
     """Parse nmap XML output into host list."""
     hosts = []
+    if not xml_output:
+        logger.debug("Empty XML output from nmap")
+        return hosts
     try:
         # nosec: B314 - nmap output is trusted in this context
         root = ET.fromstring(xml_output)
-    except ET.ParseError:
+    except ET.ParseError as e:
+        logger.error(f"Failed to parse nmap XML output: {e}")
         return hosts
 
     for host_elem in root.findall(".//host"):
@@ -260,9 +265,11 @@ async def _scan_batch(
     cmd += ["-oX", xml_path, "-v", "--stats-every", "10s", "--open"]
     cmd += hosts
 
+    logger.debug(f"Executing nmap command: {' '.join(cmd)}")
     hosts_with_ports: set[str] = set()
 
     try:
+        logger.debug(f"Starting nmap subprocess for batch {batch_label}")
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -311,7 +318,9 @@ async def _scan_batch(
 
         try:
             await asyncio.wait_for(asyncio.gather(process.wait(), read_output()), timeout=timeout)
+            logger.debug(f"nmap batch {batch_label} completed with exit code {process.returncode}")
         except asyncio.TimeoutError:
+            logger.warning(f"nmap batch {batch_label} timed out after {timeout}s")
             if verbose:
                 print(f"\n  Scan timed out after {timeout}s, terminating nmap...")
                 sys.stdout.flush()
@@ -528,6 +537,7 @@ class PortScanner(ScanModule):
 
     async def quick_scan(self) -> PortScanModel:
         """Perform a quick scan of common IoT ports asynchronously."""
+        logger.info(f"Starting quick scan on {self.target}")
         err = validate_target(self.target)
         if err:
             raise ValueError(err)
@@ -625,6 +635,7 @@ class PortScanner(ScanModule):
 
     async def full_scan(self) -> PortScanModel:
         """Full scan using 3-phase hybrid approach asynchronously."""
+        logger.info(f"Starting full scan on {self.target}")
         err = validate_target(self.target)
         if err:
             raise ValueError(err)
@@ -831,6 +842,7 @@ async def ping_sweep(
         raise ValueError(err)
 
     cmd = get_nmap_command() + ["-sn", "-T4", target]
+    logger.debug(f"Executing ping sweep: {' '.join(cmd)}")
     live_hosts = []
     try:
         process = await asyncio.create_subprocess_exec(

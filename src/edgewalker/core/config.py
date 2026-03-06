@@ -303,6 +303,28 @@ class Settings(BaseSettings):
         description="User opt-in status for anonymous data sharing",
     )
 
+    silent_mode: bool = Field(
+        default=False,
+        description="Run in non-interactive mode (bypass prompts)",
+    )
+
+    suppress_warnings: bool = Field(
+        default=False,
+        description="Suppress configuration and security warnings in the console",
+    )
+
+    accept_telemetry: bool = Field(
+        default=False,
+        description="Explicitly opt-in to telemetry (used in silent mode)",
+        exclude=True,
+    )
+
+    decline_telemetry: bool = Field(
+        default=False,
+        description="Explicitly opt-out of telemetry (used in silent mode)",
+        exclude=True,
+    )
+
     theme: str = Field(
         default="periphery",
         description="Active theme slug",
@@ -319,8 +341,8 @@ class Settings(BaseSettings):
         Returns:
             A list of warning messages.
         """
-        # Skip security warnings during tests to avoid confirmation prompts
-        if os.environ.get("PYTEST_CURRENT_TEST"):
+        # Skip security warnings during tests or if suppressed
+        if os.environ.get("PYTEST_CURRENT_TEST") or self.suppress_warnings:
             return []
 
         warnings = []
@@ -417,7 +439,7 @@ def get_active_overrides() -> dict[str, str]:
         ('environment variable' or '.env file').
     """
     # Skip overrides during tests to ensure consistent behavior
-    if os.environ.get("PYTEST_CURRENT_TEST"):
+    if os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("EW_ALLOW_OVERRIDES_IN_TESTS"):
         return {}
 
     overrides = {}
@@ -438,7 +460,7 @@ def get_active_overrides() -> dict[str, str]:
 
     # Check environment variables (higher precedence)
     for key in os.environ:
-        if key.startswith("EW_"):
+        if key.startswith("EW_") and key != "EW_ALLOW_OVERRIDES_IN_TESTS":
             overrides[key] = "environment variable"
 
     return overrides
