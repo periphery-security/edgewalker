@@ -44,9 +44,33 @@ Environment variables prefixed with `EW_` override all settings. `edgewalker/con
 | `EW_THEME` | `periphery` | Active UI theme slug |
 | `EW_IOT_PORTS` | `[21, 22, ...]` | Common IoT ports for quick scan |
 | `EW_TELEMETRY_ENABLED` | `None` | User opt-in status for anonymous data sharing |
+| `EW_SILENT_MODE` | `False` | Run in non-interactive mode (bypass prompts) |
+| `EW_SUPPRESS_WARNINGS` | `False` | Suppress configuration and security warnings in the console |
 | `EW_CONFIG_DIR` | `~/.config/edgewalker` | Configuration directory override |
 | `EW_CACHE_DIR` | `~/.cache/edgewalker` | Cache directory override |
 | `EW_DEMO_MODE` | `0` | Set to `1` to enable demo mode with mock data |
+
+## Non-Interactive (Silent) Mode
+
+For CI/CD pipelines and automated environments, EdgeWalker provides a non-interactive mode that bypasses all user prompts.
+
+### Global Flags
+
+These flags can be used with any command:
+
+- `--silent` or `-s`: Enables non-interactive mode.
+- `--suppress-warnings`: Hides configuration override panels and security warnings from the console.
+- `--accept-telemetry`: Explicitly opts-in to anonymous telemetry (required in silent mode if no preference is set).
+- `--decline-telemetry`: Explicitly opts-out of anonymous telemetry (required in silent mode if no preference is set).
+
+### CI/CD Usage
+
+When running in a fresh environment (like a GitHub Action), you must provide a telemetry choice if you use `--silent`. If no choice is provided, the CLI will exit with an error to ensure an explicit decision is made.
+
+```bash
+# Run a scan in CI/CD without any prompts
+edgewalker --silent --suppress-warnings --accept-telemetry scan --target 192.168.1.0/24
+```
 
 ## Security Validation
 
