@@ -144,3 +144,26 @@ def test_update_setting_readonly():
 
     with pytest.raises(AttributeError, match="read-only"):
         update_setting("device_id", "new-id")
+
+
+def test_default_output_dir_is_not_inside_config_dir(tmp_path):
+    """output_dir default must not nest inside the config/Application Support directory."""
+    with patch.dict(os.environ, {"EW_CONFIG_DIR": str(tmp_path)}):
+        from edgewalker.core.config import Settings, get_config_dir, get_data_dir
+        s = Settings()
+        config_dir = get_config_dir()
+        data_dir = get_data_dir()
+        # output_dir must live under data_dir, not config_dir
+        assert str(s.output_dir).startswith(str(data_dir)), (
+            f"output_dir ({s.output_dir}) should be under data_dir ({data_dir})"
+        )
+        assert not str(s.output_dir).startswith(str(config_dir)), (
+            f"output_dir ({s.output_dir}) must not be inside config_dir ({config_dir})"
+        )
+
+
+def test_get_data_dir_respects_env_override():
+    """EW_DATA_DIR env var overrides the data directory."""
+    from edgewalker.core.config import get_data_dir
+    with patch.dict(os.environ, {"EW_DATA_DIR": "/tmp/ew_data"}):
+        assert str(get_data_dir()) == "/tmp/ew_data"

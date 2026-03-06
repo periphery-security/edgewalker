@@ -38,6 +38,16 @@ def get_cache_dir() -> Path:
     return Path(os.environ.get("EW_CACHE_DIR", user_cache_dir("edgewalker")))
 
 
+def get_data_dir() -> Path:
+    """Return the user-facing data directory for scan results.
+
+    Defaults to ~/.edgewalker so results are easy to find and separate
+    from the application config in Library/Application Support (macOS)
+    or ~/.config (Linux).  Override with EW_DATA_DIR.
+    """
+    return Path(os.environ.get("EW_DATA_DIR", Path.home() / ".edgewalker"))
+
+
 # Legacy constants for backward compatibility (evaluated at load time)
 # Note: Tests should use EW_CONFIG_DIR/EW_CACHE_DIR env vars BEFORE importing this module
 # or we need to ensure they are used dynamically.
@@ -128,7 +138,7 @@ class Settings(BaseSettings):
     def handle_demo_mode(cls, v: Path) -> Path:
         """Ensure output_dir points to demo_scans when in demo mode."""
         if os.environ.get("EW_DEMO_MODE") == "1":
-            return v.parent / "demo_scans"
+            return get_data_dir() / "demo_scans"
         return v
 
     api_timeout: int = Field(
@@ -287,11 +297,11 @@ class Settings(BaseSettings):
     )
     output_dir: Path = Field(
         default_factory=lambda: (
-            get_config_dir() / "demo_scans"
+            get_data_dir() / "demo_scans"
             if os.environ.get("EW_DEMO_MODE") == "1"
-            else get_config_dir() / "scans"
+            else get_data_dir() / "scans"
         ),
-        description="Output directory",
+        description="Output directory for scan results (~/.edgewalker/scans by default)",
     )
     creds_file: Path = Field(
         default=Path(__file__).parent.parent / "data" / "creds.csv",
