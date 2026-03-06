@@ -309,3 +309,81 @@ async def test_probe_services(mock_batch):
     res_xml, res_found = await scanner._probe_services({"1.1.1.1": [80, 443]})
     assert len(res_xml) == 1
     assert "1.1.1.1" in res_found
+
+
+# --- Unprivileged mode tests ---
+
+
+def test_check_privileges_unprivileged_mode():
+    """check_privileges returns None immediately when unprivileged=True."""
+    # Even without root, unprivileged mode skips the check
+    with patch("os.geteuid", return_value=1000):
+        with patch("sys.platform", "darwin"):
+            assert scanner.check_privileges(unprivileged=True) is None
+
+
+def test_get_nmap_command_unprivileged():
+    """get_nmap_command returns ['nmap'] when unprivileged=True, even without root."""
+    with patch("os.geteuid", return_value=1000):
+        with patch("sys.platform", "darwin"):
+            assert scanner.get_nmap_command(unprivileged=True) == ["nmap"]
+
+
+@pytest.mark.asyncio
+@patch("asyncio.create_subprocess_exec")
+@patch("tempfile.NamedTemporaryFile")
+@patch("builtins.open", new_callable=mock_open, read_data="<nmaprun></nmaprun>")
+@patch("os.unlink")
+async def test_scan_batch_adds_unprivileged_flag(mock_unlink, mock_file, mock_temp, mock_exec):
+    """_scan_batch prepends --unprivileged to the nmap command when unprivileged=True."""
+    mock_temp.return_value.name = "test.xml"
+    mock_proc = AsyncMock()
+    mock_proc.stdout.readline.side_effect = [b""]
+    mock_proc.wait.return_value = 0
+    mock_proc.returncode = 0
+    mock_exec.return_value = mock_proc
+
+    with patch("os.geteuid", return_value=1000), patch("sys.platform", "darwin"):
+        await scanner._scan_batch(["1.1.1.1"], "80", [], 10, unprivileged=True)
+
+    call_args = mock_exec.call_args[0]
+    assert "--unprivileged" in call_args
+
+
+@pytest.mark.asyncio
+@patch("asyncio.create_subprocess_exec")
+async def test_ping_sweep_unprivileged(mock_exec):
+    """ping_sweep passes --unprivileged flag to nmap when unprivileged=True."""
+    mock_proc = AsyncMock()
+    mock_proc.stdout.readline.side_effect = [b"Nmap scan report for 1.1.1.1", b""]
+    mock_proc.wait.return_value = 0
+    mock_exec.return_value = mock_proc
+
+    with patch("os.geteuid", return_value=1000), patch("sys.platform", "darwin"):
+        res = await scanner.ping_sweep("1.1.1.0/24", unprivileged=True)
+
+    call_args = mock_exec.call_args[0]
+    assert "--unprivileged" in call_args
+    assert "1.1.1.1" in res
+
+
+def test_port_scanner_stores_unprivileged():
+    """PortScanner stores the unprivileged flag."""
+    ps = scanner.PortScanner(unprivileged=True)
+    assert ps.unprivileged is True
+
+    ps_default = scanner.PortScanner()
+    assert ps_default.unprivileged is False
+
+
+@pytest.mark.asyncio
+@patch("edgewalker.modules.port_scan.scanner.ping_sweep", new_callable=AsyncMock, return_value=[])
+@patch("edgewalker.modules.port_scan.scanner._parallel_scan", new_callable=AsyncMock)
+async def test_quick_scan_unprivileged_skips_permission_check(mock_parallel, mock_ping):
+    """quick_scan with unprivileged=True does not raise PermissionError."""
+    mock_parallel.return_value = ([], set())
+    # On macOS without root, normal mode would raise PermissionError
+    with patch("os.geteuid", return_value=1000), patch("sys.platform", "darwin"):
+        ps = scanner.PortScanner(target="1.1.1.0/24", unprivileged=True)
+        result = await ps.quick_scan()
+    assert result.success is True

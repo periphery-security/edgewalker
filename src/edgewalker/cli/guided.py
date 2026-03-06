@@ -30,6 +30,8 @@ class GuidedScanner:
         full_scan: Optional[bool] = None,
         target: Optional[str] = None,
         full_creds: bool = False,
+        unprivileged: bool = False,
+        verbose: bool = False,
     ) -> None:
         """Run the automatic guided security assessment asynchronously."""
         # Step 1: Choose scan type
@@ -49,7 +51,7 @@ class GuidedScanner:
         # Step 3: Run port scan
         utils.console.print()
         logger.info(f"Starting {scan_type.lower()} port scan on {target}...")
-        port_results = await self.controller.run_port_scan(full=full_scan, target=target)
+        port_results = await self.controller.run_port_scan(full=full_scan, target=target, unprivileged=unprivileged, verbose=verbose)
 
         if not port_results:
             logger.error("Port scan failed. Returning to mode selection.")

@@ -81,7 +81,7 @@ class ScannerService:
             # No loop running, use sync version
             self.telemetry.submit_scan_data_sync(module, data)
 
-    async def perform_port_scan(self, target: str, full: bool = False) -> PortScanModel:
+    async def perform_port_scan(self, target: str, full: bool = False, unprivileged: bool = False, verbose: bool = False) -> PortScanModel:
         """Perform a port scan and return results as a model asynchronously."""
         if self.demo_mode and self.demo_service:
             return await self.demo_service.perform_port_scan(target, full)
@@ -94,11 +94,11 @@ class ScannerService:
 
         if full:
             results = await port_scan.full_scan(
-                target=target, verbose=False, progress_callback=self.progress_callback
+                target=target, verbose=verbose, progress_callback=self.progress_callback, unprivileged=unprivileged
             )
         else:
             results = await port_scan.quick_scan(
-                target=target, verbose=False, progress_callback=self.progress_callback
+                target=target, verbose=verbose, progress_callback=self.progress_callback, unprivileged=unprivileged
             )
 
         if isinstance(results, dict):

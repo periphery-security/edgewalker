@@ -126,8 +126,11 @@ def fix_nmap_permissions() -> bool:
         return False
 
 
-def check_privileges() -> str | None:
+def check_privileges(unprivileged: bool = False) -> str | None:
     """Check for root/sudo privileges or nmap capabilities."""
+    if unprivileged:
+        return None
+
     if check_nmap_permissions():
         return None
 
@@ -140,8 +143,11 @@ def check_privileges() -> str | None:
     return "Port scanning requires root privileges on this OS. Please run with sudo."
 
 
-def get_nmap_command() -> list[str]:
+def get_nmap_command(unprivileged: bool = False) -> list[str]:
     """Return the base nmap command with sudo if necessary."""
+    if unprivileged:
+        return ["nmap"]
+
     if check_nmap_permissions():
         return ["nmap"]
 
@@ -245,6 +251,7 @@ async def _scan_batch(
     batch_label: str = "",
     progress_callback: Callable[[str, str], None] | None = None,
     rich_progress: Optional[tuple[utils.Progress, utils.TaskID]] = None,
+    unprivileged: bool = False,
 ) -> tuple[str, set[str]]:
     """Run one nmap subprocess on a batch of hosts asynchronously."""
     if not hosts:
@@ -254,7 +261,8 @@ async def _scan_batch(
     xml_path = xml_fd.name
     xml_fd.close()
 
-    cmd = get_nmap_command() + extra_flags
+    flags = (["--unprivileged"] + extra_flags) if unprivileged else extra_flags
+    cmd = get_nmap_command(unprivileged=unprivileged) + flags
     if ports:
         cmd += ["-p", ports]
     cmd += ["-oX", xml_path, "-v", "--stats-every", "10s", "--open"]
@@ -349,6 +357,7 @@ async def _parallel_scan(
     verbose: bool = False,
     progress_callback: Callable[[str, str], None] | None = None,
     progress: Optional[utils.Progress] = None,
+    unprivileged: bool = False,
 ) -> tuple[list[str], set[str]]:
     """Run parallel scans across hosts asynchronously."""
     if not live_hosts:
@@ -368,6 +377,7 @@ async def _parallel_scan(
             verbose,
             progress_callback=progress_callback,
             rich_progress=rich_progress,
+            unprivileged=unprivileged,
         )
         return ([xml_data] if xml_data else [], found)
 
@@ -396,6 +406,7 @@ async def _parallel_scan(
                 label,
                 progress_callback,
                 rich_progress,
+                unprivileged,
             )
         )
 
@@ -422,6 +433,7 @@ async def _probe_services(
     verbose: bool = False,
     progress_callback: Callable[[str, str], None] | None = None,
     progress: Optional[utils.Progress] = None,
+    unprivileged: bool = False,
 ) -> tuple[list[str], set[str]]:
     """Run service/OS probes per host asynchronously."""
     if not host_ports:
@@ -446,6 +458,7 @@ async def _probe_services(
             verbose,
             progress_callback=progress_callback,
             rich_progress=rich_progress,
+            unprivileged=unprivileged,
         )
         return ([xml_data] if xml_data else [], found)
 
@@ -473,6 +486,7 @@ async def _probe_services(
                 ip,
                 progress_callback,
                 rich_progress,
+                unprivileged,
             )
         )
 
@@ -507,6 +521,7 @@ class PortScanner(ScanModule):
         target: str | None = None,
         verbose: bool = False,
         progress_callback: Callable[[str, str], None] | None = None,
+        unprivileged: bool = False,
     ) -> None:
         """Initialize the PortScanner.
 
@@ -514,10 +529,12 @@ class PortScanner(ScanModule):
             target: IP, CIDR range, or hostname to scan.
             verbose: Whether to print verbose output.
             progress_callback: Optional callback for progress updates.
+            unprivileged: Run without sudo using TCP connect scans.
         """
         self.target = target or get_default_target()
         self.verbose = verbose
         self.progress_callback = progress_callback
+        self.unprivileged = unprivileged
 
     async def scan(self, **kwargs: object) -> PortScanModel:
         """Execute the scan asynchronously (ScanModule interface)."""
@@ -531,7 +548,7 @@ class PortScanner(ScanModule):
         err = validate_target(self.target)
         if err:
             raise ValueError(err)
-        err = check_privileges()
+        err = check_privileges(unprivileged=self.unprivileged)
         if err:
             raise PermissionError(err)
 
@@ -541,7 +558,7 @@ class PortScanner(ScanModule):
             print(f"{Colors.CYAN}-{Colors.RESET}" * 50)
             sys.stdout.flush()
 
-        live_hosts = await ping_sweep(self.target, self.verbose, self.progress_callback)
+        live_hosts = await ping_sweep(self.target, self.verbose, self.progress_callback, unprivileged=self.unprivileged)
         if not live_hosts:
             return PortScanModel(
                 id=str(uuid.uuid4()),
@@ -575,6 +592,7 @@ class PortScanner(ScanModule):
                         self.verbose,
                         self.progress_callback,
                         progress,
+                        unprivileged=self.unprivileged,
                     )
             else:
                 all_xml, all_hosts_found = await _parallel_scan(
@@ -584,6 +602,7 @@ class PortScanner(ScanModule):
                     settings.nmap_timeout,
                     self.verbose,
                     self.progress_callback,
+                    unprivileged=self.unprivileged,
                 )
         except FileNotFoundError:
             return PortScanModel(
@@ -628,7 +647,7 @@ class PortScanner(ScanModule):
         err = validate_target(self.target)
         if err:
             raise ValueError(err)
-        err = check_privileges()
+        err = check_privileges(unprivileged=self.unprivileged)
         if err:
             raise PermissionError(err)
 
@@ -637,7 +656,7 @@ class PortScanner(ScanModule):
             print(f"{Colors.CYAN}-{Colors.RESET}" * 50)
             sys.stdout.flush()
 
-        live_hosts = await ping_sweep(self.target, self.verbose, self.progress_callback)
+        live_hosts = await ping_sweep(self.target, self.verbose, self.progress_callback, unprivileged=self.unprivileged)
         if not live_hosts:
             return PortScanModel(
                 id=str(uuid.uuid4()),
@@ -671,6 +690,7 @@ class PortScanner(ScanModule):
                         self.verbose,
                         self.progress_callback,
                         progress,
+                        unprivileged=self.unprivileged,
                     )
             else:
                 disc_xml, _ = await _parallel_scan(
@@ -680,6 +700,7 @@ class PortScanner(ScanModule):
                     settings.nmap_full_timeout,
                     self.verbose,
                     self.progress_callback,
+                    unprivileged=self.unprivileged,
                 )
         except Exception:
             disc_xml = []
@@ -721,10 +742,10 @@ class PortScanner(ScanModule):
         if self.verbose:
             with utils.get_progress() as progress:
                 probe_xml, _ = await _probe_services(
-                    host_ports, self.verbose, self.progress_callback, progress
+                    host_ports, self.verbose, self.progress_callback, progress, unprivileged=self.unprivileged
                 )
         else:
-            probe_xml, _ = await _probe_services(host_ports, self.verbose, self.progress_callback)
+            probe_xml, _ = await _probe_services(host_ports, self.verbose, self.progress_callback, unprivileged=self.unprivileged)
         hosts_by_ip = {}
         for xml_data in probe_xml:
             for host in parse_nmap_xml(xml_data):
@@ -753,6 +774,7 @@ async def scan(
     full: bool = False,
     verbose: bool = False,
     progress_callback: Callable[[str, str], None] | None = None,
+    unprivileged: bool = False,
 ) -> PortScanModel:
     """Perform a port scan asynchronously.
 
@@ -761,11 +783,12 @@ async def scan(
         full: Whether to perform a full scan.
         verbose: Whether to print verbose output.
         progress_callback: Optional callback for progress updates.
+        unprivileged: Run without sudo using TCP connect scans.
 
     Returns:
         PortScanModel with scan results.
     """
-    scanner = PortScanner(target, verbose, progress_callback)
+    scanner = PortScanner(target, verbose, progress_callback, unprivileged=unprivileged)
     return await scanner.full_scan() if full else await scanner.quick_scan()
 
 
@@ -773,6 +796,7 @@ async def quick_scan(
     target: str | None = None,
     verbose: bool = False,
     progress_callback: Callable[[str, str], None] | None = None,
+    unprivileged: bool = False,
 ) -> PortScanModel:
     """Perform a quick scan of common IoT ports asynchronously.
 
@@ -780,17 +804,19 @@ async def quick_scan(
         target: IP, CIDR range, or hostname to scan.
         verbose: Whether to print verbose output.
         progress_callback: Optional callback for progress updates.
+        unprivileged: Run without sudo using TCP connect scans.
 
     Returns:
         PortScanModel with scan results.
     """
-    return await PortScanner(target, verbose, progress_callback).quick_scan()
+    return await PortScanner(target, verbose, progress_callback, unprivileged=unprivileged).quick_scan()
 
 
 async def full_scan(
     target: str | None = None,
     verbose: bool = False,
     progress_callback: Callable[[str, str], None] | None = None,
+    unprivileged: bool = False,
 ) -> PortScanModel:
     """Perform a full scan of all ports with OS detection asynchronously.
 
@@ -798,17 +824,19 @@ async def full_scan(
         target: IP, CIDR range, or hostname to scan.
         verbose: Whether to print verbose output.
         progress_callback: Optional callback for progress updates.
+        unprivileged: Run without sudo using TCP connect scans.
 
     Returns:
         PortScanModel with scan results.
     """
-    return await PortScanner(target, verbose, progress_callback).full_scan()
+    return await PortScanner(target, verbose, progress_callback, unprivileged=unprivileged).full_scan()
 
 
 async def ping_sweep(
     target: str,
     verbose: bool = False,
     progress_callback: Callable[[str, str], None] | None = None,
+    unprivileged: bool = False,
 ) -> list[str]:
     """Quick ping sweep to find live hosts asynchronously.
 
@@ -816,6 +844,7 @@ async def ping_sweep(
         target: IP, CIDR range, or hostname to scan.
         verbose: Whether to print verbose output.
         progress_callback: Optional callback for progress updates.
+        unprivileged: Run without sudo using TCP connect scans.
 
     Returns:
         List of live host IP addresses.
@@ -830,7 +859,8 @@ async def ping_sweep(
     if err:
         raise ValueError(err)
 
-    cmd = get_nmap_command() + ["-sn", "-T4", target]
+    flags = ["--unprivileged"] if unprivileged else []
+    cmd = get_nmap_command(unprivileged=unprivileged) + flags + ["-sn", "-T4", target]
     live_hosts = []
     try:
         process = await asyncio.create_subprocess_exec(
