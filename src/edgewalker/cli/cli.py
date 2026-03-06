@@ -41,6 +41,15 @@ from edgewalker.utils import (
     print_logo,
 )
 
+
+def apply_colorblind_theme() -> None:
+    """Switch the active theme to the colorblind-safe skin."""
+    # First Party
+    from edgewalker import theme as _theme
+    from edgewalker.core.config import settings
+    settings.theme = "colorblind"
+    _theme.load_active_theme()
+
 # ============================================================================
 # TYPER APP SETUP
 # ============================================================================
@@ -174,6 +183,9 @@ def run_guided_scan(
     verbose: bool = typer.Option(
         False, "--verbose", help="Print detailed nmap progress and discovered hosts/ports."
     ),
+    colorblind: bool = typer.Option(
+        False, "--colorblind", help="Use colorblind-safe palette (Okabe-Ito) instead of default theme."
+    ),
 ) -> None:
     """Run a guided security scan.
 
@@ -219,6 +231,9 @@ def run_guided_scan(
                 "[bold]-ao[/bold] to bypass this check.[/dim]"
             )
             raise typer.Exit()
+
+    if colorblind:
+        apply_colorblind_theme()
 
     ensure_telemetry_choice()
     controller = ScanController()

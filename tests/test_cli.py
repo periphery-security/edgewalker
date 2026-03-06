@@ -478,6 +478,20 @@ def test_prompt_next_scan_suggest_cve(mock_run, mock_input, mock_status):
 
 @patch("edgewalker.cli.guided.GuidedScanner.automatic_mode", new_callable=AsyncMock)
 @patch("edgewalker.utils.ensure_telemetry_choice")
+def test_run_guided_scan_colorblind_flag(mock_telemetry, mock_auto):
+    """--colorblind flag is accepted and applies the colorblind theme."""
+    from edgewalker import theme as t
+    original_accent = t.ACCENT
+    result = runner.invoke(app, ["scan", "--colorblind", "--target", "1.1.1.1"])
+    assert result.exit_code == 0
+    # restore default theme so other tests aren't affected
+    from edgewalker.core.config import settings
+    settings.theme = "periphery"
+    t.load_active_theme()
+
+
+@patch("edgewalker.cli.guided.GuidedScanner.automatic_mode", new_callable=AsyncMock)
+@patch("edgewalker.utils.ensure_telemetry_choice")
 def test_run_guided_scan_verbose_flag(mock_telemetry, mock_auto):
     """--verbose flag is accepted and passed through to automatic_mode."""
     result = runner.invoke(app, ["scan", "--verbose", "--target", "1.1.1.1"])

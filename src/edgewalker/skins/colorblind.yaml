@@ -1,0 +1,53 @@
+metadata:
+  name: "Colorblind Safe (Okabe-Ito)"
+  author: "Periphery"
+
+# Palette: Okabe & Ito (2008) — universal colorblind-safe scientific standard.
+# Works for deuteranopia, protanopia, and tritanopia.
+#
+#   Sky Blue   #56B4E9  — primary accent, borders, headers
+#   Orange     #E69F00  — warnings
+#   Vermillion #D55E00  — danger / critical (distinct from orange at all types)
+#   Blue       #0072B2  — secondary / active elements
+#   Bluish Grn #009E73  — success (readable by red-green blind as distinct from orange)
+#   Yellow     #F0E442  — highlight
+#   Foreground #E8E8E8  — high-contrast white-ish text on dark bg
+
+theme:
+  primary: "#0072B2"
+  secondary: "#56B4E9"
+  warning: "#E69F00"
+  error: "#D55E00"
+  success: "#009E73"
+  accent: "#56B4E9"
+  foreground: "#E8E8E8"
+  background: "#0f0f1a"
+  surface: "#1a1a2e"
+  panel: "#16213e"
+  boost: "#1e1e3a"
+  dark: true
+  lavender: "#56B4E9"
+  highlight: "#F0E442"
+  variables:
+    muted: "#888888"
+    text: "#E8E8E8"
+    danger: "#D55E00"
+    surface-alt: "#16213e"
+
+icons:
+  scan: "⌕"
+  check: "[OK]"
+  fail: "[X]"
+  bullet: "•"
+  arrow: "->"
+  warn: "[!]"
+  skull: "[!]"
+  vulnerable: "[X]"
+  circle: "o"
+  circle_filled: "*"
+  step: ">"
+  bar_full: "█"
+  bar_empty: "░"
+  plus: "[+]"
+  info: "[*]"
+  alert: "[!]"
