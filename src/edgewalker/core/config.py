@@ -308,6 +308,11 @@ class Settings(BaseSettings):
         description="Run in non-interactive mode (bypass prompts)",
     )
 
+    unprivileged: bool = Field(
+        default=False,
+        description="Run without sudo using TCP connect scans (macOS/no-root).",
+    )
+
     suppress_warnings: bool = Field(
         default=False,
         description="Suppress configuration and security warnings in the console",
@@ -489,6 +494,18 @@ def init_config() -> None:
     for warning in settings.get_security_warnings():
         logger.warning(warning)
 
+    # Check for root ownership of config file (common if run with sudo first)
+    if config_file.exists() and os.getuid() != 0:
+        try:
+            if config_file.stat().st_uid == 0:
+                logger.warning(
+                    f"Config file '{config_file}' is owned by root. "
+                    "Settings changes will not be saved. "
+                    f"Run 'sudo chown {os.getlogin()} \"{config_file}\"' to fix."
+                )
+        except (OSError, AttributeError):
+            pass
+
     if not config_file.exists():
         save_settings(settings)
     else:
@@ -517,9 +534,18 @@ def save_settings(settings_obj: Settings) -> None:
     data["theme"] = settings_obj.theme
 
     # Open with restricted permissions (0o600: read/write for owner only)
-    fd = os.open(config_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        yaml.dump(data, f, sort_keys=False)
+    try:
+        fd = os.open(config_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            yaml.dump(data, f, sort_keys=False)
+    except PermissionError:
+        logger.warning(
+            f"Permission denied when saving config to '{config_file}'. "
+            "If you previously ran with sudo, you may need to fix file ownership: "
+            f'sudo chown {os.getlogin()} "{config_file}"'
+        )
+    except Exception as e:
+        logger.error(f"Failed to save settings to {config_file}: {e}")
 
 
 def update_setting(key: str, value: object) -> None:

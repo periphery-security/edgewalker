@@ -168,6 +168,14 @@ def run_guided_scan(
         "-ao",
         help="Allow scan to proceed with active configuration overrides.",
     ),
+    unprivileged: bool = typer.Option(
+        settings.unprivileged,
+        "--unprivileged",
+        help="Run without sudo using TCP connect scans (macOS/no-root).",
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", help="Print detailed nmap progress and discovered hosts/ports."
+    ),
 ) -> None:
     """Run a guided security scan.
 
@@ -224,7 +232,15 @@ def run_guided_scan(
     ensure_telemetry_choice()
     controller = ScanController()
     guided = GuidedScanner(controller)
-    asyncio.run(guided.automatic_mode(full_scan=full, target=target, full_creds=full_creds))
+    asyncio.run(
+        guided.automatic_mode(
+            full_scan=full,
+            target=target,
+            full_creds=full_creds,
+            unprivileged=unprivileged,
+            verbose=verbose,
+        )
+    )
 
 
 @app.command()
@@ -249,8 +265,16 @@ def clear() -> None:
 
 
 @app.command()
-def tui() -> None:
+def tui(
+    unprivileged: bool = typer.Option(
+        settings.unprivileged,
+        "--unprivileged",
+        help="Run without sudo using TCP connect scans (macOS/no-root).",
+    ),
+) -> None:
     """Launch the interactive Textual TUI."""
+    if unprivileged:
+        update_setting("unprivileged", True)
     EdgeWalkerApp().run()
 
 
