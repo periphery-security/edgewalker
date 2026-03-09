@@ -79,12 +79,20 @@ def test_get_active_overrides_with_env_and_file(tmp_path):
     env_file = tmp_path / ".env"
     env_file.write_text("EW_API_URL=https://env-file.com\n# Comment\nINVALID_LINE\nEW_THEME=dark")
 
+    # Clear any existing EW_ variables from the environment for this test
+    clean_env = {k: v for k, v in os.environ.items() if not k.startswith("EW_")}
+    clean_env.update({
+        "EW_API_URL": "https://env-var.com",
+        "PYTEST_CURRENT_TEST": "1",
+        "EW_ALLOW_OVERRIDES_IN_TESTS": "1",
+    })
+
     with (
         patch(
             "edgewalker.core.config.Path",
             side_effect=lambda *args: Path(*args) if args[0] != ".env" else env_file,
         ),
-        patch.dict(os.environ, {"EW_API_URL": "https://env-var.com", "PYTEST_CURRENT_TEST": ""}),
+        patch.dict(os.environ, clean_env, clear=True),
     ):
         overrides = get_active_overrides()
         assert overrides["EW_API_URL"] == "environment variable"
@@ -181,13 +189,20 @@ def test_get_active_overrides_env_file_error(tmp_path):
     env_file = tmp_path / ".env"
     env_file.write_text("EW_THEME=dark")
 
+    # Clear any existing EW_ variables from the environment for this test
+    clean_env = {k: v for k, v in os.environ.items() if not k.startswith("EW_")}
+    clean_env.update({
+        "PYTEST_CURRENT_TEST": "1",
+        "EW_ALLOW_OVERRIDES_IN_TESTS": "1",
+    })
+
     with (
         patch(
             "edgewalker.core.config.Path",
             side_effect=lambda *args: Path(*args) if args[0] != ".env" else env_file,
         ),
         patch("builtins.open", side_effect=OSError("Read error")),
-        patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}),
+        patch.dict(os.environ, clean_env, clear=True),
     ):
         overrides = get_active_overrides()
         assert overrides == {}  # Should fail silently and return empty dict

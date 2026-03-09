@@ -14,6 +14,7 @@ from pathlib import Path
 
 # Third Party
 import httpx
+from loguru import logger
 
 # First Party
 from edgewalker.core.config import settings
@@ -66,18 +67,22 @@ def _lookup_mac_api(mac: str) -> dict | None:
         params["apiKey"] = settings.mac_api_key
 
     try:
+        logger.debug(f"Looking up MAC: {mac} via API")
         with httpx.Client() as client:
             resp = client.get(
                 f"{settings.mac_api_url}/{mac}",
                 params=params,
                 timeout=settings.api_timeout,
             )
-    except Exception:
+        logger.debug(f"MAC API Response: {resp.status_code}")
+    except Exception as e:
+        logger.error(f"MAC API request failed for {mac}: {e}")
         return None
 
     if resp.status_code == 429:
         # Rate limited - respect Retry-After header
         retry_after = float(resp.headers.get("Retry-After", "1"))
+        logger.warning(f"MAC API Rate limit hit (429). Retrying after {retry_after}s...")
         time.sleep(retry_after)
         try:
             with httpx.Client() as client:
@@ -86,12 +91,15 @@ def _lookup_mac_api(mac: str) -> dict | None:
                     params=params,
                     timeout=settings.api_timeout,
                 )
-        except Exception:
+            logger.debug(f"MAC API Retry Response: {resp.status_code}")
+        except Exception as e:
+            logger.error(f"MAC API retry failed for {mac}: {e}")
             return None
 
     if resp.status_code == 200:
         return resp.json()
 
+    logger.error(f"MAC API error: {resp.status_code} - {resp.text[:200]}")
     return None
 
 
@@ -124,6 +132,7 @@ def _get_csv_vendors() -> dict:
 
 def _csv_fallback_vendor(normalized: str) -> str:
     """Look up vendor from local CSV fallback."""
+    logger.debug(f"Falling back to local CSV for MAC: {normalized}")
     vendors = _get_csv_vendors()
 
     if len(normalized) < 6:

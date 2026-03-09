@@ -12,6 +12,7 @@ from typing import Callable, Optional
 
 # Third Party
 import httpx
+from loguru import logger
 
 # First Party
 from edgewalker import __version__, utils
@@ -46,25 +47,32 @@ async def search_cves_async(
 
     async with semaphore:
         try:
-            if verbose:
-                # Use logger or print only if not using rich progress
-                pass
-
+            logger.debug(f"Searching NVD for: {params['keywordSearch']}")
             response = await client.get(
                 settings.nvd_api_url, params=params, headers=headers, timeout=30
             )
+            logger.debug(f"NVD Response: {response.status_code}")
+
             if response.status_code == 429:
                 # Rate limit hit, wait and retry once
+                logger.warning(
+                    f"NVD Rate limit hit (403). Waiting {settings.nvd_rate_limit_delay * 2}s..."
+                )
                 await asyncio.sleep(settings.nvd_rate_limit_delay * 2)
                 response = await client.get(
                     settings.nvd_api_url, params=params, headers=headers, timeout=30
                 )
+                logger.debug(f"NVD Retry Response: {response.status_code}")
 
             if response.status_code != 200:
+                logger.error(f"NVD API error: {response.status_code} - {response.text[:200]}")
                 return []
 
             data = response.json()
             vulnerabilities = data.get("vulnerabilities", [])
+            logger.debug(
+                f"Found {len(vulnerabilities)} vulnerabilities for {params['keywordSearch']}"
+            )
 
             cves = []
             for vuln in vulnerabilities:
@@ -94,7 +102,8 @@ async def search_cves_async(
                     "score": base_score,
                 })
             return cves
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error searching CVEs for {product}: {e}")
             return []
 
 
@@ -224,6 +233,7 @@ class CveScanner(ScanModule):
         rich_progress: Optional[tuple[utils.Progress, utils.TaskID]] = None,
     ) -> CveScanResultModel:
         """Scan a single service for CVEs asynchronously."""
+        logger.debug(f"Checking {svc['product']} {svc['version']} on {svc['ip']}:{svc['port']}")
         if self.progress_callback:
             self.progress_callback(
                 "cve_check",

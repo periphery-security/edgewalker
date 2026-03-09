@@ -21,6 +21,7 @@ from typing import Callable, Optional, Union
 # Third Party
 import asyncssh
 from impacket.smbconnection import SMBConnection
+from loguru import logger
 
 # First Party
 from edgewalker import __version__, theme, utils
@@ -164,6 +165,10 @@ class AsyncServiceScanner(ABC):
         i = -1
 
         for i, (user, pw) in enumerate(creds):
+            logger.debug(
+                f"Attempting {self.service_name().upper()} login on "
+                f"{self.ip}:{self.port} with {user}:{pw}"
+            )
             if self.rich_progress:
                 progress, task_id = self.rich_progress
                 progress.update(
@@ -189,6 +194,10 @@ class AsyncServiceScanner(ABC):
                     result, kill_loop = StatusEnum.failed, False
 
             if result is True:
+                logger.success(
+                    f"SUCCESS: {self.service_name().upper()} login on "
+                    f"{self.ip}:{self.port} with {user}:{pw}"
+                )
                 login_status = StatusEnum.successful
                 found_cred = CredentialsModel(user=user, password=pw)
                 if self.verbose and not self.rich_progress:
@@ -205,10 +214,22 @@ class AsyncServiceScanner(ABC):
                     )
                 break
             elif result == StatusEnum.ratelimit:
+                logger.warning(
+                    f"RATE LIMITED: {self.service_name().upper()} on {self.ip}:{self.port}"
+                )
                 login_status = StatusEnum.ratelimit
                 break
+            else:
+                logger.debug(
+                    f"FAILED: {self.service_name().upper()} login on "
+                    f"{self.ip}:{self.port} with {user}:{pw}"
+                )
 
             if kill_loop:
+                logger.debug(
+                    f"KILL LOOP: Stopping {self.service_name().upper()} scan "
+                    f"on {self.ip}:{self.port}"
+                )
                 break
 
         if self.rich_progress:
@@ -248,7 +269,8 @@ class SSHScanner(AsyncServiceScanner):
                 login_timeout=settings.conn_timeout,
             ):
                 return True, False
-        except Exception:
+        except Exception as e:
+            logger.debug(f"SSH login error for {username}@{self.ip}:{self.port}: {e}")
             return False, False
 
 
@@ -274,7 +296,8 @@ class FTPScanner(AsyncServiceScanner):
                     return True
 
             return await asyncio.to_thread(_ftp_login), False
-        except Exception:
+        except Exception as e:
+            logger.debug(f"FTP login error for {username}@{self.ip}:{self.port}: {e}")
             return False, False
 
 
@@ -304,20 +327,33 @@ class TelnetScanner(AsyncServiceScanner):
                             reader.read(1024), timeout=settings.conn_timeout
                         )
                     except asyncio.TimeoutError:
+                        logger.debug(
+                            f"Telnet read timeout on {self.ip}:{self.port}. Buffer: {buf!r}"
+                        )
                         return -1, buf
 
                     if not data:
+                        logger.debug(
+                            f"Telnet connection closed by {self.ip}:{self.port}. Buffer: {buf!r}"
+                        )
                         return -1, buf
                     buf += data
+                    logger.debug(f"Telnet raw data from {self.ip}:{self.port}: {data!r}")
                     for i, p in enumerate(patterns):
                         if p in buf:
                             return i, buf
                     if len(buf) > 4096:
+                        logger.debug(
+                            f"Telnet buffer overflow on {self.ip}:{self.port}. Buffer: {buf!r}"
+                        )
                         return -1, buf
 
             # Wait for login prompt
-            idx, _ = await _read_until([b"login:", b"user:", b"Username:"])
+            idx, buf = await _read_until([b"login:", b"user:", b"Username:"])
             if idx == -1:
+                logger.debug(
+                    f"Telnet login prompt not found on {self.ip}:{self.port}. Buffer: {buf!r}"
+                )
                 writer.close()
                 await writer.wait_closed()
                 return False, False
@@ -326,8 +362,11 @@ class TelnetScanner(AsyncServiceScanner):
             await writer.drain()
 
             # Wait for password prompt
-            idx, _ = await _read_until([b"password:", b"Password:"])
+            idx, buf = await _read_until([b"password:", b"Password:"])
             if idx == -1:
+                logger.debug(
+                    f"Telnet password prompt not found on {self.ip}:{self.port}. Buffer: {buf!r}"
+                )
                 writer.close()
                 await writer.wait_closed()
                 return False, False
@@ -336,13 +375,16 @@ class TelnetScanner(AsyncServiceScanner):
             await writer.drain()
 
             # Check for success
-            idx, _ = await _read_until([b"Welcome", b"$", b"#", b">", b"Login incorrect"])
+            idx, buf = await _read_until([b"Welcome", b"$", b"#", b">", b"Login incorrect"])
             success = idx != -1 and idx != 4
+            if not success:
+                logger.debug(f"Telnet login failed on {self.ip}:{self.port}. Buffer: {buf!r}")
 
             writer.close()
             await writer.wait_closed()
             return success, False
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Telnet login error for {username}@{self.ip}:{self.port}: {e}")
             return False, False
 
 
@@ -368,7 +410,8 @@ class SMBScanner(AsyncServiceScanner):
                     return True
 
             return await asyncio.to_thread(_smb_login), False
-        except Exception:
+        except Exception as e:
+            logger.debug(f"SMB login error for {username}@{self.ip}:{self.port}: {e}")
             return False, False
 
 

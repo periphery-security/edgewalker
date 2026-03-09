@@ -181,7 +181,7 @@ def run_guided_scan(
     overrides = get_active_overrides()
 
     if (security_warnings or overrides) and not allow_override:
-        if security_warnings:
+        if security_warnings and not settings.suppress_warnings:
             console.print(
                 f"\n[bold {theme.RISK_CRITICAL}]SECURITY WARNING: "
                 f"Non-standard or insecure API endpoints detected![/bold {theme.RISK_CRITICAL}]"
@@ -193,7 +193,7 @@ def run_guided_scan(
                 "sensitive data like API keys.[/dim]"
             )
 
-        if overrides:
+        if overrides and not settings.suppress_warnings:
             sources = ", ".join(sorted(set(overrides.values())))
             console.print(
                 f"\n[bold {theme.WARNING}]CONFIGURATION OVERRIDES ACTIVE "
@@ -205,14 +205,21 @@ def run_guided_scan(
                 "\n[dim]These settings will take precedence over your config.yaml file.[/dim]"
             )
 
-        console.print("")
-        confirm = typer.confirm("Do you want to proceed with the scan using these settings?")
-        if not confirm:
+        if not settings.silent_mode:
+            console.print("")
+            confirm = typer.confirm("Do you want to proceed with the scan using these settings?")
+            if not confirm:
+                console.print(
+                    "\n[dim]Scan cancelled. Use [bold]--allow-override[/bold] or "
+                    "[bold]-ao[/bold] to bypass this check.[/dim]"
+                )
+                raise typer.Exit()
+        elif (security_warnings or overrides) and not settings.suppress_warnings:
+            console.print("")
             console.print(
-                "\n[dim]Scan cancelled. Use [bold]--allow-override[/bold] or "
-                "[bold]-ao[/bold] to bypass this check.[/dim]"
+                f"[{theme.WARNING}]Silent mode active: proceeding with scan "
+                f"despite security warnings.[/{theme.WARNING}]"
             )
-            raise typer.Exit()
 
     ensure_telemetry_choice()
     controller = ScanController()
@@ -371,8 +378,39 @@ def main(
     log_file: Optional[str] = typer.Option(
         None, "--log-file", help="Path to write logs to a file."
     ),
+    silent: bool = typer.Option(
+        False,
+        "--silent",
+        "-s",
+        help="Run in non-interactive mode (bypass prompts).",
+    ),
+    suppress_warnings: bool = typer.Option(
+        False,
+        "--suppress-warnings",
+        help="Suppress configuration and security warnings in the console.",
+    ),
+    accept_telemetry: bool = typer.Option(
+        False,
+        "--accept-telemetry",
+        help="Explicitly opt-in to telemetry (used in silent mode).",
+    ),
+    decline_telemetry: bool = typer.Option(
+        False,
+        "--decline-telemetry",
+        help="Explicitly opt-out of telemetry (used in silent mode).",
+    ),
 ) -> None:
     """EdgeWalker - IoT Home Network Security Scanner."""
+    # Update settings with global flags
+    if silent:
+        update_setting("silent_mode", True)
+    if suppress_warnings:
+        update_setting("suppress_warnings", True)
+    if accept_telemetry:
+        update_setting("accept_telemetry", True)
+    if decline_telemetry:
+        update_setting("decline_telemetry", True)
+
     # Configure logging using the Typer options
     setup_logging(verbosity=verbose, log_file=log_file)
 

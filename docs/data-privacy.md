@@ -57,6 +57,7 @@ The findings feed back into improving EdgeWalker's credential database and infor
 ### How to Opt Out
 
 - **During first run**: Select "No thanks" when prompted.
+- **In Silent Mode**: Use the `--decline-telemetry` flag.
 - **After opting in**: Opt out via the TUI settings menu or by deleting the configuration file:
   ```bash
   # On macOS:
@@ -64,6 +65,15 @@ The findings feed back into improving EdgeWalker's credential database and infor
   # On Linux:
   rm ~/.config/edgewalker/config.yaml
   ```
+
+### Non-Interactive (Silent) Mode Telemetry
+
+When running EdgeWalker in automated environments (CI/CD) using the `--silent` flag, the tool requires an explicit telemetry choice if one has not been previously set. This ensures that data sharing is never enabled by default without a conscious decision.
+
+- Use `--accept-telemetry` to opt-in.
+- Use `--decline-telemetry` to opt-out.
+
+If neither flag is provided in silent mode on a fresh installation, EdgeWalker will exit with an error.
 
 ### Server-Side Security
 

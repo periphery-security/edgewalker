@@ -133,4 +133,4 @@ color = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-addopts = "--cov=src --cov-report=term-missing --cov-fail-under=85"
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=90"
