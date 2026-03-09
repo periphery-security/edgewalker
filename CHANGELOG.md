@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.4](https://github.com/periphery-security/edgewalker/compare/edgewalker-v0.1.3...edgewalker-v0.1.4) (2026-03-09)
+
+
+### New Features
+
+* add --colorblind flag with Okabe-Ito safe palette ([014ba94](https://github.com/periphery-security/edgewalker/commit/014ba94c3a330f38116694d63e0fb16c2b64160c))
+* add --unprivileged and --verbose flags to scan command ([80f1355](https://github.com/periphery-security/edgewalker/commit/80f135532d659fdfe7bdba80660b626f0d1762ff))
+* add silent mode and detailed logging for CI/CD automation ([#14](https://github.com/periphery-security/edgewalker/issues/14)) ([db95d39](https://github.com/periphery-security/edgewalker/commit/db95d3989f27085c009b5071f8a2ad2bd023696a))
+* add unprivileged support to the TUI ([bf91e12](https://github.com/periphery-security/edgewalker/commit/bf91e124be49ea4ca36f6eb93e4f6677f7cc38ab))
+* colorblind mode updates config theme ([23afc5b](https://github.com/periphery-security/edgewalker/commit/23afc5b7b4d1e2fb98f6239b77e0d458b8ce70cb))
+* colorblind mode updates config theme ([a1fcb53](https://github.com/periphery-security/edgewalker/commit/a1fcb53b5fc6bac23918fd8217d745db557d4579))
+* implement unprivileged mode for CLI and TUI ([12b5d30](https://github.com/periphery-security/edgewalker/commit/12b5d300fbbe478a8027c2a4ffd64b772361eede))
+
+
+### Bug Fixes
+
+* four bugs in cve_scan and password_scan modules ([2494c05](https://github.com/periphery-security/edgewalker/commit/2494c05018d7c8f7264d5c7d7b9a5d4dc3b6ad90))
+* four bugs in cve_scan and password_scan modules ([0949486](https://github.com/periphery-security/edgewalker/commit/0949486103b6c421e7e51301c64620bcb962a53b))
+* report save location ([a4d7d75](https://github.com/periphery-security/edgewalker/commit/a4d7d75fe7033add7bdb1648b981886c2c663d67))
+* save scan results to ~/.edgewalker/scans not Application Support ([a73dfc4](https://github.com/periphery-security/edgewalker/commit/a73dfc4b7290cf1a66c8f8094da65ca9b7dfcb48))
+* verbose logging showing without -vv being specified ([cd6c8e9](https://github.com/periphery-security/edgewalker/commit/cd6c8e9bb8660c93bab7ed8baff32dbfa59107b8))
+
 ## [0.1.3](https://github.com/periphery-security/edgewalker/compare/edgewalker-v0.1.2...edgewalker-v0.1.3) (2026-03-05)
 
 
