@@ -116,6 +116,17 @@ class ConfigScreen(Screen):
                         )
 
                         with Horizontal(classes="config-row"):
+                            yield Label(
+                                f"Unprivileged Mode{self._get_override_label('unprivileged')}",
+                                classes="config-label",
+                            )
+                            yield Switch(value=settings.unprivileged, id="unprivileged")
+                        yield Label(
+                            "Run without sudo using TCP connect scans (macOS/no-root).",
+                            classes="config-help",
+                        )
+
+                        with Horizontal(classes="config-row"):
                             yield Label("Device ID", classes="config-label")
                             yield Label(settings.device_id, id="device_id_label")
                         yield Label(
@@ -479,6 +490,7 @@ class ConfigScreen(Screen):
             # Collect and update all settings dynamically based on widget IDs
             simple_fields = [
                 "telemetry_enabled",
+                "unprivileged",
                 "nvd_api_key",
                 "mac_api_key",
                 "nvd_api_url",

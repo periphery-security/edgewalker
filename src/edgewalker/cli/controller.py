@@ -35,7 +35,11 @@ class ScanController:
         self.scanner = scanner_service or ScannerService()
 
     async def run_port_scan(
-        self, full: bool = False, target: str = None
+        self,
+        full: bool = False,
+        target: str = None,
+        unprivileged: bool = False,
+        verbose: bool = False,
     ) -> Optional[PortScanModel]:
         """Run port scan and display results asynchronously."""
         scan_type = "FULL" if full else "QUICK"
@@ -50,7 +54,9 @@ class ScanController:
 
         try:
             with utils.console.status(f"[bold green]Scanning {target}..."):
-                results = await self.scanner.perform_port_scan(target=target, full=full)
+                results = await self.scanner.perform_port_scan(
+                    target=target, full=full, unprivileged=unprivileged, verbose=verbose
+                )
         except Exception as e:
             logger.error(f"Scan failed: {str(e)}")
             logger.error("Make sure nmap is installed and you have sudo privileges.")

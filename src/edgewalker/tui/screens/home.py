@@ -70,9 +70,12 @@ class HomeScreen(Screen):
 
     def _update_permissions(self) -> None:
         """Update UI based on nmap permissions."""
+        # First Party
+        from edgewalker.core.config import settings  # noqa: PLC0415
+
         has_perms = self.app.has_nmap_permissions
         btn_scan = self.query_one("#btn-scan", Button)
-        btn_scan.disabled = not has_perms
+        btn_scan.disabled = not (has_perms or settings.unprivileged)
 
     def watch_app_has_nmap_permissions(self, has_perms: bool) -> None:
         """React to permission changes."""
@@ -81,9 +84,10 @@ class HomeScreen(Screen):
     def action_start_guided(self) -> None:
         """Start the guided scan workflow."""
         # First Party
+        from edgewalker.core.config import settings  # noqa: PLC0415
         from edgewalker.tui.screens.guided import GuidedAssessmentScreen  # noqa: PLC0415
 
-        if self.app.has_nmap_permissions:
+        if self.app.has_nmap_permissions or settings.unprivileged:
             self.app.push_screen(GuidedAssessmentScreen())
         else:
             self.notify("Port scanning requires elevated privileges.", severity="error")
@@ -116,4 +120,4 @@ class HomeScreen(Screen):
 
     def on_screen_resume(self) -> None:
         """Handle screen resume."""
-        pass
+        self._update_permissions()

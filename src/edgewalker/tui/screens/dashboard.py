@@ -5,7 +5,6 @@ from __future__ import annotations
 # Standard Library
 import io
 import json
-import sys
 from typing import Callable
 
 # Third Party
@@ -20,7 +19,7 @@ from textual.widgets import Button, Footer, Header, RichLog, Static
 
 # First Party
 from edgewalker import theme
-from edgewalker.core.config import get_active_overrides, settings
+from edgewalker.core.config import get_active_overrides, settings, update_setting
 from edgewalker.display import (
     build_credential_display,
     build_port_scan_display,
@@ -314,7 +313,7 @@ class DashboardScreen(Screen):
         """Start a guided quick scan."""
         if self.app.is_scanning:
             return
-        if not getattr(self.app, "has_nmap_permissions", True):
+        if not getattr(self.app, "has_nmap_permissions", True) and not settings.unprivileged:
             self.notify("Port scanning requires elevated privileges.", severity="error")
             return
 
@@ -339,7 +338,7 @@ class DashboardScreen(Screen):
         """Start a guided full scan."""
         if self.app.is_scanning:
             return
-        if not getattr(self.app, "has_nmap_permissions", True):
+        if not getattr(self.app, "has_nmap_permissions", True) and not settings.unprivileged:
             self.notify("Port scanning requires elevated privileges.", severity="error")
             return
 
@@ -382,7 +381,9 @@ class DashboardScreen(Screen):
         scan_label = "full" if self._full_scan else "quick IoT"
         self._show_loading(f"Running {scan_label} scan on {target}...")
         try:
-            results = await self.app.scanner.perform_port_scan(target=target, full=self._full_scan)
+            results = await self.app.scanner.perform_port_scan(
+                target=target, full=self._full_scan, unprivileged=settings.unprivileged
+            )
             self._on_guided_port_done(results)
         except PermissionError as e:
             self._handle_permission_error(str(e))
@@ -390,17 +391,12 @@ class DashboardScreen(Screen):
             self._on_scan_error(f"Port scan failed: {str(e)}")
 
     def _handle_permission_error(self, error: str) -> None:
-        """Handle permission errors by offering to fix them."""
+        """Handle permission errors by offering to fix them or switch to unprivileged mode."""
         self.app.is_scanning = False
         self._auto_run = False
 
-        # Only offer the fix on Linux
-        if not sys.platform.startswith("linux"):
-            self._on_scan_error(error)
-            return
-
-        def on_fix_confirmed(confirmed: bool) -> None:
-            if confirmed:
+        def on_permission_choice(choice: str) -> None:
+            if choice == "fix":
                 # Suspend textual to allow sudo prompt in terminal
                 try:
                     with self.app.suspend():
@@ -415,10 +411,14 @@ class DashboardScreen(Screen):
                 else:
                     self.notify("Failed to fix permissions.", severity="error")
                     self._on_scan_error(error)
+            elif choice == "unprivileged":
+                update_setting("unprivileged", True)
+                self.notify("Switched to Unprivileged Mode. Retrying scan...")
+                self._run_guided_port_scan()
             else:
                 self._on_scan_error(error)
 
-        self.app.push_screen(PermissionModal(), on_fix_confirmed)
+        self.app.push_screen(PermissionModal(), on_permission_choice)
 
     def _on_guided_port_done(self, results: object) -> None:
         """Handle completion of the guided port scan."""

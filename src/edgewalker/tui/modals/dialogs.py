@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+# Standard Library
+import sys
+
 # Third Party
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
@@ -178,29 +181,45 @@ class ConfirmModal(ModalScreen[bool]):
             self.dismiss(False)
 
 
-class PermissionModal(ModalScreen[bool]):
-    """Modal dialog for fixing nmap permissions."""
+class PermissionModal(ModalScreen[str]):
+    """Modal dialog for fixing nmap permissions or switching to unprivileged mode."""
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
+        is_linux = sys.platform.startswith("linux")
+
         with Container(id="permission-dialog", classes="modal-container"):
             yield Static("NMAP PERMISSIONS REQUIRED", id="permission-title", classes="modal-title")
-            yield Static(
+
+            msg = (
                 "Nmap requires elevated privileges for raw socket access "
                 "(SYN scans and OS detection).\n\n"
-                "Would you like to apply a one-time permission fix? "
-                "This will allow EdgeWalker to run scans without sudo.\n\n"
-                "[bold]Requires sudo password.[/]",
-                id="permission-text",
-                classes="modal-body",
             )
+            if is_linux:
+                msg += (
+                    "Would you like to apply a one-time permission fix? "
+                    "This will allow EdgeWalker to run scans without sudo.\n\n"
+                    "[bold]Requires sudo password.[/]"
+                )
+            else:
+                msg += (
+                    "On macOS, you must run with 'sudo edgewalker' for full scans, "
+                    "or use Unprivileged Mode (TCP Connect scans)."
+                )
+
+            yield Static(msg, id="permission-text", classes="modal-body")
+
             with Horizontal(id="permission-buttons", classes="modal-buttons"):
                 yield Button("Cancel", variant="default", id="perm-no")
-                yield Button("Apply Fix", variant="success", id="perm-yes")
+                if is_linux:
+                    yield Button("Apply Fix", variant="success", id="perm-fix")
+                yield Button("Unprivileged Mode", variant="primary", id="perm-unprivileged")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
-        if event.button.id == "perm-yes":
-            self.dismiss(True)
+        if event.button.id == "perm-fix":
+            self.dismiss("fix")
+        elif event.button.id == "perm-unprivileged":
+            self.dismiss("unprivileged")
         else:
-            self.dismiss(False)
+            self.dismiss("cancel")

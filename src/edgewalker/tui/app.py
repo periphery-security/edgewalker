@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 # Standard Library
-import sys
 import threading
 from typing import TYPE_CHECKING, Iterable
 
@@ -261,30 +260,25 @@ class EdgeWalkerApp(App):
         return False
 
     def _check_nmap_permissions(self) -> None:
-        """Check nmap permissions early and offer fix if on Linux."""
+        """Check nmap permissions early and offer fix or unprivileged mode."""
         self.has_nmap_permissions = check_nmap_permissions()
-        if self.has_nmap_permissions:
+        if self.has_nmap_permissions or settings.unprivileged:
             return
 
-        if sys.platform.startswith("linux"):
+        def on_permission_choice(choice: str) -> None:
+            if choice == "fix":
+                with self.suspend():
+                    success = fix_nmap_permissions()
+                if success:
+                    self.has_nmap_permissions = True
+                    self.notify("Permissions fixed!")
+                else:
+                    self.notify("Failed to fix permissions.", severity="error")
+            elif choice == "unprivileged":
+                update_setting("unprivileged", True)
+                self.notify("Switched to Unprivileged Mode (TCP Connect scans).")
 
-            def on_fix_confirmed(confirmed: bool) -> None:
-                if confirmed:
-                    with self.suspend():
-                        success = fix_nmap_permissions()
-                    if success:
-                        self.has_nmap_permissions = True
-                        self.notify("Permissions fixed!")
-                    else:
-                        self.notify("Failed to fix permissions.", severity="error")
-
-            self.push_screen(PermissionModal(), on_fix_confirmed)
-        elif sys.platform == "darwin":
-            self.notify(
-                "Port scanning requires sudo on macOS. Please restart with 'sudo edgewalker'.",
-                severity="warning",
-                timeout=10,
-            )
+        self.push_screen(PermissionModal(), on_permission_choice)
 
     def get_system_commands(self, screen: Screen) -> Iterable[Hit]:
         """Filter system commands to remove built-in theme switching."""

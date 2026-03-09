@@ -68,7 +68,9 @@ async def test_run_port_scan(mock_submit, mock_save, mock_input, mock_quick, moc
     mock_quick.return_value = mock_results
     res = await cli.ScanController().run_port_scan(full=False)
     assert res.model_dump(mode="json") == mock_results.model_dump(mode="json")
-    mock_quick.assert_called_once_with(target="1.1.1.1", verbose=False, progress_callback=None)
+    mock_quick.assert_called_once_with(
+        target="1.1.1.1", verbose=False, progress_callback=None, unprivileged=False
+    )
 
 
 @pytest.mark.asyncio
@@ -155,7 +157,7 @@ def test_typer_scan(mock_guided_cls, mock_logo):
     result = runner.invoke(app, ["scan", "--target", "1.1.1.1"])
     assert result.exit_code == 0
     mock_guided.automatic_mode.assert_called_once_with(
-        full_scan=False, target="1.1.1.1", full_creds=False
+        full_scan=False, target="1.1.1.1", full_creds=False, unprivileged=False, verbose=False
     )
 
 
@@ -166,7 +168,7 @@ def test_typer_scan_full(mock_guided_cls):
     result = runner.invoke(app, ["scan", "--full", "-t", "1.1.1.1", "--full-creds"])
     assert result.exit_code == 0
     mock_guided.automatic_mode.assert_called_once_with(
-        full_scan=True, target="1.1.1.1", full_creds=True
+        full_scan=True, target="1.1.1.1", full_creds=True, unprivileged=False, verbose=False
     )
 
 
@@ -177,7 +179,7 @@ def test_typer_scan_full_creds(mock_guided_cls):
     result = runner.invoke(app, ["scan", "--full-creds", "-t", "1.1.1.1"])
     assert result.exit_code == 0
     mock_guided.automatic_mode.assert_called_once_with(
-        full_scan=False, target="1.1.1.1", full_creds=True
+        full_scan=False, target="1.1.1.1", full_creds=True, unprivileged=False, verbose=False
     )
 
 
@@ -474,6 +476,28 @@ def test_prompt_next_scan_suggest_cve(mock_run, mock_input, mock_status):
     with patch("edgewalker.cli.guided.GuidedScanner.prompt_next_scan", new_callable=AsyncMock):
         asyncio.run(original_prompt())
     assert mock_run.called
+
+
+@patch("edgewalker.cli.guided.GuidedScanner.automatic_mode", new_callable=AsyncMock)
+@patch("edgewalker.utils.ensure_telemetry_choice")
+def test_run_guided_scan_verbose_flag(mock_telemetry, mock_auto):
+    """--verbose flag is accepted and passed through to automatic_mode."""
+    result = runner.invoke(app, ["scan", "--verbose", "--target", "1.1.1.1"])
+    assert result.exit_code == 0
+    mock_auto.assert_called_once()
+    _, kwargs = mock_auto.call_args
+    assert kwargs.get("verbose") is True
+
+
+@patch("edgewalker.cli.guided.GuidedScanner.automatic_mode", new_callable=AsyncMock)
+@patch("edgewalker.utils.ensure_telemetry_choice")
+def test_run_guided_scan_unprivileged_flag(mock_telemetry, mock_auto):
+    """--unprivileged flag is accepted and passed through to automatic_mode."""
+    result = runner.invoke(app, ["scan", "--unprivileged", "--target", "1.1.1.1"])
+    assert result.exit_code == 0
+    mock_auto.assert_called_once()
+    _, kwargs = mock_auto.call_args
+    assert kwargs.get("unprivileged") is True
 
 
 @patch("edgewalker.utils.has_any_results", return_value=True)
