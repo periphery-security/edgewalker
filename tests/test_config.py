@@ -149,7 +149,9 @@ def test_update_setting_readonly():
 def test_default_output_dir_is_not_inside_config_dir(tmp_path):
     """output_dir default must not nest inside the config/Application Support directory."""
     with patch.dict(os.environ, {"EW_CONFIG_DIR": str(tmp_path)}):
+        # First Party
         from edgewalker.core.config import Settings, get_config_dir, get_data_dir
+
         s = Settings()
         config_dir = get_config_dir()
         data_dir = get_data_dir()
@@ -164,6 +166,8 @@ def test_default_output_dir_is_not_inside_config_dir(tmp_path):
 
 def test_get_data_dir_respects_env_override():
     """EW_DATA_DIR env var overrides the data directory."""
+    # First Party
     from edgewalker.core.config import get_data_dir
+
     with patch.dict(os.environ, {"EW_DATA_DIR": "/tmp/ew_data"}):
         assert str(get_data_dir()) == "/tmp/ew_data"
