@@ -162,6 +162,7 @@ class AsyncServiceScanner(ABC):
 
         found_cred = None
         login_status = StatusEnum.failed
+        i = -1
 
         for i, (user, pw) in enumerate(creds):
             logger.debug(
@@ -704,7 +705,7 @@ async def scan_host(
 ) -> dict:
     """Backward compatible scan_host function asynchronously."""
     scanner = PasswordScanner(target, top_n, verbose, progress_callback)
-    results = await scanner.scan_host(host, ports)
+    results = await scanner.scan_host(host, "", ports)
     out = {"host": host, "services": {}}
     for r in results:
         status = "vulnerable" if r.login_attempt == StatusEnum.successful else "secure"

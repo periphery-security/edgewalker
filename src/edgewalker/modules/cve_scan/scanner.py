@@ -53,7 +53,7 @@ async def search_cves_async(
             )
             logger.debug(f"NVD Response: {response.status_code}")
 
-            if response.status_code == 403:
+            if response.status_code == 429:
                 # Rate limit hit, wait and retry once
                 logger.warning(
                     f"NVD Rate limit hit (403). Waiting {settings.nvd_rate_limit_delay * 2}s..."

@@ -97,15 +97,15 @@ async def test_search_cves_async_real_calls():
 
 @pytest.mark.asyncio
 async def test_search_cves_async_rate_limit():
-    mock_response_403 = MagicMock()
-    mock_response_403.status_code = 403
+    mock_response_429 = MagicMock()
+    mock_response_429.status_code = 429
 
     mock_response_200 = MagicMock()
     mock_response_200.status_code = 200
     mock_response_200.json.return_value = {"vulnerabilities": []}
 
     client = AsyncMock()
-    client.get.side_effect = [mock_response_403, mock_response_200]
+    client.get.side_effect = [mock_response_429, mock_response_200]
 
     with patch("asyncio.sleep", new_callable=AsyncMock):
         res = await scanner.search_cves_async(client, "product", "1.0")
@@ -217,3 +217,38 @@ async def test_cve_scanner_scan_interface():
 
         await s.scan(hosts=None)
         mock_scan.assert_called_with([])
+
+
+@pytest.mark.asyncio
+async def test_search_cves_async_rate_limit_uses_429():
+    """Bug fix: NVD rate limiting uses HTTP 429, not 403."""
+    mock_response_429 = MagicMock()
+    mock_response_429.status_code = 429
+
+    mock_response_200 = MagicMock()
+    mock_response_200.status_code = 200
+    mock_response_200.json.return_value = {"vulnerabilities": []}
+
+    client = AsyncMock()
+    client.get.side_effect = [mock_response_429, mock_response_200]
+
+    with patch("asyncio.sleep", new_callable=AsyncMock):
+        res = await scanner.search_cves_async(client, "product", "1.0")
+        assert res == []
+        assert client.get.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_search_cves_async_403_is_not_retried():
+    """Bug fix: 403 Forbidden should not be retried (it's not a rate limit)."""
+    mock_response_403 = MagicMock()
+    mock_response_403.status_code = 403
+
+    client = AsyncMock()
+    client.get.return_value = mock_response_403
+
+    with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        res = await scanner.search_cves_async(client, "product", "1.0")
+        assert res == []
+        assert client.get.call_count == 1  # no retry
+        mock_sleep.assert_not_called()
