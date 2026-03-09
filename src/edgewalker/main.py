@@ -13,12 +13,17 @@ import sys
 # First Party
 from edgewalker.cli import app
 from edgewalker.core.config import init_config, settings
+from edgewalker.core.logger_config import setup_logging
 from edgewalker.modules import mac_lookup, password_scan
 from edgewalker.tui.app import EdgeWalkerApp
 
 
 def main() -> None:
     """Main entry point."""
+    # Initialize logging with default verbosity (WARNING)
+    # This prevents debug logs from showing during init_config()
+    setup_logging(0, None)
+
     # Initialize the config file with defaults if it does not exist
     init_config()
 

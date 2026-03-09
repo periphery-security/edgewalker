@@ -100,6 +100,9 @@ class TelemetryManager:
         # Use json for deep copy to ensure we don't modify original
         anon = json.loads(json.dumps(data))
 
+        # Remove is_demo field - we only use this locally
+        anon.pop("is_demo", None)
+
         # Ensure top-level device_id is correct and long enough for API
         anon["device_id"] = self.settings.device_id
 
@@ -150,6 +153,10 @@ class TelemetryManager:
         """Submit anonymized scan data to the API asynchronously."""
         if not self.is_telemetry_enabled():
             logger.debug(f"Telemetry disabled; skipping {scan_type} submission.")
+            return None
+
+        if data.get("is_demo"):
+            logger.debug(f"Demo mode active; skipping {scan_type} telemetry submission.")
             return None
 
         try:
@@ -212,6 +219,10 @@ class TelemetryManager:
         """Submit anonymized scan data to the API synchronously."""
         if not self.is_telemetry_enabled():
             logger.debug(f"Telemetry disabled; skipping {scan_type} submission (sync).")
+            return None
+
+        if data.get("is_demo"):
+            logger.debug(f"Demo mode active; skipping {scan_type} telemetry submission (sync).")
             return None
 
         try:
