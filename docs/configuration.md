@@ -62,6 +62,7 @@ These flags can be used with any command:
 - `--suppress-warnings`: Hides configuration override panels and security warnings from the console.
 - `--accept-telemetry`: Explicitly opts-in to anonymous telemetry (required in silent mode if no preference is set).
 - `--decline-telemetry`: Explicitly opts-out of anonymous telemetry (required in silent mode if no preference is set).
+- `--colorblind`: Use colorblind-safe palette (Okabe-Ito) and save to config.
 
 ### CI/CD Usage
 

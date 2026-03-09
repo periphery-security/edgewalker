@@ -76,9 +76,7 @@ class TelemetryManager:
     def anonymize_ip(ip: str) -> str:
         """Anonymize IP by replacing last 2 octets with 0.0."""
         parts = ip.split(".")
-        if len(parts) == 4:
-            return f"{parts[0]}.{parts[1]}.0.0"
-        return ip
+        return f"{parts[0]}.{parts[1]}.0.0" if len(parts) == 4 else ip
 
     @staticmethod
     def anonymize_mac(mac: Optional[str]) -> Optional[str]:
