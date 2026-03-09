@@ -8,6 +8,7 @@ By Periphery (periphery.security)
 """
 
 # Standard Library
+import contextlib
 import sys
 
 # First Party
@@ -34,10 +35,8 @@ def main() -> None:
 
     # If no arguments, launch TUI
     if len(sys.argv) == 1:
-        try:
+        with contextlib.suppress(KeyboardInterrupt):
             EdgeWalkerApp().run()
-        except KeyboardInterrupt:
-            pass
     else:
         app()
 

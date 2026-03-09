@@ -6,6 +6,7 @@ interactive menu.
 
 # Standard Library
 import asyncio
+import contextlib
 import importlib.metadata
 import platform
 import shutil
@@ -22,7 +23,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 # First Party
-from edgewalker import __version__, theme
+from edgewalker import __version__, theme, theme as _theme
 from edgewalker.cli.controller import ScanController
 from edgewalker.cli.guided import GuidedScanner
 from edgewalker.cli.menu import InteractiveMenu
@@ -42,13 +43,19 @@ from edgewalker.utils import (
 )
 
 
-def apply_colorblind_theme() -> None:
-    """Switch the active theme to the colorblind-safe skin."""
-    # First Party
-    from edgewalker import theme as _theme
-    from edgewalker.core.config import settings
-    settings.theme = "colorblind"
+def apply_colorblind_theme(persist: bool = True) -> None:
+    """Switch the active theme to the colorblind-safe skin.
+
+    Args:
+        persist: If True, save the theme choice to config.yaml.
+    """
+    if persist:
+        update_setting("theme", "colorblind")
+    else:
+        settings.theme = "colorblind"
+
     _theme.load_active_theme()
+
 
 # ============================================================================
 # TYPER APP SETUP
@@ -129,9 +136,7 @@ def config_show() -> None:
             f"[yellow]Note: Some settings are currently overridden by {sources}.[/yellow]"
         )
 
-    # Add security warnings
-    security_warnings = settings.get_security_warnings()
-    if security_warnings:
+    if security_warnings := settings.get_security_warnings():
         console.print(
             f"\n[bold {theme.RISK_CRITICAL}]SECURITY WARNINGS:[/bold {theme.RISK_CRITICAL}]"
         )
@@ -185,9 +190,6 @@ def run_guided_scan(
     verbose: bool = typer.Option(
         False, "--verbose", help="Print detailed nmap progress and discovered hosts/ports."
     ),
-    colorblind: bool = typer.Option(
-        False, "--colorblind", help="Use colorblind-safe palette (Okabe-Ito) instead of default theme."
-    ),
 ) -> None:
     """Run a guided security scan.
 
@@ -240,9 +242,6 @@ def run_guided_scan(
                 f"[{theme.WARNING}]Silent mode active: proceeding with scan "
                 f"despite security warnings.[/{theme.WARNING}]"
             )
-
-    if colorblind:
-        apply_colorblind_theme()
 
     ensure_telemetry_choice()
     controller = ScanController()
@@ -326,9 +325,8 @@ def version() -> None:
 
     # Gather dependency info dynamically
     deps = []
-    try:
-        requires = importlib.metadata.requires("edgewalker")
-        if requires:
+    with contextlib.suppress(importlib.metadata.PackageNotFoundError):
+        if requires := importlib.metadata.requires("edgewalker"):
             for req in requires:
                 # Extract package name (e.g., "rich>=14.3.3" -> "rich")
                 dep_name = (
@@ -340,16 +338,11 @@ def version() -> None:
                     .split("<")[0]
                     .strip()
                 )
-                # Handle cases with extras or environment markers
-                dep_name = dep_name.split("[")[0].split(";")[0].strip()
-                if dep_name:
+                if dep_name := dep_name.split("[")[0].split(";")[0].strip():
                     deps.append(dep_name)
-    except importlib.metadata.PackageNotFoundError:
-        pass
-
     # Fallback to pyproject.toml if metadata fails (e.g., running from source)
     if not deps:
-        try:
+        with contextlib.suppress(OSError, UnicodeDecodeError):
             pyproject_path = CONFIG_DIR.parent.parent / "hackathon-q2-2025" / "pyproject.toml"
             # Try relative path from this file too
             if not pyproject_path.exists():
@@ -369,12 +362,8 @@ def version() -> None:
                             .split("<")[0]
                             .strip()
                         )
-                        dep_name = dep_name.split("[")[0].split(";")[0].strip()
-                        if dep_name:
+                        if dep_name := dep_name.split("[")[0].split(";")[0].strip():
                             deps.append(dep_name)
-        except (OSError, UnicodeDecodeError):
-            pass  # nosec: B110 - fallback to hardcoded list is intentional if parsing fails
-
     # Final fallback to hardcoded list if all else fails
     if not deps:
         deps = [
@@ -438,6 +427,11 @@ def main(
         "--decline-telemetry",
         help="Explicitly opt-out of telemetry (used in silent mode).",
     ),
+    colorblind: bool = typer.Option(
+        False,
+        "--colorblind",
+        help="Use colorblind-safe palette (Okabe-Ito) and save to config.",
+    ),
 ) -> None:
     """EdgeWalker - IoT Home Network Security Scanner."""
     # Update settings with global flags
@@ -449,13 +443,14 @@ def main(
         update_setting("accept_telemetry", True)
     if decline_telemetry:
         update_setting("decline_telemetry", True)
+    if colorblind:
+        apply_colorblind_theme(persist=True)
+        console.print(
+            f"[{theme.SUCCESS}]Colorblind-safe theme applied and saved to config.[/{theme.SUCCESS}]"
+        )
 
     # Configure logging using the Typer options
     setup_logging(verbosity=verbose, log_file=log_file)
-
-    if ctx.invoked_subcommand is None:
-        # This is handled in main.py to allow TUI by default
-        pass
 
 
 def interactive_mode() -> None:
