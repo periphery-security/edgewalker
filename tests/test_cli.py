@@ -68,7 +68,9 @@ async def test_run_port_scan(mock_submit, mock_save, mock_input, mock_quick, moc
     mock_quick.return_value = mock_results
     res = await cli.ScanController().run_port_scan(full=False)
     assert res.model_dump(mode="json") == mock_results.model_dump(mode="json")
-    mock_quick.assert_called_once_with(target="1.1.1.1", verbose=False, progress_callback=None, unprivileged=False)
+    mock_quick.assert_called_once_with(
+        target="1.1.1.1", verbose=False, progress_callback=None, unprivileged=False
+    )
 
 
 @pytest.mark.asyncio

@@ -254,7 +254,10 @@ async def test_perform_port_scan_passes_verbose(scanner_service):
         with patch("edgewalker.core.scanner_service.save_results"):
             await scanner_service.perform_port_scan("1.1.1.1", full=False, verbose=True)
             mock_quick.assert_called_once_with(
-                target="1.1.1.1", verbose=True, progress_callback=scanner_service.progress_callback, unprivileged=False
+                target="1.1.1.1",
+                verbose=True,
+                progress_callback=scanner_service.progress_callback,
+                unprivileged=False,
             )
 
 
@@ -268,7 +271,10 @@ async def test_perform_port_scan_passes_unprivileged(scanner_service):
         with patch("edgewalker.core.scanner_service.save_results"):
             await scanner_service.perform_port_scan("1.1.1.1", full=False, unprivileged=True)
             mock_quick.assert_called_once_with(
-                target="1.1.1.1", verbose=False, progress_callback=scanner_service.progress_callback, unprivileged=True
+                target="1.1.1.1",
+                verbose=False,
+                progress_callback=scanner_service.progress_callback,
+                unprivileged=True,
             )
 
     with patch(
@@ -277,5 +283,8 @@ async def test_perform_port_scan_passes_unprivileged(scanner_service):
         with patch("edgewalker.core.scanner_service.save_results"):
             await scanner_service.perform_port_scan("1.1.1.1", full=True, unprivileged=True)
             mock_full.assert_called_once_with(
-                target="1.1.1.1", verbose=False, progress_callback=scanner_service.progress_callback, unprivileged=True
+                target="1.1.1.1",
+                verbose=False,
+                progress_callback=scanner_service.progress_callback,
+                unprivileged=True,
             )
