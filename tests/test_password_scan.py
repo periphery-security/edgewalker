@@ -934,6 +934,7 @@ async def test_password_scanner_scan_host_by_name_smb():
 @pytest.mark.asyncio
 async def test_async_service_scanner_scan_empty_credentials():
     """Bug fix: tested_count should be 0, not UnboundLocalError, when creds list is empty."""
+
     class TestScanner(scanner.AsyncServiceScanner):
         def service_name(self):
             return "ssh"
@@ -946,9 +947,7 @@ async def test_async_service_scanner_scan_empty_credentials():
 
     s = TestScanner("1.1.1.1", 22)
     with patch.object(s, "is_port_open", new_callable=AsyncMock, return_value=True):
-        with patch(
-            "edgewalker.modules.password_scan.scanner.load_credentials", return_value=[]
-        ):
+        with patch("edgewalker.modules.password_scan.scanner.load_credentials", return_value=[]):
             res = await s.scan()
             # Should complete without UnboundLocalError
             assert res.login_attempt == scanner.StatusEnum.failed
@@ -965,5 +964,5 @@ async def test_scan_host_backward_compat_passes_mac():
         args, kwargs = mock_scan.call_args
         # args[0]=host, args[1]=mac, args[2]=ports
         assert args[0] == "1.1.1.1"
-        assert args[1] == ""   # mac must be passed explicitly
+        assert args[1] == ""  # mac must be passed explicitly
         assert args[2] == {"ssh": 22}
