@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+# Standard Library
+import contextlib
+
 # Third Party
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -67,10 +70,14 @@ class ConfigScreen(Screen):
         warnings = settings.get_security_warnings()
         field_label = field_name.replace("_", " ").upper()
 
-        for warning in warnings:
-            if field_label in warning.upper():
-                return " [bold yellow]⚠[/bold yellow]"
-        return ""
+        return next(
+            (
+                " [bold yellow]⚠[/bold yellow]"
+                for warning in warnings
+                if field_label in warning.upper()
+            ),
+            "",
+        )
 
     def compose(self) -> ComposeResult:
         """Compose the configuration screen layout."""
@@ -147,9 +154,7 @@ class ConfigScreen(Screen):
                             themes = theme_manager.list_themes()
                             # Sort to put periphery at the top
                             themes.sort(
-                                key=lambda t: (
-                                    0 if t["slug"] == "periphery" or t["slug"] == "default" else 1
-                                )
+                                key=lambda t: 0 if t["slug"] in ["periphery", "default"] else 1
                             )
 
                             yield OptionList(
@@ -460,13 +465,11 @@ class ConfigScreen(Screen):
 
     def on_mount(self) -> None:
         """Set initial highlight for theme selector."""
-        try:
+        with contextlib.suppress(AttributeError, KeyError, IndexError):
             theme_selector = self.query_one("#theme_selector", OptionList)
             themes = theme_manager.list_themes()
             # Sort to match the compose order
-            themes.sort(
-                key=lambda t: 0 if t["slug"] == "periphery" or t["slug"] == "default" else 1
-            )
+            themes.sort(key=lambda t: 0 if t["slug"] in ["periphery", "default"] else 1)
 
             current_theme = settings.theme
             if current_theme == "default":
@@ -476,8 +479,6 @@ class ConfigScreen(Screen):
                 if t["slug"] == current_theme:
                     theme_selector.highlighted = i
                     break
-        except (AttributeError, KeyError, IndexError):
-            pass  # nosec: B110 - best effort theme selection highlight
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Switch the content area when a sidebar option is selected."""

@@ -111,7 +111,7 @@ echo
 
 # Remove any previous edgewalker install (root or user) to avoid stale PATH conflicts
 # pipx uninstall edgewalker &>/dev/null || true
-pipx uninstall git++https://github.com/periphery-security/edgewalker.git &>/dev/null || true
+pipx uninstall edgewalker &>/dev/null || true
 if [ -n "$SUDO_USER" ]; then
     # Running as root — also clean the invoking user's pipx install
     # Use python3 to safely resolve the home directory (avoids eval injection)

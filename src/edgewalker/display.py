@@ -89,14 +89,15 @@ def build_credential_display(results: dict[str, Any]) -> list[RenderableType]:
             for svc, data in h.get("services", {}).items():
                 if data.get("status") == "vulnerable":
                     creds = data.get("credentials", [])
-                    for c in creds:
-                        items.append({
+                    items.extend(
+                        {
                             "ip": ip,
                             "service": svc,
                             "login_attempt": "successful",
                             "credentials": c,
-                        })
-
+                        }
+                        for c in creds
+                    )
     if not items:
         renderables.append(
             Panel(
@@ -120,7 +121,7 @@ def build_credential_display(results: dict[str, Any]) -> list[RenderableType]:
 
     found = False
     for item in items:
-        if item.get("login_attempt") == "successful" or item.get("login_attempt") == "successful":
+        if item.get("login_attempt") in ["successful", "successful"]:
             found = True
             ip = item.get("ip")
             svc = item.get("service", "").upper()
@@ -278,7 +279,7 @@ def build_risk_report(
     # Calculate stats for the display
     total_devices = len(device_reports)
     vulnerable_devices = len([d for d in device_reports if d["risk"]["score"] > 0])
-    default_creds = sum(1 for d in device_reports if d["risk"]["factors"]["credentials"] > 0)
+    default_creds = sum(d["risk"]["factors"]["credentials"] > 0 for d in device_reports)
     total_cves = sum(len(d["risk"]["cves"]) for d in device_reports)
     total_ports = sum(len(d["risk"]["open_ports"]) for d in device_reports)
 
@@ -338,6 +339,13 @@ def build_risk_report(
         vendor = dev["vendor"]
         risk = dev["risk"]
 
+        # Use discovery info for better naming
+        display_name = vendor
+        if risk.get("mdns_name"):
+            display_name = f"{risk['mdns_name']} ({vendor})"
+        elif risk.get("upnp_info") and risk["upnp_info"].get("modelName"):
+            display_name = f"{risk['upnp_info']['modelName']} ({vendor})"
+
         level, l_color = RiskEngine.get_risk_level(risk["score"])
 
         issues = []
@@ -351,7 +359,7 @@ def build_risk_report(
         issue_str = ", ".join(issues) if issues else "None detected"
 
         table.add_row(
-            f"{vendor}\n[dim]{ip}[/dim]",
+            f"{display_name}\n[dim]{ip}[/dim]",
             f"[{l_color}]{level}[/{l_color}]",
             f"{risk['score']}",
             issue_str,
@@ -383,9 +391,7 @@ def build_risk_report(
                     "user": "unknown",
                     "password": "unknown",
                 })
-        for cve in risk.get("raw_cves", []):
-            all_cves.append({"ip": ip, **cve})
-
+        all_cves.extend({"ip": ip, **cve} for cve in risk.get("raw_cves", []))
     if all_creds:
         cred_table = Table(
             box=box.SIMPLE, header_style=f"bold {theme.RISK_CRITICAL}", width=theme.get_ui_width()

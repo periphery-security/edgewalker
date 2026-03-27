@@ -7,6 +7,7 @@ from __future__ import annotations
 
 # Standard Library
 import asyncio
+import contextlib
 import ipaddress
 import math
 import os
@@ -27,6 +28,9 @@ from loguru import logger
 from edgewalker import __version__, theme, utils
 from edgewalker.core.config import settings
 from edgewalker.modules import ScanModule
+from edgewalker.modules.discovery.http import discover_http
+from edgewalker.modules.discovery.mdns import discover_mdns
+from edgewalker.modules.discovery.upnp import discover_upnp
 from edgewalker.modules.mac_lookup import get_vendor
 from edgewalker.modules.port_scan.models import Host, PortScanModel, TcpPort
 from edgewalker.utils import get_device_id
@@ -46,8 +50,7 @@ def get_local_ip() -> str:
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            return ip
+            return s.getsockname()[0]
     except Exception:
         return "192.168.1.1"
 
@@ -79,12 +82,9 @@ def validate_target(target: str) -> str | None:
             return f"Invalid CIDR range: {target}"
 
     # IP Validation
-    try:
+    with contextlib.suppress(ValueError):
         ipaddress.ip_address(target)
         return None
-    except ValueError:
-        pass
-
     # Hostname Validation
     if validators.domain(target):
         return None
@@ -99,15 +99,12 @@ def check_nmap_permissions() -> bool:
 
     # Check for nmap capabilities (Linux only)
     if sys.platform.startswith("linux"):
-        try:
+        with contextlib.suppress(subprocess.SubprocessError, OSError):
             # nosec: B607, B603 - which and getcap are standard tools
             nmap_path = subprocess.check_output(["which", "nmap"], text=True).strip()
             caps = subprocess.check_output(["getcap", nmap_path], text=True)
             if "cap_net_raw" in caps and "cap_net_admin" in caps:
                 return True
-        except (subprocess.SubprocessError, OSError):
-            pass  # nosec: B110 - best effort check for nmap capabilities
-
     return False
 
 
@@ -149,10 +146,7 @@ def get_nmap_command(unprivileged: bool = False) -> list[str]:
     if unprivileged:
         return ["nmap"]
 
-    if check_nmap_permissions():
-        return ["nmap"]
-
-    return ["sudo", "nmap"]
+    return ["nmap"] if check_nmap_permissions() else ["sudo", "nmap"]
 
 
 def _chunk_hosts(hosts: list[str], n: int) -> list[list[str]]:
@@ -204,9 +198,9 @@ def parse_nmap_xml(xml_output: str) -> list[Host]:
         os_matches = []
         os_elem = host_elem.find("os")
         if os_elem is not None:
-            for osmatch in os_elem.findall("osmatch")[:3]:
-                os_matches.append(osmatch.get("name", "Unknown"))
-
+            os_matches.extend(
+                osmatch.get("name", "Unknown") for osmatch in os_elem.findall("osmatch")[:3]
+            )
         tcp_ports = []
         ports_elem = host_elem.find("ports")
         if ports_elem is not None:
@@ -313,7 +307,7 @@ async def _scan_batch(
                 elif "% done" in line.lower():
                     match = re.search(r"(\d+\.?\d*)%", line)
                     if match:
-                        pct = float(match.group(1))
+                        pct = float(match[1])
                         if rich_progress:
                             progress, task_id = rich_progress
                             progress.update(task_id, completed=pct, visible=True)
@@ -348,10 +342,6 @@ async def _scan_batch(
 
         return xml_data, hosts_with_ports
 
-    except FileNotFoundError:
-        if os.path.exists(xml_path):
-            os.unlink(xml_path)
-        raise
     except Exception:
         if os.path.exists(xml_path):
             os.unlink(xml_path)
@@ -548,18 +538,14 @@ class PortScanner(ScanModule):
     async def scan(self, **kwargs: object) -> PortScanModel:
         """Execute the scan asynchronously (ScanModule interface)."""
         full = kwargs.get("full", False)
-        if full:
-            return await self.full_scan()
-        return await self.quick_scan()
+        return await self.full_scan() if full else await self.quick_scan()
 
     async def quick_scan(self) -> PortScanModel:
         """Perform a quick scan of common IoT ports asynchronously."""
         logger.info(f"Starting quick scan on {self.target}")
-        err = validate_target(self.target)
-        if err:
+        if err := validate_target(self.target):
             raise ValueError(err)
-        err = check_privileges(unprivileged=self.unprivileged)
-        if err:
+        if err := check_privileges(unprivileged=self.unprivileged):
             raise PermissionError(err)
 
         ports = ",".join(str(p) for p in settings.iot_ports)
@@ -592,6 +578,10 @@ class PortScanner(ScanModule):
             self.progress_callback(
                 "phase", f"Scanning {len(live_hosts)} device(s) for open ports..."
             )
+
+        # Start mDNS and UPnP discovery in background
+        mdns_task = asyncio.create_task(discover_mdns(timeout=3.0))
+        upnp_task = asyncio.create_task(discover_upnp(timeout=3.0))
 
         try:
             if self.verbose:
@@ -631,12 +621,27 @@ class PortScanner(ScanModule):
                 target=self.target,
             )
         except Exception as e:
-            raise RuntimeError(str(e))
+            raise RuntimeError(str(e)) from e
+
+        # Wait for discovery tasks
+        mdns_results = await mdns_task
+        upnp_results = await upnp_task
 
         hosts_by_ip = {}
         for xml_data in all_xml:
             for host in parse_nmap_xml(xml_data):
-                hosts_by_ip.setdefault(str(host.ip), host)
+                ip_str = str(host.ip)
+                # Merge discovery data
+                host.mdns_name = mdns_results.get(ip_str)
+                host.upnp_info = upnp_results.get(ip_str)
+
+                if web_ports := [p.port for p in host.tcp if p.port in (80, 443, 8080)]:
+                    # Just use the first one for now
+                    server, title = await discover_http(ip_str, web_ports[0])
+                    host.http_server = server
+                    host.http_title = title
+
+                hosts_by_ip.setdefault(ip_str, host)
         hosts = list(hosts_by_ip.values())
 
         return PortScanModel(
@@ -657,11 +662,9 @@ class PortScanner(ScanModule):
     async def full_scan(self) -> PortScanModel:
         """Full scan using 3-phase hybrid approach asynchronously."""
         logger.info(f"Starting full scan on {self.target}")
-        err = validate_target(self.target)
-        if err:
+        if err := validate_target(self.target):
             raise ValueError(err)
-        err = check_privileges(unprivileged=self.unprivileged)
-        if err:
+        if err := check_privileges(unprivileged=self.unprivileged):
             raise PermissionError(err)
 
         if self.verbose:
@@ -694,6 +697,10 @@ class PortScanner(ScanModule):
                 "phase", f"Scanning {len(live_hosts)} device(s), all 65535 ports..."
             )
 
+        # Start mDNS and UPnP discovery in background
+        mdns_task = asyncio.create_task(discover_mdns(timeout=3.0))
+        upnp_task = asyncio.create_task(discover_upnp(timeout=3.0))
+
         try:
             if self.verbose:
                 with utils.get_progress() as progress:
@@ -720,14 +727,17 @@ class PortScanner(ScanModule):
         except Exception:
             disc_xml = []
 
+        # Wait for discovery tasks
+        mdns_results = await mdns_task
+        upnp_results = await upnp_task
+
         disc_hosts = []
         for xml_data in disc_xml:
             disc_hosts.extend(parse_nmap_xml(xml_data))
 
         host_ports = {}
         for host in disc_hosts:
-            ports = [p.port for p in host.tcp]
-            if ports:
+            if ports := [p.port for p in host.tcp]:
                 host_ports[str(host.ip)] = ports
 
         if not host_ports:
@@ -770,7 +780,18 @@ class PortScanner(ScanModule):
         hosts_by_ip = {}
         for xml_data in probe_xml:
             for host in parse_nmap_xml(xml_data):
-                hosts_by_ip.setdefault(str(host.ip), host)
+                ip_str = str(host.ip)
+                # Merge discovery data
+                host.mdns_name = mdns_results.get(ip_str)
+                host.upnp_info = upnp_results.get(ip_str)
+
+                if web_ports := [p.port for p in host.tcp if p.port in (80, 443, 8080)]:
+                    # Just use the first one for now
+                    server, title = await discover_http(ip_str, web_ports[0])
+                    host.http_server = server
+                    host.http_title = title
+
+                hosts_by_ip.setdefault(ip_str, host)
         hosts = list(hosts_by_ip.values())
 
         return PortScanModel(
@@ -880,8 +901,7 @@ async def ping_sweep(
     if progress_callback:
         progress_callback("phase", "Discovering devices on the network...")
 
-    err = validate_target(target)
-    if err:
+    if err := validate_target(target):
         raise ValueError(err)
 
     flags = ["--unprivileged"] if unprivileged else []
@@ -901,9 +921,8 @@ async def ping_sweep(
                 if not line_bytes:
                     break
                 line = line_bytes.decode("utf-8", errors="replace")
-                match = re.search(r"Nmap scan report for (?:\S+ \()?([\d.]+)\)?", line)
-                if match:
-                    ip = match.group(1)
+                if match := re.search(r"Nmap scan report for (?:\S+ \()?([\d.]+)\)?", line):
+                    ip = match[1]
                     live_hosts.append(ip)
                     if verbose:
                         print(f"  {Colors.GREEN}{theme.ICON_PLUS}{Colors.RESET} {ip}")

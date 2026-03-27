@@ -63,10 +63,7 @@ class RiskEngine:
                 )
 
                 # Check for successful login
-                is_success = (
-                    str(login_attempt) == "successful"
-                    or str(login_attempt) == "StatusEnum.successful"
-                )
+                is_success = str(login_attempt) in {"successful", "StatusEnum.successful"}
                 if ip and is_success:
                     service = str(
                         getattr(
@@ -186,6 +183,7 @@ class RiskEngine:
 
         # Get details for the report
         host = self._port_index.get(ip)
+        open_ports = []
         if host:
             # Handle both model and dict
             ports = getattr(
@@ -193,7 +191,6 @@ class RiskEngine:
                 "tcp",
                 host.get("tcp") or host.get("tcp_ports", []) if isinstance(host, dict) else [],
             )
-            open_ports = []
             if isinstance(ports, list):
                 for p in ports:
                     p_num = getattr(p, "port", p.get("port") if isinstance(p, dict) else 0)
@@ -201,9 +198,6 @@ class RiskEngine:
                         p, "name", p.get("name") or p.get("service") if isinstance(p, dict) else ""
                     )
                     open_ports.append(f"{p_num}/{p_name}")
-        else:
-            open_ports = []
-
         # Get weak creds
         weak_creds = self._cred_index.get(ip, [])
         # Format weak_creds for display (extract service name if it's a dict)
@@ -218,6 +212,20 @@ class RiskEngine:
         cves = self._cve_index.get(ip, [])
         cve_list = [f"{c.get('id')} ({c.get('severity')})" for c in cves]
 
+        # Get discovery info
+        mdns_name = getattr(
+            host, "mdns_name", host.get("mdns_name") if isinstance(host, dict) else None
+        )
+        upnp_info = getattr(
+            host, "upnp_info", host.get("upnp_info") if isinstance(host, dict) else None
+        )
+        http_server = getattr(
+            host, "http_server", host.get("http_server") if isinstance(host, dict) else None
+        )
+        http_title = getattr(
+            host, "http_title", host.get("http_title") if isinstance(host, dict) else None
+        )
+
         return {
             "score": int(min(100, score)),
             "risk_score": int(min(100, score)),  # Legacy name
@@ -227,6 +235,10 @@ class RiskEngine:
             "raw_weak_creds": weak_creds,
             "cves": cve_list,
             "raw_cves": cves,
+            "mdns_name": mdns_name,
+            "upnp_info": upnp_info,
+            "http_server": http_server,
+            "http_title": http_title,
             "factors": {
                 "exposure": exposure,
                 "credentials": credentials,
@@ -317,9 +329,7 @@ class RiskEngine:
             return "HIGH", theme.WARNING
         if score >= 25:
             return "MEDIUM", theme.ACCENT
-        if score > 0:
-            return "LOW", theme.SUCCESS
-        return "NONE", theme.MUTED
+        return ("LOW", theme.SUCCESS) if score > 0 else ("NONE", theme.MUTED)
 
     @staticmethod
     def calculate_network_grade(device_reports: list[dict[str, Any]]) -> tuple[str, str, str]:

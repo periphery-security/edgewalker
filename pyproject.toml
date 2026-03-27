@@ -26,6 +26,8 @@ dependencies = [
     "textual>=8.0.0",
     "typer>=0.15.1",
     "validators>=0.35.0",
+    "zeroconf>=0.143.0",
+    "beautifulsoup4>=4.13.3",
 ]
 
 [dependency-groups]

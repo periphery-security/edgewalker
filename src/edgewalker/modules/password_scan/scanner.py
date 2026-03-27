@@ -376,7 +376,7 @@ class TelnetScanner(AsyncServiceScanner):
 
             # Check for success
             idx, buf = await _read_until([b"Welcome", b"$", b"#", b">", b"Login incorrect"])
-            success = idx != -1 and idx != 4
+            success = idx not in [-1, 4]
             if not success:
                 logger.debug(f"Telnet login failed on {self.ip}:{self.port}. Buffer: {buf!r}")
 
@@ -497,9 +497,7 @@ class PasswordScanner(ScanModule):
                 )
                 tasks.append(scanner.scan())
 
-        if not tasks:
-            return []
-        return await asyncio.gather(*tasks)
+        return await asyncio.gather(*tasks) if tasks else []
 
     async def scan_hosts(self, hosts: list) -> PasswordScanModel:
         """Scan multiple hosts for default credentials asynchronously.
@@ -589,9 +587,9 @@ class PasswordScanner(ScanModule):
         for res_list in host_results:
             all_results.extend(res_list)
 
-        vuln_hosts = len(
-            set(str(r.ip) for r in all_results if r.login_attempt == StatusEnum.successful)
-        )
+        vuln_hosts = len({
+            str(r.ip) for r in all_results if r.login_attempt == StatusEnum.successful
+        })
         creds_found = len([r for r in all_results if r.login_attempt == StatusEnum.successful])
 
         summary = {
@@ -624,8 +622,7 @@ def _load_csv() -> dict[str, list[tuple[str, str]]]:
     with open(CREDS_CSV, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            svc = row.get("service", "").strip().lower()
-            if svc:
+            if svc := row.get("service", "").strip().lower():
                 result.setdefault(svc, []).append((row.get("user", ""), row.get("password", "")))
     return result
 

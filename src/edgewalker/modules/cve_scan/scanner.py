@@ -95,9 +95,9 @@ async def search_cves_async(
 
                 cves.append({
                     "id": cve_id,
-                    "description": description[:200] + "..."
-                    if len(description) > 200
-                    else description,
+                    "description": (
+                        f"{description[:200]}..." if len(description) > 200 else description
+                    ),
                     "severity": severity,
                     "score": base_score,
                 })
@@ -186,19 +186,14 @@ class CveScanner(ScanModule):
             if self.verbose:
                 with utils.get_progress() as progress:
                     task_id = progress.add_task("Checking CVEs", total=len(services_to_check))
-                    tasks = []
-                    for svc in services_to_check:
-                        tasks.append(
-                            self._scan_service(client, svc, semaphore, (progress, task_id))
-                        )
-
+                    tasks = [
+                        self._scan_service(client, svc, semaphore, (progress, task_id))
+                        for svc in services_to_check
+                    ]
                     scan_results = await asyncio.gather(*tasks)
                     all_results.extend(scan_results)
             else:
-                tasks = []
-                for svc in services_to_check:
-                    tasks.append(self._scan_service(client, svc, semaphore))
-
+                tasks = [self._scan_service(client, svc, semaphore) for svc in services_to_check]
                 scan_results = await asyncio.gather(*tasks)
                 all_results.extend(scan_results)
 

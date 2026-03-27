@@ -140,10 +140,7 @@ class GuidedAssessmentScreen(Screen):
 
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
         """Handle radio set changes."""
-        if event.pressed.id == "radio-full":
-            self.config["full_scan"] = True
-        else:
-            self.config["full_scan"] = False
+        self.config["full_scan"] = event.pressed.id == "radio-full"
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle enter key in target input."""

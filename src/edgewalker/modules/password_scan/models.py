@@ -79,8 +79,8 @@ class PasswordScanResultModel(BaseModel):
             raise TypeError(f"attribute name must be string, not {type(key).__name__!r}")
         try:
             return getattr(self, key)
-        except AttributeError:
-            raise KeyError(key)
+        except AttributeError as e:
+            raise KeyError(key) from e
 
     def get(self, key: str, default: object = None) -> object:
         """Allow .get() access."""
@@ -110,17 +110,16 @@ class PasswordScanResultModel(BaseModel):
         Returns:
             str: Serialized IP address
         """
-        if info.context and info.context.get("mode") == "public":
-            if ip.version == 4:
-                arr = ["0", "0"]
-                arr += str(ip).split(".")[2:]
-                return ".".join(arr)
-            else:
-                arr = ["0000", "0000", "0000", "0000"]
-                arr += ip.exploded.split(":")[4:]
-                return ":".join(arr)
-        else:
+        if not info.context or info.context.get("mode") != "public":
             return str(ip)
+        if ip.version == 4:
+            arr = ["0", "0"]
+            arr += str(ip).split(".")[2:]
+            return ".".join(arr)
+        else:
+            arr = ["0000", "0000", "0000", "0000"]
+            arr += ip.exploded.split(":")[4:]
+            return ":".join(arr)
 
 
 class PasswordScanModel(Base):
@@ -132,8 +131,8 @@ class PasswordScanModel(Base):
             raise TypeError(f"attribute name must be string, not {type(key).__name__!r}")
         try:
             return getattr(self, key)
-        except AttributeError:
-            raise KeyError(key)
+        except AttributeError as e:
+            raise KeyError(key) from e
 
     def get(self, key: str, default: object = None) -> object:
         """Allow .get() access."""

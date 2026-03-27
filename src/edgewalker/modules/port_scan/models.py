@@ -34,8 +34,8 @@ class UdpPort(BaseModel):
             return self.product_version
         try:
             return getattr(self, key)
-        except AttributeError:
-            raise KeyError(key)
+        except AttributeError as e:
+            raise KeyError(key) from e
 
     def get(self, key: str, default: object = None) -> object:
         """Allow .get() access."""
@@ -74,8 +74,8 @@ class TcpPort(BaseModel):
             return self.product_version
         try:
             return getattr(self, key)
-        except AttributeError:
-            raise KeyError(key)
+        except AttributeError as e:
+            raise KeyError(key) from e
 
     def get(self, key: str, default: object = None) -> object:
         """Allow .get() access."""
@@ -115,8 +115,8 @@ class Host(BaseModel):
             return [{"name": os} for os in self.os]
         try:
             return getattr(self, key)
-        except AttributeError:
-            raise KeyError(key)
+        except AttributeError as e:
+            raise KeyError(key) from e
 
     def get(self, key: str, default: object = None) -> object:
         """Allow .get() access."""
@@ -124,9 +124,7 @@ class Host(BaseModel):
             return default
         if key == "tcp_ports":
             return self.tcp
-        if key == "udp_ports":
-            return self.udp
-        return getattr(self, key, default)
+        return self.udp if key == "udp_ports" else getattr(self, key, default)
 
     ip: IPvAnyAddress = Field(description="IP Address of host")
     mac: Annotated[str, PlainValidator(validate_mac)] = Field(description="MAC Address of host")
@@ -136,6 +134,14 @@ class Host(BaseModel):
     udp: list[UdpPort] = Field(default_factory=list, description="List of open UDP ports on host")
     tcp: list[TcpPort] = Field(default_factory=list, description="List of open TCP ports on host")
     os: list[str] = Field(default_factory=list, description="Top 3 most likely guesses at host OS")
+
+    # Enhanced Discovery Fields
+    mdns_name: Optional[str] = Field(default=None, description="Name discovered via mDNS")
+    upnp_info: Optional[dict[str, str]] = Field(
+        default=None, description="Information discovered via UPnP"
+    )
+    http_server: Optional[str] = Field(default=None, description="HTTP Server header")
+    http_title: Optional[str] = Field(default=None, description="HTTP page title")
 
     @field_serializer("ip")
     def serialize_ip(self, ip: IPvAnyAddress, info: object) -> str:
@@ -148,17 +154,16 @@ class Host(BaseModel):
         Returns:
             str: IP address as a string
         """
-        if info.context and info.context.get("mode") == "public":
-            if ip.version == 4:
-                arr = ["0", "0"]
-                arr += str(ip).split(".")[2:]
-                return ".".join(arr)
-            else:
-                arr = ["0000", "0000", "0000", "0000"]
-                arr += ip.exploded.split(":")[4:]
-                return ":".join(arr)
-        else:
+        if not info.context or info.context.get("mode") != "public":
             return str(ip)
+        if ip.version == 4:
+            arr = ["0", "0"]
+            arr += str(ip).split(".")[2:]
+            return ".".join(arr)
+        else:
+            arr = ["0000", "0000", "0000", "0000"]
+            arr += ip.exploded.split(":")[4:]
+            return ":".join(arr)
 
     @field_serializer("mac")
     def serialize_mac(self, mac: str, info: object) -> str:
@@ -171,12 +176,11 @@ class Host(BaseModel):
         Returns:
             str: MAC address as a string
         """
-        if info.context and info.context.get("mode") == "public":
-            arr = mac.split(":")[:3]
-            arr += ["00", "00", "00"]
-            return ":".join(arr)
-        else:
+        if not info.context or info.context.get("mode") != "public":
             return mac
+        arr = mac.split(":")[:3]
+        arr += ["00", "00", "00"]
+        return ":".join(arr)
 
 
 class PortScanModel(Base):
@@ -190,8 +194,8 @@ class PortScanModel(Base):
             raise TypeError(f"attribute name must be string, not {type(key).__name__!r}")
         try:
             return getattr(self, key)
-        except AttributeError:
-            raise KeyError(key)
+        except AttributeError as e:
+            raise KeyError(key) from e
 
     def get(self, key: str, default: object = None) -> object:
         """Allow .get() access."""

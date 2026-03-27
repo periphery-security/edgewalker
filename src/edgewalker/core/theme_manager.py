@@ -6,6 +6,7 @@ Handles discovery and loading of YAML-based skins from bundled and XDG folders.
 from __future__ import annotations
 
 # Standard Library
+import contextlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -110,12 +111,9 @@ class ThemeManager:
         default_path = self.bundled_dir / "periphery.yaml"
         base_data = {}
         if default_path.exists():
-            try:
+            with contextlib.suppress(OSError, yaml.YAMLError):
                 with open(default_path, "r", encoding="utf-8") as f:
                     base_data = yaml.safe_load(f) or {}
-            except (OSError, yaml.YAMLError):
-                pass  # nosec: B110 - best effort loading of default theme
-
         if slug == "periphery" or slug == "default" or slug not in self._themes:
             return base_data
 

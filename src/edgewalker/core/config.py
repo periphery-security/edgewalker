@@ -7,6 +7,7 @@ variables prefixed with ``EW_`` (see inline comments for variable names).
 from __future__ import annotations
 
 # Standard Library
+import contextlib
 import os
 import uuid
 from pathlib import Path
@@ -105,27 +106,25 @@ class Settings(BaseSettings):
         if os.environ.get("PYTEST_CURRENT_TEST") and v.startswith("http://"):
             return v
 
-        if not v.startswith("https://"):
-            # Allow http for localhost/127.0.0.1
-            if not any(x in v for x in ("localhost", "127.0.0.1")):
-                raise ValueError(f"{info.field_name} must use https for security")
+        if not v.startswith("https://") and all(x not in v for x in ("localhost", "127.0.0.1")):
+            raise ValueError(f"{info.field_name} must use https for security")
 
         # Domain warnings
         if info.field_name == "api_url":
-            if ".periphery.security" not in v and not any(
-                x in v for x in ("localhost", "127.0.0.1")
+            if ".periphery.security" not in v and all(
+                x not in v for x in ("localhost", "127.0.0.1")
             ):
                 logger.warning(f"Non-standard EdgeWalker API URL detected: {v}")
         elif info.field_name == "nvd_api_url":
-            if "services.nvd.nist.gov" not in v and not any(
-                x in v for x in ("localhost", "127.0.0.1")
+            if "services.nvd.nist.gov" not in v and all(
+                x not in v for x in ("localhost", "127.0.0.1")
             ):
                 logger.warning(
                     f"Non-standard NVD API URL detected: {v}. "
                     "Ensure you trust this endpoint as it receives your API key!"
                 )
         elif info.field_name == "mac_api_url":
-            if "api.maclookup.app" not in v and not any(x in v for x in ("localhost", "127.0.0.1")):
+            if "api.maclookup.app" not in v and all(x not in v for x in ("localhost", "127.0.0.1")):
                 logger.warning(
                     f"Non-standard MAC Lookup API URL detected: {v}. "
                     "Ensure you trust this endpoint as it receives your API key!"
@@ -363,14 +362,14 @@ class Settings(BaseSettings):
         warnings = []
 
         # Check api_url
-        if ".periphery.security" not in self.api_url and not any(
-            x in self.api_url for x in ("localhost", "127.0.0.1")
+        if ".periphery.security" not in self.api_url and all(
+            x not in self.api_url for x in ("localhost", "127.0.0.1")
         ):
             warnings.append(f"Non-standard EdgeWalker API URL: {self.api_url}")
 
         # Check nvd_api_url
-        if "services.nvd.nist.gov" not in self.nvd_api_url and not any(
-            x in self.nvd_api_url for x in ("localhost", "127.0.0.1")
+        if "services.nvd.nist.gov" not in self.nvd_api_url and all(
+            x not in self.nvd_api_url for x in ("localhost", "127.0.0.1")
         ):
             warnings.append(
                 f"Non-standard NVD API URL: {self.nvd_api_url}. "
@@ -378,8 +377,8 @@ class Settings(BaseSettings):
             )
 
         # Check mac_api_url
-        if "api.maclookup.app" not in self.mac_api_url and not any(
-            x in self.mac_api_url for x in ("localhost", "127.0.0.1")
+        if "api.maclookup.app" not in self.mac_api_url and all(
+            x not in self.mac_api_url for x in ("localhost", "127.0.0.1")
         ):
             warnings.append(
                 f"Non-standard MAC Lookup API URL: {self.mac_api_url}. "
@@ -389,8 +388,8 @@ class Settings(BaseSettings):
         # Check for non-https (should be caught by validator but extra safety)
         for field in ("api_url", "nvd_api_url", "mac_api_url"):
             val = getattr(self, field)
-            if not val.startswith("https://") and not any(
-                x in val for x in ("localhost", "127.0.0.1")
+            if not val.startswith("https://") and all(
+                x not in val for x in ("localhost", "127.0.0.1")
             ):
                 warnings.append(f"Insecure (non-HTTPS) {field.replace('_', ' ').upper()}: {val}")
 
@@ -420,19 +419,16 @@ class Settings(BaseSettings):
 
         overrides = get_active_overrides()
         env_key = f"EW_{name.upper()}"
-        alias = field.alias if field.alias else None
+        alias = field.alias or None
 
         override_source = overrides.get(env_key) or (overrides.get(alias) if alias else None)
         is_overridden = override_source is not None
 
-        # Check for security warnings
-        security_warning = None
         field_label = name.replace("_", " ").upper()
-        for warning in self.get_security_warnings():
-            if field_label in warning.upper():
-                security_warning = warning
-                break
-
+        security_warning = next(
+            (warning for warning in self.get_security_warnings() if field_label in warning.upper()),
+            None,
+        )
         return {
             "value": value,
             "default": default,
@@ -462,7 +458,7 @@ def get_active_overrides() -> dict[str, str]:
     # Check .env file first (lower precedence than env vars)
     env_file = Path(".env")
     if env_file.exists():
-        try:
+        with contextlib.suppress(OSError, UnicodeDecodeError):
             with open(env_file, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
@@ -470,9 +466,6 @@ def get_active_overrides() -> dict[str, str]:
                         key = line.split("=")[0].strip()
                         if key.startswith("EW_"):
                             overrides[key] = ".env file"
-        except (OSError, UnicodeDecodeError):
-            pass  # nosec: B110 - best effort loading of .env file
-
     # Check environment variables (higher precedence)
     for key in os.environ:
         if key.startswith("EW_") and key != "EW_ALLOW_OVERRIDES_IN_TESTS":
@@ -489,9 +482,7 @@ def init_config() -> None:
     os.chmod(settings.output_dir, 0o700)
     config_file = settings.config_file
 
-    # Check for overrides and notify user
-    overrides = get_active_overrides()
-    if overrides:
+    if overrides := get_active_overrides():
         sources = ", ".join(sorted(set(overrides.values())))
         logger.warning(
             f"Configuration overrides detected from {sources}. "
@@ -506,16 +497,13 @@ def init_config() -> None:
 
     # Check for root ownership of config file (common if run with sudo first)
     if config_file.exists() and os.getuid() != 0:
-        try:
+        with contextlib.suppress(OSError, AttributeError):
             if config_file.stat().st_uid == 0:
                 logger.warning(
                     f"Config file '{config_file}' is owned by root. "
                     "Settings changes will not be saved. "
                     f"Run 'sudo chown {os.getlogin()} \"{config_file}\"' to fix."
                 )
-        except (OSError, AttributeError):
-            pass
-
     if not config_file.exists():
         save_settings(settings)
     else:
@@ -566,9 +554,7 @@ def update_setting(key: str, value: object) -> None:
     if not hasattr(settings, key):
         raise AttributeError(f"Setting '{key}' does not exist.")
 
-    # Get the field type for validation/conversion
-    field = settings.__class__.model_fields.get(key)
-    if field:
+    if field := settings.__class__.model_fields.get(key):
         # Basic type conversion for common types
         # Handle Optional types by checking the inner type
         origin = get_origin(field.annotation)

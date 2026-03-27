@@ -44,6 +44,7 @@
 | Feature | Description | How it Works |
 | :--- | :--- | :--- |
 | **Port Scan** | Identifies open ports and active services. | `nmap` wrapper with parallel batch scanning. |
+| **Device Discovery** | Enhanced fingerprinting for accurate identification. | mDNS/Bonjour, UPnP/SSDP, and HTTP metadata scraping. |
 | **Credential Test** | Checks for default/weak passwords (SSH, FTP, Telnet, SMB). | Bundled database of ~430 common IoT credentials. |
 | **CVE Check** | Matches detected software against known vulnerabilities. | Real-time NVD API lookup. |
 | **Risk Scoring** | Provides an actionable security grade (A-F). | Proprietary scoring engine (0-100). |
@@ -58,11 +59,12 @@ curl -sSL https://raw.githubusercontent.com/periphery-security/edgewalker/main/s
 ```
 
 ### Manual Installation (via pipx)
-<!--
+
 ```bash
 pipx install edgewalker
 ```
--->
+
+or
 
 ```bash
 pipx install git++https://github.com/periphery-security/edgewalker.git

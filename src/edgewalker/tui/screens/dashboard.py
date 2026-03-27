@@ -223,7 +223,7 @@ class DashboardScreen(Screen):
         log.write(
             Text(
                 f"\n  Press [ENTER] or click below to {label}...",
-                style="blink bold " + theme.ACCENT,
+                style=f"blink bold {theme.ACCENT}",
             )
         )
 
@@ -715,9 +715,7 @@ class DashboardScreen(Screen):
         from edgewalker.tui.screens.home import HomeScreen  # noqa: PLC0415
 
         # Pop screens until HomeScreen is the active screen
-        while len(self.app.screen_stack) > 0:
-            if isinstance(self.app.screen, HomeScreen):
-                break
+        while len(self.app.screen_stack) > 0 and not isinstance(self.app.screen, HomeScreen):
             self.app.pop_screen()
 
     def action_quit_app(self) -> None:

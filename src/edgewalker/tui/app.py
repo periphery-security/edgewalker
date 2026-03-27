@@ -170,8 +170,7 @@ class EdgeWalkerApp(App):
 
         # Register all discovered themes
         for theme_info in theme_manager.list_themes():
-            textual_theme = theme_manager.load_textual_theme(theme_info["slug"])
-            if textual_theme:
+            if textual_theme := theme_manager.load_textual_theme(theme_info["slug"]):
                 self.register_theme(textual_theme)
 
         # Set initial theme (map 'default' to 'periphery')
@@ -247,8 +246,7 @@ class EdgeWalkerApp(App):
         # First Party
         from edgewalker.core.config import get_active_overrides  # noqa: PLC0415
 
-        overrides = get_active_overrides()
-        if overrides:
+        if overrides := get_active_overrides():
             sources = ", ".join(sorted(set(overrides.values())))
             self.notify(
                 f"Configuration overrides active from {sources}. "

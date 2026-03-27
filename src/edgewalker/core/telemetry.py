@@ -116,6 +116,21 @@ class TelemetryManager:
                 if "host" in host:  # password_scan uses "host" key
                     host["host"] = self.anonymize_ip(host["host"])
 
+                # Anonymize new discovery fields
+                if "mdns_name" in host and host["mdns_name"]:
+                    host["mdns_name"] = "redacted"
+                if "upnp_info" in host and host["upnp_info"]:
+                    # Keep manufacturer and model, but redact serialNumber and friendlyName
+                    upnp = host["upnp_info"]
+                    if "friendlyName" in upnp:
+                        upnp["friendlyName"] = "redacted"
+                    if "serialNumber" in upnp:
+                        upnp["serialNumber"] = "redacted"
+                if "http_title" in host and host["http_title"]:
+                    # Simple heuristic: if it looks like it contains a name, redact it
+                    # For now, just redact all titles to be safe as they often contain user info
+                    host["http_title"] = "redacted"
+
         # Anonymize results (password_scan and cve_scan)
         if "results" in anon:
             for res in anon["results"]:

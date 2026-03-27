@@ -35,9 +35,7 @@ _last_request_time: float = 0.0
 
 def _rate_limit_delay() -> float:
     """Return the minimum delay between API requests in seconds."""
-    if settings.mac_api_key:
-        return 1.0 / 50  # 50 req/s with API key
-    return 1.0 / 2  # 2 req/s without API key
+    return 1.0 / 50 if settings.mac_api_key else 1.0 / 2
 
 
 def _wait_for_rate_limit() -> None:

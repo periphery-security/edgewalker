@@ -32,7 +32,7 @@ def validate_mac(mac: str) -> str:
         return ""
     # Support common formats: 00:11:22:33:44:55, 00-11-22-33-44-55, 0011.2233.4455, 001122334455
     clean_mac = re.sub(r"[.:\-]", "", mac).upper()
-    if len(clean_mac) != 12 or not all(c in "0123456789ABCDEF" for c in clean_mac):
+    if len(clean_mac) != 12 or any(c not in "0123456789ABCDEF" for c in clean_mac):
         raise ValueError(f"Invalid MAC address format: {mac}")
 
     # Return in standard colon-separated format
@@ -64,14 +64,12 @@ class Base(BaseModel):
             raise TypeError(f"attribute name must be string, not {type(key).__name__!r}")
         try:
             return getattr(self, key)
-        except AttributeError:
-            raise KeyError(key)
+        except AttributeError as e:
+            raise KeyError(key) from e
 
     def get(self, key: str, default: object = None) -> object:
         """Allow .get() access for backward compatibility."""
-        if not isinstance(key, str):
-            return default
-        return getattr(self, key, default)
+        return getattr(self, key, default) if isinstance(key, str) else default
 
     def __eq__(self, other: object) -> bool:
         """Allow comparison with dictionaries for backward compatibility with tests."""

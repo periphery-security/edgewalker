@@ -4,6 +4,7 @@ Console helpers, file I/O, and shared state used across the application.
 """
 
 # Standard Library
+import contextlib
 import ipaddress
 import json
 import os
@@ -246,7 +247,7 @@ def get_input(prompt: str, default: str = None) -> str:
         value = input().strip()
     except EOFError:
         return default
-    return value if value else default
+    return value or default
 
 
 def press_enter() -> None:
@@ -256,10 +257,8 @@ def press_enter() -> None:
 
     console.print()
     console.print(f"[{theme.MUTED}]Press Enter to continue...[/{theme.MUTED}]", end="")
-    try:
+    with contextlib.suppress(EOFError):
         input()
-    except EOFError:
-        pass
 
 
 def has_seen_telemetry_prompt() -> bool:
