@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.5](https://github.com/periphery-security/edgewalker/compare/edgewalker-v0.1.4...edgewalker-v0.1.5) (2026-03-27)
+
+
+### New Features
+
+* add upnp and mdns discovery for devices ([c57eab4](https://github.com/periphery-security/edgewalker/commit/c57eab4ea9ff1056caf1c88c7bb54168c7e36e67))
+
+
+### Bug Fixes
+
+* security vulnerabilities in dependent packages resolved ([56a9e26](https://github.com/periphery-security/edgewalker/commit/56a9e26755f6282616876a18d10003fa8a3d3187))
+
 ## [0.1.4](https://github.com/periphery-security/edgewalker/compare/edgewalker-v0.1.3...edgewalker-v0.1.4) (2026-03-09)
 
 
