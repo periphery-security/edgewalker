@@ -35,7 +35,12 @@ async def discover_upnp(timeout: float = 2.0) -> Dict[str, Dict[str, str]]:
         "\r\n"
     )
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+    except Exception as e:
+        logger.error(f"Failed to create SSDP socket: {e}")
+        return {}
+
     sock.setblocking(False)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
@@ -52,11 +57,12 @@ async def discover_upnp(timeout: float = 2.0) -> Dict[str, Dict[str, str]]:
                 ip = addr[0]
                 if ip not in discovered_devices:
                     response = data.decode("utf-8", errors="ignore")
-                    if location_match := [
+                    location_match = [
                         line.split(": ", 1)[1]
                         for line in response.splitlines()
                         if line.lower().startswith("location:")
-                    ]:
+                    ]
+                    if location_match:
                         location = location_match[0]
                         info = await _fetch_upnp_description(location)
                         if info:

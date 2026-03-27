@@ -52,7 +52,12 @@ async def discover_mdns(timeout: float = 2.0) -> Dict[str, str]:
         Dictionary mapping IP addresses to discovered names.
     """
     logger.info(f"Starting mDNS discovery (timeout={timeout}s)...")
-    zeroconf = Zeroconf()
+    try:
+        zeroconf = Zeroconf()
+    except Exception as e:
+        logger.error(f"Failed to initialize Zeroconf: {e}")
+        return {}
+
     listener = MDNSListener()
 
     # Common IoT service types to browse
