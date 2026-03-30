@@ -221,6 +221,105 @@ def build_cve_display(results: dict[str, Any]) -> list[RenderableType]:
     return renderables
 
 
+def build_device_report(device_data: dict[str, Any]) -> RenderableType:
+    """Build a detailed Rich report for a single device."""
+    ip = device_data.get("ip", "Unknown")
+    vendor = device_data.get("vendor", "Unknown")
+    risk = device_data.get("risk", {})
+    score = risk.get("score", 0)
+    level, color = RiskEngine.get_risk_level(score)
+
+    # Header Panel
+    header_table = Table.grid(expand=True)
+    header_table.add_column(style="bold")
+    header_table.add_column(justify="right")
+
+    header_table.add_row(
+        Text(f"DEVICE: {ip} ({vendor})", style=theme.HEADER),
+        Text(f"RISK: {level} ({score}/100)", style=f"bold {color}"),
+    )
+
+    sections = [Panel(header_table, border_style=color, box=box.ROUNDED)]
+
+    # 1. Exposure (Ports)
+    ports = risk.get("open_ports", [])
+    port_text = Text()
+    if ports:
+        for p in ports:
+            port_text.append(f" {theme.ICON_STEP} {p}\n", style=theme.WARNING)
+    else:
+        port_text.append(" No open ports discovered.", style=theme.MUTED)
+
+    sections.append(
+        Panel(
+            port_text,
+            title=f"[{theme.ACCENT}]OPEN PORTS[/{theme.ACCENT}]",
+            border_style=theme.ACCENT,
+            box=theme.BOX_STYLE,
+        )
+    )
+
+    # 2. Credentials
+    creds = risk.get("weak_creds", [])
+    cred_text = Text()
+    if creds:
+        for c in creds:
+            cred_text.append(f" {theme.ICON_ALERT} VULNERABLE: {c}\n", style=theme.RISK_CRITICAL)
+    else:
+        cred_text.append(" No default credentials found.", style=theme.SUCCESS)
+
+    sections.append(
+        Panel(
+            cred_text,
+            title=f"[{theme.ACCENT}]CREDENTIAL STATUS[/{theme.ACCENT}]",
+            border_style=theme.ACCENT,
+            box=theme.BOX_STYLE,
+        )
+    )
+
+    # 3. Vulnerabilities (CVEs)
+    cves = risk.get("cves", [])
+    cve_text = Text()
+    if cves:
+        for c in cves:
+            cve_text.append(f" {theme.ICON_FAIL} {c}\n", style=theme.RISK_CRITICAL)
+    else:
+        cve_text.append(" No known vulnerabilities found.", style=theme.SUCCESS)
+
+    sections.append(
+        Panel(
+            cve_text,
+            title=f"[{theme.ACCENT}]KNOWN VULNERABILITIES[/{theme.ACCENT}]",
+            border_style=theme.ACCENT,
+            box=theme.BOX_STYLE,
+        )
+    )
+
+    # Discovery Info
+    info_table = Table.grid(padding=(0, 2))
+    info_table.add_column(style=theme.MUTED)
+    info_table.add_column()
+
+    if mdns := risk.get("mdns_name"):
+        info_table.add_row("mDNS Name:", mdns)
+    if server := risk.get("http_server"):
+        info_table.add_row("HTTP Server:", server)
+    if title := risk.get("http_title"):
+        info_table.add_row("HTTP Title:", title)
+
+    if info_table.row_count > 0:
+        sections.append(
+            Panel(
+                info_table,
+                title=f"[{theme.ACCENT}]DISCOVERY INFO[/{theme.ACCENT}]",
+                border_style=theme.ACCENT,
+                box=theme.BOX_STYLE,
+            )
+        )
+
+    return Group(*sections)
+
+
 def build_risk_report(
     port_data: dict[str, Any],
     cred_data: dict[str, Any],

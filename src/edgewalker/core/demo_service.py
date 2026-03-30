@@ -95,6 +95,7 @@ class DemoService:
             ],
             hosts_responded=2,
             hosts_with_ports=2,
+            gateway_ip="192.168.1.1",
         )
 
         results_dict = results.model_dump(mode="json")

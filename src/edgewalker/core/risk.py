@@ -27,12 +27,14 @@ class RiskEngine:
         port_data: PortScanModel | dict[str, Any],
         cred_data: PasswordScanModel | dict[str, Any],
         cve_data: CveScanModel | dict[str, Any],
+        gateway_ip: str | None = None,
     ) -> None:
         """Initialize the risk engine with scan data."""
         # Convert dicts to models if they match the new format, otherwise keep as dict
         self.port_data = self._ensure_model(port_data, PortScanModel)
         self.cred_data = self._ensure_model(cred_data, PasswordScanModel)
         self.cve_data = self._ensure_model(cve_data, CveScanModel)
+        self.gateway_ip = gateway_ip or getattr(self.port_data, "gateway_ip", None)
 
         # Index data by IP for performance (O(1) lookup)
         # Use string keys for compatibility with tests
@@ -181,6 +183,14 @@ class RiskEngine:
             + (vulnerabilities * weights["vulnerabilities"])
         )
 
+        # Gateway Prioritization: If this is the gateway, vulnerabilities are more critical
+        is_gateway = str(ip) == str(self.gateway_ip)
+        if is_gateway and score > 0:
+            # Apply a 1.2x multiplier for gateway risk, capped at 100
+            score = min(100, score * 1.2)
+            # Ensure even low-risk gateways get some attention if they have any exposure
+            score = max(score, 15)
+
         # Get details for the report
         host = self._port_index.get(ip)
         open_ports = []
@@ -230,6 +240,7 @@ class RiskEngine:
             "score": int(min(100, score)),
             "risk_score": int(min(100, score)),  # Legacy name
             "risk_level": self.get_risk_level(score)[0],
+            "is_gateway": is_gateway,
             "open_ports": open_ports,
             "weak_creds": display_creds,
             "raw_weak_creds": weak_creds,
@@ -340,6 +351,18 @@ class RiskEngine:
         # Check for default credentials (instant F)
         has_creds = any(d["risk"]["factors"]["credentials"] > 0 for d in device_reports)
         if has_creds:
+            # Check if it's the gateway
+            gateway_creds = any(
+                d["risk"]["factors"]["credentials"] > 0 and d["risk"].get("is_gateway")
+                for d in device_reports
+            )
+            if gateway_creds:
+                return (
+                    "F",
+                    "CRITICAL: Default credentials found on your GATEWAY. "
+                    "Your entire network is at extreme risk.",
+                    theme.RISK_CRITICAL,
+                )
             return (
                 "F",
                 "Default credentials found. Your network is trivially compromisable.",
@@ -348,6 +371,18 @@ class RiskEngine:
 
         # Get worst device score
         max_score = max(d["risk"]["score"] for d in device_reports)
+
+        # Check if the worst score is the gateway
+        gateway_report = next((d for d in device_reports if d["risk"].get("is_gateway")), None)
+        gateway_score = gateway_report["risk"]["score"] if gateway_report else 0
+
+        if gateway_score >= 80:
+            return (
+                "F",
+                "CRITICAL: Your gateway has severe vulnerabilities. "
+                "The perimeter of your network is compromised.",
+                theme.RISK_CRITICAL,
+            )
 
         if max_score >= 80:
             return "D", "Critical vulnerabilities found on your network.", theme.RISK_CRITICAL

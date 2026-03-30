@@ -58,8 +58,8 @@ class HomeScreen(Screen):
             )
 
             yield Static(
-                f"[{theme.MUTED}]HACKATHON TEAM: Adam Massey, Steven Marks, "
-                "Dr Lina Anaya, Travis Pell[/]",
+                f"[{theme.MUTED}]HACKATHON TEAM: Steven Marks, Dr Lina Anaya, "
+                "Travis Pell, Adam Massey[/]",
                 id="home-contributors",
             )
         yield Footer()

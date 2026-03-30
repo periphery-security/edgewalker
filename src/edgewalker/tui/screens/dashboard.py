@@ -15,13 +15,14 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, ScrollableContainer, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, RichLog, Static
+from textual.widgets import Button, Footer, Header, RichLog, Static, Tree
 
 # First Party
 from edgewalker import theme
 from edgewalker.core.config import get_active_overrides, settings, update_setting
 from edgewalker.display import (
     build_credential_display,
+    build_device_report,
     build_port_scan_display,
     build_risk_report,
 )
@@ -33,6 +34,7 @@ from edgewalker.tui.modals.dialogs import (
     TargetInputModal,
 )
 from edgewalker.tui.widgets.navigation import NavigationPanel
+from edgewalker.tui.widgets.topology import TopologyWidget
 from edgewalker.utils import save_results
 
 
@@ -41,19 +43,21 @@ class DashboardScreen(Screen):
 
     BINDINGS = [
         Binding("1", "show_report", "Risk Report", show=True),
-        Binding("2", "quick_scan", "Quick Scan", show=True),
-        Binding("3", "full_scan", "Full Scan", show=True),
-        Binding("4", "cred_scan", "Password Test", show=True),
-        Binding("5", "cve_scan", "CVE Check", show=True),
+        Binding("2", "topology", "Topology", show=True),
+        Binding("3", "quick_scan", "Quick Scan", show=True),
+        Binding("4", "full_scan", "Full Scan", show=True),
+        Binding("5", "cred_scan", "Password Test", show=True),
+        Binding("6", "cve_scan", "CVE Check", show=True),
         Binding("8", "view_raw", "Raw Results", show=True),
         Binding("9", "clear_results", "Clear All", show=True),
         Binding("ctrl+c", "copy_report", "Copy Report", show=True),
-        Binding("escape", "go_home", "Home", show=True),
+        Binding("escape", "go_home", "Back", show=True),
     ]
 
     def __init__(
         self,
         show_report: bool = False,
+        show_topology: bool = False,
         full_scan: bool = False,
         auto_target: str = "",
         run_creds: bool = False,
@@ -65,6 +69,7 @@ class DashboardScreen(Screen):
 
         Args:
             show_report: Whether to show the report immediately.
+            show_topology: Whether to show the topology map immediately.
             full_scan: Whether to run a full scan.
             auto_target: Target for automatic scan.
             run_creds: Whether to run credential scan.
@@ -80,8 +85,10 @@ class DashboardScreen(Screen):
         self._run_cves = run_cves
         self._auto_run = auto_run
         self._initial_report = show_report
+        self._initial_topology = show_topology
         self._full_creds = full_creds
         self._current_report_text = ""
+        self._from_topology = False
 
     def compose(self) -> ComposeResult:
         """Compose the dashboard layout."""
@@ -95,6 +102,7 @@ class DashboardScreen(Screen):
                         Static(id="report-content", expand=True),
                         id="report-container",
                     )
+                    yield ScrollableContainer(id="topology-container")
                 with Horizontal(id="button-bar"):
                     yield Button("Continue", variant="primary", id="continue-btn")
         yield Footer()
@@ -103,6 +111,7 @@ class DashboardScreen(Screen):
         """Handle screen mount."""
         self.query_one("#continue-btn").display = False
         self.query_one("#report-container").display = False
+        self.query_one("#topology-container").display = False
         self._update_permissions()
 
         # Replay progress log if a scan is active or was recently active
@@ -112,6 +121,8 @@ class DashboardScreen(Screen):
 
         if self._initial_report:
             self.action_show_report()
+        elif self._initial_topology:
+            self.action_topology()
         elif self._auto_target and not self.app.is_scanning:
             # Check for security warnings and overrides first
             def proceed_with_scan() -> None:
@@ -313,6 +324,8 @@ class DashboardScreen(Screen):
         """Start a guided quick scan."""
         if self.app.is_scanning:
             return
+        self._from_topology = False
+        self.query_one("#topology-container").display = False
         if not getattr(self.app, "has_nmap_permissions", True) and not settings.unprivileged:
             self.notify("Port scanning requires elevated privileges.", severity="error")
             return
@@ -338,6 +351,8 @@ class DashboardScreen(Screen):
         """Start a guided full scan."""
         if self.app.is_scanning:
             return
+        self._from_topology = False
+        self.query_one("#topology-container").display = False
         if not getattr(self.app, "has_nmap_permissions", True) and not settings.unprivileged:
             self.notify("Port scanning requires elevated privileges.", severity="error")
             return
@@ -363,12 +378,22 @@ class DashboardScreen(Screen):
         """Start a manual credential scan."""
         if self.app.is_scanning:
             return
+        self._from_topology = False
+        self.query_one("#topology-container").display = False
 
         def on_depth_selected(full: bool) -> None:
             self._full_creds = full
             self._run_guided_cred_scan()
 
         self.app.push_screen(CredScanTypeModal(), on_depth_selected)
+
+    def action_cve_scan(self) -> None:
+        """Start a manual CVE scan."""
+        if self.app.is_scanning:
+            return
+        self._from_topology = False
+        self.query_one("#topology-container").display = False
+        self._run_guided_cve_scan()
 
     @work(exclusive=True, group="scan")
     async def _run_guided_port_scan(self) -> None:
@@ -647,6 +672,8 @@ class DashboardScreen(Screen):
 
     def action_show_report(self) -> None:
         """Load and display the last security report."""
+        self._from_topology = False
+        self.query_one("#topology-container").display = False
         port_file = settings.output_dir / "port_scan.json"
         if not port_file.exists():
             self.notify("Port scan required first.", severity="warning")
@@ -670,12 +697,75 @@ class DashboardScreen(Screen):
         renderables, _ = build_risk_report(port_data, cred_data, cve_data)
         self._update_report_view(Group(*renderables))
 
+    async def action_topology(self) -> None:
+        """Show the network topology map in the dashboard."""
+        self._from_topology = False
+        port_file = settings.output_dir / "port_scan.json"
+        if not port_file.exists():
+            self.notify("Port scan required first.", severity="warning")
+            return
+
+        with open(port_file) as f:
+            port_data = json.load(f)
+
+        cred_data = {}
+        pwd_file = settings.output_dir / "password_scan.json"
+        if pwd_file.exists():
+            with open(pwd_file) as f:
+                cred_data = json.load(f)
+
+        cve_data = {}
+        cve_file = settings.output_dir / "cve_scan.json"
+        if cve_file.exists():
+            with open(cve_file) as f:
+                cve_data = json.load(f)
+
+        # Calculate risk for each host to ensure topology has latest data
+        # First Party
+        from edgewalker.core.risk import RiskEngine  # noqa: PLC0415
+
+        engine = RiskEngine(port_data, cred_data, cve_data)
+        for host in port_data.get("hosts", []):
+            host["risk"] = engine.calculate_device_risk(host.get("ip"))
+
+        self.query_one("#wizard-log").display = False
+        self.query_one("#report-container").display = False
+
+        container = self.query_one("#topology-container")
+        container.display = True
+
+        # Check if tree already exists to avoid DuplicateIds error
+        try:
+            existing_tree = self.query_one("#topology-tree")
+            await existing_tree.remove()
+        except Exception:
+            pass
+
+        await container.mount(TopologyWidget(port_data, id="topology-tree"))
+        self.query_one("#topology-tree").focus()
+
+    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+        """Handle device selection in the topology tree."""
+        device_data = event.node.data
+        if not device_data or device_data.get("type") == "scanner":
+            return
+
+        # Build and show the device report
+        report = build_device_report(device_data)
+        self._from_topology = True
+        self.query_one("#topology-container").display = False
+        self._update_report_view(report)
+
+        # Add a temporary binding to go back to topology
+        self.notify("Press [6] to return to Topology", timeout=3)
+
     def action_view_raw(self) -> None:
         """Show raw JSON results."""
         self.notify("Raw results view not yet implemented in TUI.", severity="info")
 
     def action_clear_results(self) -> None:
         """Clear all saved results."""
+        self.query_one("#topology-container").display = False
         if settings.output_dir.exists():
             for f in settings.output_dir.glob("*.json"):
                 f.unlink()
@@ -684,8 +774,25 @@ class DashboardScreen(Screen):
         self.query_one("#nav-panel").update_status()
         self._show_welcome()
 
-    def action_go_home(self) -> None:
-        """Return to the home screen."""
+    async def action_go_home(self) -> None:
+        """Go back to the previous view or home."""
+        # 1. If showing a device report from topology, go back to topology
+        if self.query_one("#report-container").display and self._from_topology:
+            await self.action_topology()
+            return
+
+        # 2. If showing topology, go back to main report or welcome
+        if self.query_one("#topology-container").display:
+            # First Party
+            from edgewalker.utils import has_port_scan  # noqa: PLC0415
+
+            if has_port_scan():
+                self.action_show_report()
+            else:
+                self._show_welcome()
+            return
+
+        # 3. Otherwise, go home (with scan confirmation if needed)
         if self.app.is_scanning:
 
             def check_confirm(confirmed: bool) -> None:
@@ -727,9 +834,9 @@ class DashboardScreen(Screen):
     def _start_guided_flow(self) -> None:
         self.action_quick_scan()
 
-    def action_go_back(self) -> None:
-        """Return to the previous screen."""
-        self.action_go_home()
+    def action_back(self) -> None:
+        """Alias for go_home for backward compatibility."""
+        self.app.call_next(self.action_go_home)
 
     def _write_progress(self, event: str, data: str) -> None:
         self._on_progress(event, data)

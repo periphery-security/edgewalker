@@ -61,8 +61,8 @@ By default, EdgeWalker tests only the top 10 credentials per service for speed. 
 from edgewalker.modules.password_scan import scan, load_credentials
 
 # Load credentials for a service
-ssh_creds = load_credentials("ssh")           # all
-ssh_top10 = load_credentials("ssh", top_n=10) # top 10
+ssh_creds = load_credentials("ssh")  # all
+ssh_top10 = load_credentials("ssh", top_n=10)  # top 10
 
 # Scan hosts from port scan results
 results = scan(hosts=port_scan_hosts, top_n=10, verbose=True)

@@ -8,6 +8,7 @@ import pytest
 from edgewalker.modules.port_scan.scanner import (
     PortScanner,
     check_privileges,
+    detect_gateway,
     get_default_target,
     get_local_ip,
     get_nmap_command,
@@ -23,6 +24,22 @@ def test_port_scan_utils():
     assert validate_target("127.0.0.1") is None
     assert validate_target("-invalid") is not None
     assert validate_target("192.168.1.0/24") is None
+
+
+def test_detect_gateway():
+    with patch("sys.platform", "darwin"):
+        with patch("subprocess.check_output", return_value="default 192.168.1.1 UGSc 0 0 en0"):
+            assert detect_gateway() == "192.168.1.1"
+
+    with patch("sys.platform", "linux"):
+        with patch("subprocess.check_output", return_value="default via 192.168.1.254 dev eth0"):
+            assert detect_gateway() == "192.168.1.254"
+
+    with patch("subprocess.check_output", side_effect=Exception("error")):
+        with patch(
+            "edgewalker.modules.port_scan.scanner.get_local_ip", return_value="192.168.1.50"
+        ):
+            assert detect_gateway() == "192.168.1.1"
 
 
 def test_port_scan_privileges():

@@ -307,7 +307,7 @@ async def test_dashboard_screen_confirm_go_home():
 
             app.is_scanning = True
             with patch.object(app, "push_screen") as mock_push:
-                screen.action_go_home()
+                await screen.action_go_home()
                 await pilot.pause()
                 assert mock_push.called
 
@@ -363,6 +363,6 @@ async def test_dashboard_screen_go_home():
             await pilot.pause()
 
             assert app.screen == screen
-            screen.action_go_home()
+            await screen.action_go_home()
             await pilot.pause()
             assert isinstance(app.screen, HomeScreen)

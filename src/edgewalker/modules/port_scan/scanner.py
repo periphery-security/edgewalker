@@ -55,6 +55,39 @@ def get_local_ip() -> str:
         return "192.168.1.1"
 
 
+def detect_gateway() -> str | None:
+    """Detect the default gateway IP address for the current system."""
+    try:
+        if sys.platform == "darwin":
+            # macOS: netstat -rn | grep default
+            # nosec: B603, B607 - netstat is a standard tool
+            output = subprocess.check_output(["netstat", "-rn"], text=True)
+            for line in output.splitlines():
+                if "default" in line:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        return parts[1]
+        elif sys.platform.startswith("linux"):
+            # Linux: ip route show default
+            # nosec: B603, B607 - ip is a standard tool
+            output = subprocess.check_output(["ip", "route", "show", "default"], text=True)
+            if output:
+                parts = output.split()
+                if "via" in parts:
+                    return parts[parts.index("via") + 1]
+    except Exception as e:
+        logger.debug(f"Failed to detect gateway: {e}")
+
+    # Fallback: try common gateway IPs based on local IP
+    local_ip = get_local_ip()
+    if local_ip:
+        parts = local_ip.split(".")
+        if len(parts) == 4:
+            return f"{parts[0]}.{parts[1]}.{parts[2]}.1"
+
+    return None
+
+
 def get_default_target() -> str:
     """Get default scan target (local /24 subnet)."""
     ip = get_local_ip()

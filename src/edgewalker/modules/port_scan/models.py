@@ -202,6 +202,9 @@ class PortScanModel(Base):
         return getattr(self, key, default)
 
     hosts: list[Host] = Field(default_factory=list, description="List of hosts found")
+    gateway_ip: Optional[str] = Field(
+        default=None, description="Detected gateway IP for the subnet"
+    )
 
     all_ports: bool = Field(default=False, description="True for full_scan")
     version_scan: bool = Field(

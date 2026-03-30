@@ -9,7 +9,7 @@ import sys
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button, Footer, Input, Static
 
 # First Party
 from edgewalker.modules import port_scan
@@ -38,6 +38,7 @@ class TelemetryModal(ModalScreen[bool]):
             with Horizontal(id="optin-buttons", classes="modal-buttons"):
                 yield Button("No thanks", variant="error", id="optin-no")
                 yield Button("I'll help!", variant="success", id="optin-yes")
+        yield Footer()
 
     def on_mount(self) -> None:
         """Focus the opt-in button on mount."""
@@ -66,6 +67,7 @@ class ScanTypeModal(ModalScreen[bool]):
             with Horizontal(id="scantype-buttons", classes="modal-buttons"):
                 yield Button("Quick Scan", variant="primary", id="scan-quick")
                 yield Button("Full Scan", variant="default", id="scan-full")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -77,6 +79,10 @@ class ScanTypeModal(ModalScreen[bool]):
 
 class CredScanTypeModal(ModalScreen[bool]):
     """Modal dialog for credential scan depth selection."""
+
+    BINDINGS = [
+        ("escape", "dismiss(False)", "Cancel"),
+    ]
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -91,6 +97,7 @@ class CredScanTypeModal(ModalScreen[bool]):
             with Horizontal(id="credtype-buttons", classes="modal-buttons"):
                 yield Button("Quick Check", variant="primary", id="cred-quick")
                 yield Button("Full Check", variant="default", id="cred-full")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -102,6 +109,10 @@ class CredScanTypeModal(ModalScreen[bool]):
 
 class TargetInputModal(ModalScreen[str]):
     """Modal dialog for target input."""
+
+    BINDINGS = [
+        ("escape", "app.pop_screen", "Cancel"),
+    ]
 
     def __init__(self, default: str | None = None, **kwargs: object) -> None:
         """Initialize the target input modal.
@@ -131,6 +142,7 @@ class TargetInputModal(ModalScreen[str]):
             with Horizontal(id="target-buttons", classes="modal-buttons"):
                 yield Button("Cancel", variant="error", id="target-cancel")
                 yield Button("Start Scan", variant="success", id="target-start")
+        yield Footer()
 
     def on_mount(self) -> None:
         """Focus the input on mount."""
@@ -172,6 +184,7 @@ class ConfirmModal(ModalScreen[bool]):
             with Horizontal(classes="modal-buttons"):
                 yield Button("Cancel", variant="default", id="confirm-no")
                 yield Button("Confirm", variant="error", id="confirm-yes")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -214,6 +227,7 @@ class PermissionModal(ModalScreen[str]):
                 if is_linux:
                     yield Button("Apply Fix", variant="success", id="perm-fix")
                 yield Button("Unprivileged Mode", variant="primary", id="perm-unprivileged")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""

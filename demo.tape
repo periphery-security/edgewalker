@@ -17,10 +17,11 @@ Hide
 Type "export EW_DEMO_MODE=1"
 Enter
 Show
-Type "sudo -E uv run python -m edgewalker"
+Type "sudo uv run python -m edgewalker"
 Enter
 
 # Step 0: Handle Telemetry Opt-in
+Sleep 2s
 Wait+Screen /HELP SECURE IOT DEVICES/
 Enter
 Sleep 2s
@@ -57,8 +58,23 @@ Sleep 3s
 Wait+Screen@60s /NETWORK SECURITY GRADE/
 Sleep 3s
 
+
 # Take a screenshot of the active scan
 Screenshot "images/scan-report.png"
+
+# Topology
+Type "2"
+Sleep 1s
+Down
+Down
+Down
+Sleep 1s
+Enter
+Sleep 1s
+
+# Take a screenshot of the active scan
+Screenshot "images/device-report.png"
+
 
 # Finish the demo
 Sleep 2s

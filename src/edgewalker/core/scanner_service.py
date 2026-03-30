@@ -116,6 +116,9 @@ class ScannerService:
         if isinstance(results, dict):
             results = PortScanModel(**results)
 
+        # Detect gateway IP
+        results.gateway_ip = port_scan.scanner.detect_gateway()
+
         if not results.success:
             raise ValueError(results.error or "Unknown port scan error")
 

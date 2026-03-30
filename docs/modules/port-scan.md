@@ -58,6 +58,7 @@ results = full_scan("192.168.1.0/24", verbose=True)
 
 # Auto-detect target and scan
 from edgewalker.modules.port_scan import get_default_target
+
 target = get_default_target()
 ```
 

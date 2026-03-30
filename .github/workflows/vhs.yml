@@ -40,7 +40,7 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore: update demo visuals [skip ci]"
-          file_pattern: "images/demo.gif images/scan-report.png"
+          file_pattern: "images/demo.gif images/scan-report.png images/device-report.png"
           commit_user_name: "github-actions[bot]"
           commit_user_email: "github-actions[bot]@users.noreply.github.com"
           commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"

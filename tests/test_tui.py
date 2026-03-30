@@ -97,13 +97,13 @@ async def test_dashboard_screen_actions(mock_telemetry_enabled):
             await pilot.pause()
 
             # Test navigation actions
-            await pilot.press("2")  # Quick scan
+            await pilot.press("3")  # Quick scan
             await pilot.pause()
             assert isinstance(app.screen, TargetInputModal)
             await pilot.press("escape")
             await pilot.pause()
 
-            await pilot.press("3")  # Full scan
+            await pilot.press("4")  # Full scan
             await pilot.pause()
             assert isinstance(app.screen, TargetInputModal)
             await pilot.press("escape")

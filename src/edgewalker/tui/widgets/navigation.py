@@ -110,10 +110,11 @@ class NavPanel(Vertical):
         yield NavSeparator()
         yield Static("SHORTCUTS", id="nav-subtitle")
         yield NavItem("1", "Risk Report")
-        yield NavItem("2", "Quick Scan")
-        yield NavItem("3", "Full Scan")
-        yield NavItem("4", "Password Test")
-        yield NavItem("5", "CVE Check")
+        yield NavItem("2", "Topology")
+        yield NavItem("3", "Quick Scan")
+        yield NavItem("4", "Full Scan")
+        yield NavItem("5", "Password Test")
+        yield NavItem("6", "CVE Check")
         yield NavItem("9", "Clear All")
 
         # Add telemetry status at the bottom
