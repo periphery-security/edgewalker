@@ -42,7 +42,7 @@ Environment variables prefixed with `EW_` override all settings. `edgewalker/con
 | Variable | Default | Description |
 |---|---|---|
 | `EW_THEME` | `periphery` | Active UI theme slug |
-| `EW_IOT_PORTS` | `[21, 22, ...]` | Common IoT ports for quick scan |
+| `EW_IOT_PORTS` | `[21, 22, ...]` | Common edge ports for quick scan |
 | `EW_TELEMETRY_ENABLED` | `None` | User opt-in status for anonymous data sharing |
 | `EW_SILENT_MODE` | `False` | Run in non-interactive mode (bypass prompts) |
 | `EW_SUPPRESS_WARNINGS` | `False` | Suppress configuration and security warnings in the console |

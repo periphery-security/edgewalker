@@ -6,7 +6,7 @@ Wraps `nmap` to discover devices and open ports on a network. Supports two scan 
 
 ## Quick Scan (~30 seconds)
 
-Scans 28 common IoT ports per host:
+Scans 28 common edge device ports per host:
 
 | Port | Service | Why |
 |---|---|---|
@@ -15,7 +15,7 @@ Scans 28 common IoT ports per host:
 | 23, 2323 | Telnet | Unencrypted remote access (Mirai target) |
 | 80, 81, 443, 8080, 8081, 8443 | HTTP/HTTPS | Web interfaces |
 | 554 | RTSP | Camera video streams |
-| 1883, 8883 | MQTT | IoT messaging protocol |
+| 1883, 8883 | MQTT | device messaging protocol |
 | 502 | Modbus | Industrial/EV charger protocol |
 | 5900 | VNC | Remote desktop |
 | 37777, 34567 | Camera | Dahua / Chinese DVR ports |
@@ -30,7 +30,7 @@ Scans 28 common IoT ports per host:
 
 Steps:
 1. Ping sweep to discover live hosts
-2. Parallel port scan of IoT ports per host
+2. Parallel port scan of edge ports per host
 3. Service version detection on open ports
 
 ## Full Scan (~15 minutes+)
