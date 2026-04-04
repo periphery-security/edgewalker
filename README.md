@@ -55,7 +55,7 @@
 
 ### One-Line Installer
 ```bash
-curl -sSL https://raw.githubusercontent.com/periphery-security/edgewalker/main/scripts/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/periphery-security/edgewalker/main/scripts/install.sh | bash
 ```
 
 ### Manual Installation (via pipx)
@@ -67,13 +67,13 @@ pipx install edgewalker
 or
 
 ```bash
-pipx install git++https://github.com/periphery-security/edgewalker.git
+pipx install git+https://github.com/periphery-security/edgewalker.git
 ```
 
 
-The installer verifies Python 3.11+, installs `nmap` if missing, and configures `edgeWalker` as a global CLI command.
+The installer verifies Python 3.11+, installs `nmap` if missing, and configures `edgewalker` as a user-level CLI command.
 
-NOTE: We are currently awaiting approval of the package on pypi.org to allow `edgeWalker` to be installed via pipx as a package.
+NOTE: We are currently awaiting approval of the package on pypi.org to allow `edgewalker` to be installed via pipx as a package.
 
 ---
 
@@ -83,7 +83,7 @@ NOTE: We are currently awaiting approval of the package on pypi.org to allow `ed
 ```bash
 edgewalker
 ```
-> **Note:** On macOS, use `sudo edgewalker`. On Linux, the installer configures `nmap` capabilities, removing the need for `sudo`.
+> **Note:** On macOS, `edgewalker` will internally request `sudo` for `nmap` operations when needed. On Linux, the installer configures `nmap` capabilities, removing the need for `sudo`.
 
 ### CLI Mode
 ```bash

@@ -41,8 +41,8 @@ Or run directly without installing:
 ```bash
 cd edgewalker
 pip install -r requirements.txt
-python -m edgewalker          # TUI mode (might require sudo on macOS)
-python -m edgewalker scan     # CLI mode (might require sudo on macOS)
+python -m edgewalker          # TUI mode
+python -m edgewalker scan     # CLI mode
 ```
 
 ## Uninstall
@@ -70,6 +70,6 @@ rm -rf ~/.config/edgewalker ~/.cache/edgewalker
 
 ## Platform Notes
 
-- **macOS**: Requires Homebrew for automatic nmap installation. Port scanning requires `sudo`.
+- **macOS**: Requires Homebrew for automatic nmap installation. `edgewalker` will internally request `sudo` for `nmap` operations when needed.
 - **Linux**: Supports apt (Debian/Ubuntu), dnf (Fedora/RHEL), and pacman (Arch). The installer automatically configures `nmap` capabilities, removing the need for `sudo`.
 - **Windows**: EdgeWalker currently lacks support for Windows (nmap and raw socket access behave differently).

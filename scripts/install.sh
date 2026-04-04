@@ -5,6 +5,8 @@
 # Remote:  curl -sSL https://raw.githubusercontent.com/periphery-security/edgewalker/main/scripts/install.sh | bash
 set -e
 
+ORIGINAL_PATH="$PATH"
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -15,6 +17,21 @@ echo
 echo -e "${CYAN}EdgeWalker Installer${NC}"
 echo "===================="
 echo
+
+# -- Check for root/sudo --------------------------------------------------
+
+if [ "$EUID" -eq 0 ]; then
+    echo -e "${RED}Warning: Running as root/sudo.${NC}"
+    echo "  pipx is designed to install packages for your regular user account."
+    echo "  If you continue, edgewalker will only be available to the root user."
+    echo
+    echo -ne "  Do you want to continue anyway? [y/N] "
+    read -r response
+    if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        echo "  Please run the installer as your regular user (without sudo)."
+        exit 1
+    fi
+fi
 
 # -- Check Python 3.11+ ---------------------------------------------------
 
@@ -147,13 +164,20 @@ else
 fi
 
 # Verify it worked
-if ! command -v edgewalker &>/dev/null; then
-    # pipx bin dir might not be on PATH yet
-    export PATH="$HOME/.local/bin:$PATH"
+# We check if it's in the ORIGINAL path (not the temporary one we exported)
+if ! env PATH="$ORIGINAL_PATH" command -v edgewalker &>/dev/null; then
+    # It's not in the user's permanent PATH yet
+    PATH_MISSING=1
+else
+    PATH_MISSING=0
 fi
 
-if command -v edgewalker &>/dev/null; then
+if [ -f "$PIPX_LOG" ] && grep -q "installed package edgewalker" "$PIPX_LOG"; then
     echo -e "${GREEN}EdgeWalker installed successfully!${NC}"
+    rm -f "$PIPX_LOG"
+elif command -v edgewalker &>/dev/null; then
+    echo -e "${GREEN}EdgeWalker installed successfully!${NC}"
+    rm -f "$PIPX_LOG"
 else
     echo -e "${RED}Installation failed.${NC}"
     echo
@@ -162,7 +186,6 @@ else
     rm -f "$PIPX_LOG"
     exit 1
 fi
-rm -f "$PIPX_LOG"
 
 # -- Apply nmap capabilities (Linux only) --------------------------------
 
@@ -176,11 +199,14 @@ if [[ "$OSTYPE" == linux* ]]; then
 fi
 
 echo
-if [[ "$OSTYPE" == linux* ]]; then
-    echo "  Run:         edgewalker"
-else
-    echo "  Run:         sudo edgewalker"
+if [ "$PATH_MISSING" -eq 1 ]; then
+    echo -e "${YELLOW}Note: ~/.local/bin is not in your PATH.${NC}"
+    echo "  To run edgewalker, you may need to restart your shell or run:"
+    echo -e "  ${CYAN}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
+    echo
 fi
+
+echo "  Run:         edgewalker"
 echo "  Full Uninstall: bash scripts/uninstall.sh"
 echo -e "  (pipx uninstall edgewalker only removes the package, not your data)"
 echo
