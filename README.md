@@ -22,7 +22,7 @@
 
 
 ![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)
-[![Python: >=3.13](https://img.shields.io/badge/Python->=3.13-blue.svg?style=flat-square)](https://www.python.org/downloads/)
+[![Python: >=3.11](https://img.shields.io/badge/Python->=3.11-blue.svg?style=flat-square)](https://www.python.org/downloads/)
 
 <hr>
 
@@ -71,7 +71,7 @@ pipx install git++https://github.com/periphery-security/edgewalker.git
 ```
 
 
-The installer verifies Python 3.13+, installs `nmap` if missing, and configures `edgeWalker` as a global CLI command.
+The installer verifies Python 3.11+, installs `nmap` if missing, and configures `edgeWalker` as a global CLI command.
 
 NOTE: We are currently awaiting approval of the package on pypi.org to allow `edgeWalker` to be installed via pipx as a package.
 

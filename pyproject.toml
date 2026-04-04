@@ -11,7 +11,7 @@ license = {text = "MIT"}
 authors = [
     {name = "Periphery", email = "hello@periphery.security"},
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
     "asyncssh>=2.21.0",
     "impacket>=0.13.0",

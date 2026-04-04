@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 # Standard Library
+import contextlib
 import io
 import json
 from typing import Callable
@@ -565,7 +566,6 @@ class DashboardScreen(Screen):
                 "  hacked.\n",
                 style=theme.TEXT,
             )
-            log.write(msg)
         else:
             msg = Text()
             msg.append(
@@ -573,8 +573,7 @@ class DashboardScreen(Screen):
                 "  Your devices aren't using factory credentials.\n",
                 style=theme.SUCCESS,
             )
-            log.write(msg)
-
+        log.write(msg)
         renderables = build_credential_display(results_dict)
         for r in renderables:
             log.write(r)
@@ -735,12 +734,9 @@ class DashboardScreen(Screen):
         container.display = True
 
         # Check if tree already exists to avoid DuplicateIds error
-        try:
+        with contextlib.suppress(Exception):
             existing_tree = self.query_one("#topology-tree")
             await existing_tree.remove()
-        except Exception:
-            pass
-
         await container.mount(TopologyWidget(port_data, id="topology-tree"))
         self.query_one("#topology-tree").focus()
 
