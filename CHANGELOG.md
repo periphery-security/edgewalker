@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.6](https://github.com/periphery-security/edgewalker/compare/edgewalker-v0.1.5...edgewalker-v0.1.6) (2026-04-04)
+
+
+### Bug Fixes
+
+* amend compatibility to support lower python version ([0a9e497](https://github.com/periphery-security/edgewalker/commit/0a9e4978f4d1e7b93323bb8a6d2ab3571d96ed5a))
+
+
+### Documentation
+
+* replace IoT with edge ([#25](https://github.com/periphery-security/edgewalker/issues/25)) ([d2e2834](https://github.com/periphery-security/edgewalker/commit/d2e283462d3b01c4a85d2dbb61d7241418ec60dc))
+
 ## [0.1.5](https://github.com/periphery-security/edgewalker/compare/edgewalker-v0.1.4...edgewalker-v0.1.5) (2026-03-30)
 
 
