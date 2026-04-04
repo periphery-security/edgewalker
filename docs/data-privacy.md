@@ -46,11 +46,11 @@ Before any data leaves your machine, `telemetry.py` processes it:
 
 ### Why We Collect This
 
-This data helps us understand IoT vulnerabilities at scale:
+This data helps us understand edge device vulnerabilities at scale:
 
 - Which default credentials appear most commonly in the wild
 - Which device types suffer exposure most frequently
-- Emerging vulnerability trends across consumer IoT
+- Emerging vulnerability trends across consumer edge devices
 
 The findings feed back into improving EdgeWalker's credential database and informing Periphery's security research.
 

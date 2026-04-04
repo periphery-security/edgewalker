@@ -8,7 +8,7 @@ Tests default and weak credentials against SSH, FTP, Telnet, and SMB services fo
 
 EdgeWalker stores credentials locally in `edgewalker/data/creds.csv` — a plain CSV file you can inspect, edit, or extend. No network calls occur when loading credentials.
 
-The database contains ~430 entries sourced from known IoT default credentials:
+The database contains ~430 entries sourced from known default credentials:
 
 | Service | Entries | Examples |
 |---|---|---|

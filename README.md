@@ -3,7 +3,7 @@
 <p align="center">
   <img src="images/periphery_icon.png" alt="perihery-logo" width="120px" height="120px"/>
   <br>
-  <em>EdgeWalker is a high-performance IoT security scanner that audits your home network for open ports, default credentials, and known vulnerabilities. Developed by <a href="https://periphery.security">periphery</a>), it empowers users to verify the security claims of their smart devices rather than relying on marketing labels.</em>
+  <em>EdgeWalker is a high-performance edge security scanner that audits your home network for open ports, default credentials, and known vulnerabilities. Developed by <a href="https://periphery.security">periphery</a>), it empowers users to verify the security claims of their smart devices rather than relying on marketing labels.</em>
   <br>
 </p>
 
@@ -45,7 +45,7 @@
 | :--- | :--- | :--- |
 | **Port Scan** | Identifies open ports and active services. | `nmap` wrapper with parallel batch scanning. |
 | **Device Discovery** | Enhanced fingerprinting for accurate identification. | mDNS/Bonjour, UPnP/SSDP, and HTTP metadata scraping. |
-| **Credential Test** | Checks for default/weak passwords (SSH, FTP, Telnet, SMB). | Bundled database of ~430 common IoT credentials. |
+| **Credential Test** | Checks for default/weak passwords (SSH, FTP, Telnet, SMB). | Bundled database of ~430 common default credentials. |
 | **CVE Check** | Matches detected software against known vulnerabilities. | Real-time NVD API lookup. |
 | **Risk Scoring** | Provides an actionable security grade (A-F). | Proprietary scoring engine (0-100). |
 
@@ -107,7 +107,7 @@ See the [Configuration Guide](docs/configuration.md#non-interactive-silent-mode)
 
 ## The Periphery Mission
 
-We frequently encounter vendors who promise "secure by design" devices. We don't buy it. EdgeWalker began at **Periphery's 2025 Hackathon**, built in 48 hours by Dr Lina Anaya, Travis Pell, Steven Marks, and Adam Massey. It represents our commitment to transparency and evidence-based security in the IoT era.
+We frequently encounter vendors who promise "secure by design" devices. We don't buy it. EdgeWalker began at **Periphery's 2025 Hackathon**, built in 48 hours by Dr Lina Anaya, Travis Pell, Steven Marks, and Adam Massey. It represents our commitment to transparency and evidence-based security at the edge.
 
 ---
 
