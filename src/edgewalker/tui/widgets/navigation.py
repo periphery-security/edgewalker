@@ -107,6 +107,8 @@ class NavPanel(Vertical):
         yield StatusBadge("Network", id="status-port")
         yield StatusBadge("Passwords", id="status-pwd")
         yield StatusBadge("Vulnerabilities", id="status-cve")
+        yield StatusBadge("SQL Audit", id="status-sql")
+        yield StatusBadge("Web Audit", id="status-web")
         yield NavSeparator()
         yield Static("SHORTCUTS", id="nav-subtitle")
         yield NavItem("1", "Risk Report")
@@ -115,6 +117,8 @@ class NavPanel(Vertical):
         yield NavItem("4", "Full Scan")
         yield NavItem("5", "Password Test")
         yield NavItem("6", "CVE Check")
+        yield NavItem("7", "SQL Audit")
+        yield NavItem("8", "Web Audit")
         yield NavItem("9", "Clear All")
 
         # Add telemetry status at the bottom
@@ -132,6 +136,8 @@ class NavPanel(Vertical):
         port_badge = self.query_one("#status-port", StatusBadge)
         pwd_badge = self.query_one("#status-pwd", StatusBadge)
         cve_badge = self.query_one("#status-cve", StatusBadge)
+        sql_badge = self.query_one("#status-sql", StatusBadge)
+        web_badge = self.query_one("#status-web", StatusBadge)
 
         if status["port_scan"]:
             detail = status["port_scan_type"]
@@ -152,6 +158,20 @@ class NavPanel(Vertical):
             cve_badge.set_status(True, detail)
         else:
             cve_badge.set_status(False)
+
+        if status["sql_scan"]:
+            v = status["sql_vulns"]
+            detail = "vulnerable" if v > 0 else "ok"
+            sql_badge.set_status(True, detail)
+        else:
+            sql_badge.set_status(False)
+
+        if status["web_scan"]:
+            v = status["web_vulns"]
+            detail = "vulnerable" if v > 0 else "ok"
+            web_badge.set_status(True, detail)
+        else:
+            web_badge.set_status(False)
 
 
 class NavigationPanel(NavPanel):

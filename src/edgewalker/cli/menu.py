@@ -198,6 +198,20 @@ class InteractiveMenu:
                     await self.controller.run_cve_scan()
                     await self.guided_scanner.prompt_next_scan()
 
+            elif choice == "6":
+                if not utils.has_port_scan():
+                    self._warn_port_scan_required("audit their SQL services")
+                else:
+                    await self.controller.run_sql_scan()
+                    await self.guided_scanner.prompt_next_scan()
+
+            elif choice == "7":
+                if not utils.has_port_scan():
+                    self._warn_port_scan_required("audit their web services")
+                else:
+                    await self.controller.run_web_scan()
+                    await self.guided_scanner.prompt_next_scan()
+
             elif choice == "8":
                 if not utils.has_any_results():
                     utils.console.print()

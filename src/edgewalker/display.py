@@ -295,6 +295,82 @@ def build_device_report(device_data: dict[str, Any]) -> RenderableType:
         )
     )
 
+    # 4. SQL Findings
+    sql_findings = risk.get("sql_findings", [])
+    sql_text = Text()
+    if sql_findings:
+        for res in sql_findings:
+            status_raw = res.get("status", "unknown").upper()
+            if status_raw in ["SUCCESSFUL", "ANONYMOUS"]:
+                status_text = status_raw
+                color = theme.RISK_CRITICAL
+            elif status_raw == "FAILED":
+                status_text = "SECURE"
+                color = theme.SUCCESS
+            else:
+                status_text = status_raw
+                color = theme.WARNING
+
+            sql_text.append(f" {theme.ICON_STEP} {res.get('service').upper()}: ", style=theme.TEXT)
+            sql_text.append(f"{status_text}\n", style=f"bold {color}")
+            if res.get("version"):
+                sql_text.append(f"    Version: {res['version']}\n", style=theme.MUTED)
+    else:
+        sql_text.append(" No SQL services audited.", style=theme.MUTED)
+
+    sections.append(
+        Panel(
+            sql_text,
+            title=f"[{theme.ACCENT}]SQL AUDIT[/{theme.ACCENT}]",
+            border_style=theme.ACCENT,
+            box=theme.BOX_STYLE,
+        )
+    )
+
+    # 5. Web Findings
+    web_findings = risk.get("web_findings", [])
+    web_text = Text()
+    if web_findings:
+        for res in web_findings:
+            web_text.append(
+                f" {theme.ICON_STEP} {res.get('protocol').upper()}:{res.get('port')}\n",
+                style=theme.TEXT,
+            )
+            if res.get("tls") and res["tls"].get("expired"):
+                web_text.append(
+                    f"    {theme.ICON_ALERT} Expired SSL Certificate\n",
+                    style=f"bold {theme.RISK_CRITICAL}",
+                )
+            if res.get("sensitive_files"):
+                web_text.append(
+                    f"    {theme.ICON_ALERT} Exposed Files: {', '.join(res['sensitive_files'])}\n",
+                    style=f"bold {theme.RISK_CRITICAL}",
+                )
+
+            # Headers
+            h = res.get("headers", {})
+            missing = []
+            if not h.get("csp"):
+                missing.append("CSP")
+            if not h.get("hsts"):
+                missing.append("HSTS")
+            if missing:
+                web_text.append(
+                    f"    {theme.ICON_WARN} Missing Headers: {', '.join(missing)}\n",
+                    style=theme.WARNING,
+                )
+    else:
+        web_text.append(" No web services audited.", style=theme.MUTED)
+
+    sections.append(
+        Panel(
+            web_text,
+            title=f"[{theme.ACCENT}]WEB AUDIT[/{theme.ACCENT}]",
+            border_style=theme.ACCENT,
+            box=theme.BOX_STYLE,
+        )
+    )
+
     # Discovery Info
     info_table = Table.grid(padding=(0, 2))
     info_table.add_column(style=theme.MUTED)
@@ -324,6 +400,8 @@ def build_risk_report(
     port_data: dict[str, Any],
     cred_data: dict[str, Any],
     cve_data: dict[str, Any],
+    sql_data: dict[str, Any] | None = None,
+    web_data: dict[str, Any] | None = None,
 ) -> tuple[list[RenderableType], dict[str, Any]]:
     """Build the comprehensive security risk report."""
     # Convert to Pydantic models if they are dicts
@@ -348,7 +426,7 @@ def build_risk_report(
     else:
         cve_model = cve_data
 
-    engine = RiskEngine(port_model, cred_model, cve_model)
+    engine = RiskEngine(port_model, cred_model, cve_model, sql_data, web_data)
     renderables = []
 
     hosts = [h for h in port_model.hosts if h.state == "up"]
@@ -379,6 +457,8 @@ def build_risk_report(
     total_devices = len(device_reports)
     vulnerable_devices = len([d for d in device_reports if d["risk"]["score"] > 0])
     default_creds = sum(d["risk"]["factors"]["credentials"] > 0 for d in device_reports)
+    sql_vulns = sum(d["risk"]["factors"]["sql"] > 0 for d in device_reports)
+    web_vulns = sum(d["risk"]["factors"]["web"] > 0 for d in device_reports)
     total_cves = sum(len(d["risk"]["cves"]) for d in device_reports)
     total_ports = sum(len(d["risk"]["open_ports"]) for d in device_reports)
 
@@ -400,6 +480,18 @@ def build_risk_report(
     stats_text.append(
         f"{default_creds}\n",
         style=f"bold {theme.RISK_CRITICAL if default_creds > 0 else theme.SUCCESS}",
+    )
+
+    stats_text.append(f"  {theme.ICON_STEP} SQL Vulnerabilities: ", style=theme.TEXT)
+    stats_text.append(
+        f"{sql_vulns}\n",
+        style=f"bold {theme.RISK_CRITICAL if sql_vulns > 0 else theme.SUCCESS}",
+    )
+
+    stats_text.append(f"  {theme.ICON_STEP} Web Vulnerabilities: ", style=theme.TEXT)
+    stats_text.append(
+        f"{web_vulns}\n",
+        style=f"bold {theme.RISK_CRITICAL if web_vulns > 0 else theme.SUCCESS}",
     )
 
     stats_text.append(f"  {theme.ICON_WARN} Known CVEs Found: ", style=theme.TEXT)
@@ -450,6 +542,10 @@ def build_risk_report(
         issues = []
         if risk["factors"]["credentials"] > 0:
             issues.append(f"[{theme.RISK_CRITICAL}]Default Creds[/{theme.RISK_CRITICAL}]")
+        if risk["factors"]["sql"] > 0:
+            issues.append(f"[{theme.RISK_CRITICAL}]SQL Vuln[/{theme.RISK_CRITICAL}]")
+        if risk["factors"]["web"] > 0:
+            issues.append(f"[{theme.RISK_CRITICAL}]Web Vuln[/{theme.RISK_CRITICAL}]")
         if risk["factors"]["vulnerabilities"] > 0:
             issues.append(f"[{theme.WARNING}]Known CVEs[/{theme.WARNING}]")
         if risk["factors"]["exposure"] > 50:
@@ -477,6 +573,8 @@ def build_risk_report(
     # Detailed Vulnerability Lists
     all_creds = []
     all_cves = []
+    all_sql = []
+    all_web = []
     for dev in device_reports:
         ip = dev["ip"]
         risk = dev["risk"]
@@ -491,6 +589,9 @@ def build_risk_report(
                     "password": "unknown",
                 })
         all_cves.extend({"ip": ip, **cve} for cve in risk.get("raw_cves", []))
+        all_sql.extend({"ip": ip, **sql} for sql in risk.get("sql_findings", []))
+        all_web.extend({"ip": ip, **web} for web in risk.get("web_findings", []))
+
     if all_creds:
         cred_table = Table(
             box=box.SIMPLE, header_style=f"bold {theme.RISK_CRITICAL}", width=theme.get_ui_width()
@@ -513,6 +614,78 @@ def build_risk_report(
                 width=theme.get_ui_width(),
             )
         )
+
+    if all_sql:
+        sql_table = Table(
+            box=box.SIMPLE, header_style=f"bold {theme.RISK_CRITICAL}", width=theme.get_ui_width()
+        )
+        sql_table.add_column("IP Address", style=theme.PRIMARY)
+        sql_table.add_column("Service", style=theme.SECONDARY)
+        sql_table.add_column("Status", style=theme.WARNING)
+        sql_table.add_column("Details", style=theme.MUTED_STYLE)
+
+        for sql in all_sql:
+            status_raw = sql.get("status", "unknown").upper()
+            if status_raw in ["SUCCESSFUL", "ANONYMOUS"]:
+                status_text = status_raw
+                color = theme.RISK_CRITICAL
+            elif status_raw == "FAILED":
+                status_text = "SECURE"
+                color = theme.SUCCESS
+            else:
+                status_text = status_raw
+                color = theme.WARNING
+
+            details = f"Version: {sql.get('version') or 'Unknown'}"
+            if sql.get("databases"):
+                details += f" | DBs: {len(sql['databases'])}"
+
+            sql_table.add_row(
+                sql["ip"], sql["service"].upper(), f"[{color}]{status_text}[/{color}]", details
+            )
+
+        renderables.append(
+            Panel(
+                sql_table,
+                title=f"[{theme.RISK_CRITICAL}]SQL VULNERABILITIES[/{theme.RISK_CRITICAL}]",
+                border_style=theme.RISK_CRITICAL,
+                box=theme.BOX_STYLE,
+                width=theme.get_ui_width(),
+            )
+        )
+
+    if all_web:
+        web_table = Table(
+            box=box.SIMPLE, header_style=f"bold {theme.HEADER}", width=theme.get_ui_width()
+        )
+        web_table.add_column("IP Address", style=theme.PRIMARY)
+        web_table.add_column("Service", style=theme.SECONDARY)
+        web_table.add_column("Issues", style=theme.WARNING)
+
+        for web in all_web:
+            issues = []
+            if web.get("tls") and web["tls"].get("expired"):
+                issues.append("Expired SSL")
+            if web.get("sensitive_files"):
+                issues.append(f"Exposed Files ({len(web['sensitive_files'])})")
+            if not web.get("headers", {}).get("csp") or not web.get("headers", {}).get("hsts"):
+                issues.append("Missing Headers")
+
+            if issues:
+                web_table.add_row(
+                    web["ip"], f"{web['protocol'].upper()}:{web['port']}", ", ".join(issues)
+                )
+
+        if web_table.row_count > 0:
+            renderables.append(
+                Panel(
+                    web_table,
+                    title=f"[{theme.RISK_CRITICAL}]WEB VULNERABILITIES[/{theme.RISK_CRITICAL}]",
+                    border_style=theme.RISK_CRITICAL,
+                    box=theme.BOX_STYLE,
+                    width=theme.get_ui_width(),
+                )
+            )
 
     if all_cves:
         cve_table = Table(
@@ -627,6 +800,8 @@ def build_status_panel() -> Panel:
     text.append("    [3] Run Full Port Scan\n", style=theme.TEXT)
     text.append("    [4] Run Password Test\n", style=theme.TEXT)
     text.append("    [5] Run CVE Check\n", style=theme.TEXT)
+    text.append("    [6] Run SQL Audit\n", style=theme.TEXT)
+    text.append("    [7] Run Web Audit\n", style=theme.TEXT)
     text.append("    [8] Browse Raw Results\n", style=theme.TEXT)
     text.append("    [9] Clear All Results\n", style=theme.TEXT)
     text.append("\n    [0] Back to Main Menu", style=theme.TEXT)

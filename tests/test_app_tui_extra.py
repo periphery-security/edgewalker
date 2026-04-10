@@ -53,7 +53,6 @@ async def test_theme_provider_search():
     from textual.style import Style
 
     with (
-        patch("textual.widgets.Header", return_value=MagicMock()),
         patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
     ):
         async with app.run_test() as pilot:
@@ -94,7 +93,6 @@ async def test_app_quit_scanning():
     app.is_scanning = True
 
     with (
-        patch("textual.widgets.Header", return_value=MagicMock()),
         patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
     ):
         async with app.run_test() as pilot:
@@ -152,7 +150,6 @@ async def test_app_action_settings():
     """Test action_settings."""
     app = EdgeWalkerApp()
     with (
-        patch("textual.widgets.Header", return_value=MagicMock()),
         patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
     ):
         async with app.run_test() as pilot:

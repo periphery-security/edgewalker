@@ -109,9 +109,13 @@ async def test_automatic_mode(
         "port_scan_type": "quick",
         "password_scan": True,
         "cve_scan": True,
+        "sql_scan": False,
+        "web_scan": False,
         "devices_found": 1,
         "vulnerable_devices": 0,
         "cves_found": 0,
+        "sql_vulns": 0,
+        "web_vulns": 0,
     }
     mock_port.return_value = mock_results
 
@@ -323,9 +327,13 @@ async def test_prompt_next_scan_all_complete(mock_press, mock_risk, mock_input, 
         "port_scan": True,
         "password_scan": True,
         "cve_scan": True,
+        "sql_scan": True,
+        "web_scan": True,
         "devices_found": 1,
         "vulnerable_devices": 0,
         "cves_found": 0,
+        "sql_vulns": 0,
+        "web_vulns": 0,
     }
     controller = cli.ScanController()
     guided = cli.GuidedScanner(controller)
@@ -445,6 +453,8 @@ def test_prompt_next_scan_suggest_creds(mock_run, mock_input, mock_status):
         "port_scan": True,
         "password_scan": False,
         "cve_scan": False,
+        "sql_scan": False,
+        "web_scan": False,
         "devices_found": 1,
         "vulnerable_devices": 0,
         "cves_found": 0,
@@ -466,6 +476,8 @@ def test_prompt_next_scan_suggest_cve(mock_run, mock_input, mock_status):
         "port_scan": True,
         "password_scan": True,
         "cve_scan": False,
+        "sql_scan": False,
+        "web_scan": False,
         "devices_found": 1,
         "vulnerable_devices": 0,
         "cves_found": 0,

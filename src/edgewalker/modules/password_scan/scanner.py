@@ -36,9 +36,6 @@ from edgewalker.modules.password_scan.models import (
 )
 from edgewalker.utils import get_device_id
 
-# Path to bundled credential database
-CREDS_CSV = settings.creds_file
-
 
 class Colors:
     """ANSI color codes for terminal output."""
@@ -617,9 +614,11 @@ _printed_services: set[str] = set()
 
 def _load_csv() -> dict[str, list[tuple[str, str]]]:
     result = {}
-    if not CREDS_CSV.exists():
+    creds_file = settings.creds_file
+    if not creds_file.exists():
+        logger.warning(f"Credential database not found at {creds_file}")
         return result
-    with open(CREDS_CSV, "r", encoding="utf-8") as f:
+    with open(creds_file, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             if svc := row.get("service", "").strip().lower():
@@ -641,14 +640,10 @@ def load_credentials(service: str, top_n: Optional[int] = None) -> list:
         _cred_cache.update(_load_csv())
     creds = _cred_cache.get(service, [])
     if not creds:
-        print(f"  {Colors.YELLOW}!!{Colors.RESET} No {service.upper()} credentials found")
+        logger.warning(f"No {service.upper()} credentials found in database")
     elif service not in _printed_services:
         _printed_services.add(service)
-        msg = (
-            f"  {Colors.GREEN}{theme.ICON_PLUS}{Colors.RESET} "
-            f"Loaded {len(creds)} {service.upper()} credentials"
-        )
-        print(msg)
+        logger.info(f"Loaded {len(creds)} {service.upper()} credentials")
     return creds[:top_n] if top_n else creds
 
 

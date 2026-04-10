@@ -12,10 +12,12 @@ from typing import Callable, Optional
 from edgewalker.core.config import settings
 from edgewalker.core.demo_service import DemoService
 from edgewalker.core.telemetry import TelemetryManager
-from edgewalker.modules import cve_scan, password_scan, port_scan
+from edgewalker.modules import cve_scan, password_scan, port_scan, sql_scan, web_scan
 from edgewalker.modules.cve_scan.models import CveScanModel
 from edgewalker.modules.password_scan.models import PasswordScanModel
 from edgewalker.modules.port_scan.models import PortScanModel
+from edgewalker.modules.sql_scan.models import SqlScanModel
+from edgewalker.modules.web_scan.models import WebScanModel
 from edgewalker.utils import save_results
 
 
@@ -220,6 +222,69 @@ class ScannerService:
 
         # Submit telemetry
         await self._submit_telemetry("cve_scan", results_dict)
+
+        return results
+
+    async def perform_sql_scan(
+        self,
+        port_results: Optional[PortScanModel] = None,
+        top_n: Optional[int] = 10,
+        verbose: bool = False,
+    ) -> SqlScanModel:
+        """Perform a SQL scan based on port scan results asynchronously."""
+        if self.telemetry_callback:
+            self.telemetry_callback("running")
+
+        self._notify("phase", "Auditing SQL services...")
+
+        if port_results is None:
+            port_file = settings.output_dir / "port_scan.json"
+            if not port_file.exists():
+                raise FileNotFoundError("Port scan results missing.")
+            with open(port_file) as f:
+                port_data = json.load(f)
+            port_results = PortScanModel(**port_data)
+
+        hosts = [h.model_dump(mode="json") for h in port_results.hosts if h.state == "up"]
+        if not hosts:
+            return SqlScanModel(results=[], summary={"vulnerable_services": 0})
+
+        scanner = sql_scan.SqlScanner(target=port_results.target, top_n=top_n, verbose=verbose)
+        results = await scanner.scan(hosts=hosts)
+
+        results_dict = results.model_dump(mode="json")
+        save_results(results_dict, "sql_scan.json")
+        await self._submit_telemetry("sql_scan", results_dict)
+
+        return results
+
+    async def perform_web_scan(
+        self, port_results: Optional[PortScanModel] = None, verbose: bool = False
+    ) -> WebScanModel:
+        """Perform a web scan based on port scan results asynchronously."""
+        if self.telemetry_callback:
+            self.telemetry_callback("running")
+
+        self._notify("phase", "Auditing web services...")
+
+        if port_results is None:
+            port_file = settings.output_dir / "port_scan.json"
+            if not port_file.exists():
+                raise FileNotFoundError("Port scan results missing.")
+            with open(port_file) as f:
+                port_data = json.load(f)
+            port_results = PortScanModel(**port_data)
+
+        hosts = [h.model_dump(mode="json") for h in port_results.hosts if h.state == "up"]
+        if not hosts:
+            return WebScanModel(results=[], summary={"total_services": 0})
+
+        scanner = web_scan.WebScanner(target=port_results.target, verbose=verbose)
+        results = await scanner.scan(hosts=hosts)
+
+        results_dict = results.model_dump(mode="json")
+        save_results(results_dict, "web_scan.json")
+        await self._submit_telemetry("web_scan", results_dict)
 
         return results
 

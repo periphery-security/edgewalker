@@ -6,6 +6,7 @@ import pytest
 from textual.widgets import Button
 
 # First Party
+from edgewalker.core.config import settings
 from edgewalker.tui.app import EdgeWalkerApp
 from edgewalker.tui.screens.dashboard import DashboardScreen
 from edgewalker.tui.screens.guided import GuidedAssessmentScreen
@@ -60,8 +61,9 @@ async def test_home_screen_no_permissions():
 
 
 @pytest.mark.asyncio
-async def test_home_screen_actions():
+async def test_home_screen_actions(tmp_path):
     app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
     with (
         patch(
             "edgewalker.core.telemetry.TelemetryManager.has_seen_telemetry_prompt",
@@ -89,8 +91,9 @@ async def test_home_screen_actions():
 
 
 @pytest.mark.asyncio
-async def test_home_screen_buttons():
+async def test_home_screen_buttons(tmp_path):
     app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
     with (
         patch(
             "edgewalker.core.telemetry.TelemetryManager.has_seen_telemetry_prompt",

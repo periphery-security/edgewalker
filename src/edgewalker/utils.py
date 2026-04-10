@@ -112,33 +112,70 @@ def get_scan_status() -> dict:
         "port_scan_type": None,
         "password_scan": False,
         "cve_scan": False,
+        "sql_scan": False,
+        "web_scan": False,
         "devices_found": 0,
         "vulnerable_devices": 0,
         "cves_found": 0,
+        "sql_vulns": 0,
+        "web_vulns": 0,
     }
 
     output_dir = get_output_dir()
     port_file = output_dir / "port_scan.json"
     if port_file.exists():
-        status["port_scan"] = True
-        with open(port_file) as f:
-            data = json.load(f)
-        status["port_scan_type"] = data.get("scan_type", "quick")
-        status["devices_found"] = len([h for h in data.get("hosts", []) if h.get("state") == "up"])
+        try:
+            with open(port_file) as f:
+                data = json.load(f)
+            status["port_scan"] = True
+            status["port_scan_type"] = data.get("scan_type", "quick")
+            status["devices_found"] = len([
+                h for h in data.get("hosts", []) if h.get("state") == "up"
+            ])
+        except (PermissionError, json.JSONDecodeError):
+            pass
 
     pwd_file = output_dir / "password_scan.json"
     if pwd_file.exists():
-        status["password_scan"] = True
-        with open(pwd_file) as f:
-            data = json.load(f)
-        status["vulnerable_devices"] = data.get("summary", {}).get("vulnerable_hosts", 0)
+        try:
+            with open(pwd_file) as f:
+                data = json.load(f)
+            status["password_scan"] = True
+            status["vulnerable_devices"] = data.get("summary", {}).get("vulnerable_hosts", 0)
+        except (PermissionError, json.JSONDecodeError):
+            pass
 
     cve_file = output_dir / "cve_scan.json"
     if cve_file.exists():
-        status["cve_scan"] = True
-        with open(cve_file) as f:
-            data = json.load(f)
-        status["cves_found"] = data.get("summary", {}).get("total_cves", 0)
+        try:
+            with open(cve_file) as f:
+                data = json.load(f)
+            status["cve_scan"] = True
+            status["cves_found"] = data.get("summary", {}).get("total_cves", 0)
+        except (PermissionError, json.JSONDecodeError):
+            pass
+
+    sql_file = output_dir / "sql_scan.json"
+    if sql_file.exists():
+        try:
+            with open(sql_file) as f:
+                data = json.load(f)
+            status["sql_scan"] = True
+            status["sql_vulns"] = data.get("summary", {}).get("vulnerable_services", 0)
+        except (PermissionError, json.JSONDecodeError):
+            pass
+
+    web_file = output_dir / "web_scan.json"
+    if web_file.exists():
+        try:
+            with open(web_file) as f:
+                data = json.load(f)
+            status["web_scan"] = True
+            status["web_vulns"] = data.get("summary", {}).get("vulnerable_headers", 0) + data.get(
+                "summary", {}
+            ).get("sensitive_files_found", 0)
+        except (PermissionError, json.JSONDecodeError):
+            pass
 
     return status
 

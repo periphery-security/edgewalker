@@ -136,9 +136,13 @@ def test_build_status_panel():
         "port_scan_type": None,
         "password_scan": False,
         "cve_scan": False,
+        "sql_scan": False,
+        "web_scan": False,
         "devices_found": 0,
         "vulnerable_devices": 0,
         "cves_found": 0,
+        "sql_vulns": 0,
+        "web_vulns": 0,
     }
     with patch("edgewalker.utils.get_scan_status", return_value=mock_status):
         panel = display.build_status_panel()
