@@ -20,8 +20,8 @@ async def test_telemetry_enabled_modal():
         await pilot.pause()
         assert app.screen == modal
 
-        # Test accept
-        await pilot.press("y")
+        # Test dismiss
+        await pilot.press("enter")
         await pilot.pause()
         # Modal should be dismissed
 

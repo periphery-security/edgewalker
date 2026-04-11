@@ -15,41 +15,42 @@ from textual.widgets import Button, Footer, Input, Static
 from edgewalker.modules import port_scan
 
 
-class TelemetryModal(ModalScreen[bool]):
-    """Modal dialog for telemetry opt-in."""
+class TelemetryModal(ModalScreen[None]):
+    """Modal dialog for telemetry notification."""
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         with Container(id="optin-dialog", classes="modal-container"):
-            yield Static("HELP SECURE IOT DEVICES", id="optin-title", classes="modal-title")
+            yield Static("ANONYMOUS TELEMETRY", id="optin-title", classes="modal-title")
             yield Static(
-                "EdgeWalker can share anonymous scan results with Periphery's "
-                "research team. This helps us identify emerging IoT "
-                "vulnerabilities and improve our default credential database.",
+                "EdgeWalker collects anonymous usage data by default to help us "
+                "improve the tool and identify emerging IoT vulnerabilities. "
+                "This data is vital for our research.",
                 id="optin-text",
                 classes="modal-body",
             )
             yield Static(
-                "We NEVER share your IP address, hostnames, or MAC addresses. "
+                "We NEVER share your IP address, hostnames, or full MAC addresses. "
                 "All data is anonymized before leaving your machine.",
                 id="optin-privacy",
                 classes="modal-body",
             )
+            yield Static(
+                "You can opt-out at any time in the Settings menu.",
+                id="optin-optout",
+                classes="modal-body",
+            )
             with Horizontal(id="optin-buttons", classes="modal-buttons"):
-                yield Button("No thanks", variant="error", id="optin-no")
-                yield Button("I'll help!", variant="success", id="optin-yes")
+                yield Button("Continue", variant="primary", id="optin-ok")
         yield Footer()
 
     def on_mount(self) -> None:
-        """Focus the opt-in button on mount."""
-        self.query_one("#optin-yes").focus()
+        """Focus the OK button on mount."""
+        self.query_one("#optin-ok").focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
-        if event.button.id == "optin-yes":
-            self.dismiss(True)
-        else:
-            self.dismiss(False)
+        self.dismiss()
 
 
 class ScanTypeModal(ModalScreen[bool]):

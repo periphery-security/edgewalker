@@ -1,0 +1,21 @@
+{
+  "device_id": "ew-7f8a9b0c1d2e",
+  "success": true,
+  "results": [
+    {
+      "ip": "192.168.1.0",
+      "port": 3306,
+      "service": "mysql",
+      "status": "successful",
+      "device_correlation_id": "a1b2c3d4e5f6",
+      "version": "8.0.28",
+      "databases": ["iot_data", "users"],
+      "privileges": "root",
+      "tested_count": 5
+    }
+  ],
+  "summary": {
+    "total_services_scanned": 1,
+    "vulnerable_services": 1
+  }
+}

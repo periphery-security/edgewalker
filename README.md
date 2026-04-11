@@ -47,7 +47,13 @@
 | **Device Discovery** | Enhanced fingerprinting for accurate identification. | mDNS/Bonjour, UPnP/SSDP, and HTTP metadata scraping. |
 | **Credential Test** | Checks for default/weak passwords (SSH, FTP, Telnet, SMB). | Bundled database of ~430 common default credentials. |
 | **CVE Check** | Matches detected software against known vulnerabilities. | Real-time NVD API lookup. |
-| **Risk Scoring** | Provides an actionable security grade (A-F). | Proprietary scoring engine (0-100). |
+| Risk Scoring | Provides an actionable security grade (A-F). | Proprietary scoring engine (0-100). |
+
+---
+
+## Data Privacy & Telemetry
+
+For full details on our data handling, anonymization practices, and how to opt out of telemetry, please see our [Data Privacy & Telemetry Documentation](docs/data-privacy.md).
 
 ---
 

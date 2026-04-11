@@ -20,10 +20,13 @@ def caplog_loguru(caplog):
     logger.remove(handler_id)
 
 
-def test_validate_urls_domain_warnings(caplog_loguru):
+def test_validate_urls_domain_warnings(caplog_loguru, tmp_path):
     """Test domain warnings in validate_urls."""
     # We need to bypass the PYTEST_CURRENT_TEST check to test warnings
-    with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}):
+    with patch.dict(
+        os.environ,
+        {"PYTEST_CURRENT_TEST": "", "EW_FORCE_NO_TESTING": "1", "EW_CONFIG_DIR": str(tmp_path)},
+    ):
         settings = Settings()
 
         # Test api_url warning
@@ -48,9 +51,12 @@ def test_handle_demo_mode_env_var():
         assert settings.output_dir.name == "demo_scans"
 
 
-def test_get_security_warnings_no_test_env():
+def test_get_security_warnings_no_test_env(tmp_path):
     """Test get_security_warnings when not in test environment."""
-    with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}):
+    with patch.dict(
+        os.environ,
+        {"PYTEST_CURRENT_TEST": "", "EW_FORCE_NO_TESTING": "1", "EW_CONFIG_DIR": str(tmp_path)},
+    ):
         settings = Settings()
         # Use https to avoid validation error, but non-standard domain to trigger warning
         settings.api_url = "https://insecure.com"
@@ -58,7 +64,7 @@ def test_get_security_warnings_no_test_env():
         assert any("Non-standard EdgeWalker API URL" in w for w in warnings)
 
 
-def test_get_field_info_errors_and_warnings():
+def test_get_field_info_errors_and_warnings(tmp_path):
     """Test get_field_info for non-existent fields and security warnings."""
     settings = Settings()
 
@@ -67,7 +73,10 @@ def test_get_field_info_errors_and_warnings():
         settings.get_field_info("non_existent")
 
     # Test security warning in field info
-    with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}):
+    with patch.dict(
+        os.environ,
+        {"PYTEST_CURRENT_TEST": "", "EW_FORCE_NO_TESTING": "1", "EW_CONFIG_DIR": str(tmp_path)},
+    ):
         settings.api_url = "https://malicious.com/api"
         info = settings.get_field_info("api_url")
         assert info["security_warning"] is not None
@@ -142,20 +151,26 @@ def test_validate_urls_http_localhost():
     assert settings.api_url == "http://localhost:8080"
 
 
-def test_validate_urls_http_error():
+def test_validate_urls_http_error(tmp_path):
     """Test validate_urls raising error for non-localhost http."""
-    with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}):
+    with patch.dict(
+        os.environ,
+        {"PYTEST_CURRENT_TEST": "", "EW_FORCE_NO_TESTING": "1", "EW_CONFIG_DIR": str(tmp_path)},
+    ):
         settings = Settings()
         with pytest.raises(ValueError, match="must use https for security"):
             settings.api_url = "http://malicious.com"
 
 
-def test_get_security_warnings_all_insecure_urls():
+def test_get_security_warnings_all_insecure_urls(tmp_path):
     """Test get_security_warnings for all insecure URLs."""
-    with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": ""}):
+    with patch.dict(
+        os.environ,
+        {"PYTEST_CURRENT_TEST": "", "EW_FORCE_NO_TESTING": "1", "EW_CONFIG_DIR": str(tmp_path)},
+    ):
         settings = Settings()
         # Bypass validator to set http
-        with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "1"}):
+        with patch.dict(os.environ, {"PYTEST_CURRENT_TEST": "1", "EW_FORCE_NO_TESTING": ""}):
             settings.api_url = "http://insecure-api.com"
             settings.nvd_api_url = "http://insecure-nvd.com"
             settings.mac_api_url = "http://insecure-mac.com"

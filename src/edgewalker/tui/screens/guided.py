@@ -25,12 +25,16 @@ class GuidedAssessmentScreen(Screen):
         Binding("q", "quit_app", "Quit", show=True),
     ]
 
-    def __init__(self) -> None:
-        """Initialize the guided assessment screen."""
+    def __init__(self, full_scan: bool = False) -> None:
+        """Initialize the guided assessment screen.
+
+        Args:
+            full_scan: Whether to pre-configure for a full scan.
+        """
         super().__init__()
         self.step = 1
         self.config: dict[str, Any] = {
-            "full_scan": False,
+            "full_scan": full_scan,
             "target": port_scan.get_default_target(),
             "run_creds": True,
             "full_creds": False,
@@ -153,6 +157,9 @@ class GuidedAssessmentScreen(Screen):
             content.mount(Static(summary, classes="wizard-text"))
             btn_next.label = "RUN"
             btn_next.variant = "success"
+
+        # Focus the primary action button by default
+        btn_next.focus()
 
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
         """Handle radio set changes."""

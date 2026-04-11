@@ -322,24 +322,10 @@ def ensure_telemetry_choice() -> None:
 
     if not telemetry.has_seen_telemetry_prompt():
         if settings.silent_mode:
-            # Third Party
-            import typer  # noqa: PLC0415
-
-            console.print()
-            console.print(
-                Panel(
-                    f"[bold {theme.DANGER}]ERROR: Telemetry choice required in silent mode."
-                    f"[/bold {theme.DANGER}]\n\n"
-                    "When running with [bold]--silent[/bold], you must explicitly provide a "
-                    "telemetry choice if one has not been set yet.\n\n"
-                    "Use [bold]--accept-telemetry[/bold] to opt-in or "
-                    "[bold]--decline-telemetry[/bold] to opt-out.",
-                    border_style=theme.DANGER,
-                    box=theme.BOX_STYLE,
-                    width=theme.get_ui_width(),
-                )
-            )
-            raise typer.Exit(code=1)
+            # In silent mode, we just enable it by default if not explicitly declined
+            if not settings.decline_telemetry:
+                telemetry.set_telemetry_status(True)
+            return
 
         # First Party
         from edgewalker.display import build_telemetry_panel  # noqa: PLC0415
@@ -348,24 +334,8 @@ def ensure_telemetry_choice() -> None:
         console.print(build_telemetry_panel())
         console.print()
 
-        choice = get_input("Share anonymous data to help secure IoT devices? [Y/n]", "y")
-        opted_in = choice.lower() != "n"
-        telemetry.set_telemetry_status(opted_in)
-
-        if opted_in:
-            console.print()
-            console.print(
-                f"[{theme.SUCCESS}]{theme.ICON_CHECK} Thank you! Your anonymous contributions "
-                f"will help secure IoT devices worldwide.[/{theme.SUCCESS}]"
-            )
-        else:
-            console.print()
-            console.print(
-                f"[{theme.MUTED_STYLE}]No problem. You can change this later in your "
-                f"config file: {settings.model_config.get('yaml_file')}[/{theme.MUTED_STYLE}]"
-            )
-
-        press_enter()
+        choice = get_input("Enable anonymous telemetry? (y/n)", default="y").lower()
+        telemetry.set_telemetry_status(choice == "y")
 
 
 def get_progress() -> Progress:

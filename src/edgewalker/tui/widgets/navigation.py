@@ -115,11 +115,7 @@ class NavPanel(Vertical):
         yield NavItem("2", "Topology")
         yield NavItem("3", "Quick Scan")
         yield NavItem("4", "Full Scan")
-        yield NavItem("5", "Password Test")
-        yield NavItem("6", "CVE Check")
-        yield NavItem("7", "SQL Audit")
-        yield NavItem("8", "Web Audit")
-        yield NavItem("9", "Clear All")
+        yield NavItem("5", "Clear All")
 
         # Add telemetry status at the bottom
         yield Vertical(id="nav-bottom-spacer")

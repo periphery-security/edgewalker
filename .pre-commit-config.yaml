@@ -37,3 +37,10 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      - id: generate-telemetry-docs
+        name: generate-telemetry-docs
+        entry: uv run python scripts/generate_telemetry_docs.py
+        language: system
+        pass_filenames: false
+        always_run: true

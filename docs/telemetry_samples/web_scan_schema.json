@@ -1,0 +1,259 @@
+{
+  "$defs": {
+    "SecurityHeadersModel": {
+      "description": "Security headers found on a web service.",
+      "properties": {
+        "csp": {
+          "default": false,
+          "title": "Csp",
+          "type": "boolean"
+        },
+        "hsts": {
+          "default": false,
+          "title": "Hsts",
+          "type": "boolean"
+        },
+        "x_frame_options": {
+          "default": false,
+          "title": "X Frame Options",
+          "type": "boolean"
+        },
+        "x_content_type_options": {
+          "default": false,
+          "title": "X Content Type Options",
+          "type": "boolean"
+        },
+        "referrer_policy": {
+          "default": false,
+          "title": "Referrer Policy",
+          "type": "boolean"
+        },
+        "permissions_policy": {
+          "default": false,
+          "title": "Permissions Policy",
+          "type": "boolean"
+        }
+      },
+      "title": "SecurityHeadersModel",
+      "type": "object"
+    },
+    "TlsInfoModel": {
+      "description": "TLS/SSL information for a web service.",
+      "properties": {
+        "protocol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Protocol"
+        },
+        "cipher": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cipher"
+        },
+        "issuer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Issuer"
+        },
+        "expires": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expires"
+        },
+        "expired": {
+          "default": false,
+          "title": "Expired",
+          "type": "boolean"
+        }
+      },
+      "title": "TlsInfoModel",
+      "type": "object"
+    },
+    "WebScanResultModel": {
+      "description": "Result of a single web service scan.",
+      "properties": {
+        "ip": {
+          "title": "Ip",
+          "type": "string"
+        },
+        "port": {
+          "title": "Port",
+          "type": "integer"
+        },
+        "protocol": {
+          "title": "Protocol",
+          "type": "string"
+        },
+        "status_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status Code"
+        },
+        "server": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Server"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "headers": {
+          "$ref": "#/$defs/SecurityHeadersModel"
+        },
+        "tls": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TlsInfoModel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensitive_files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sensitive Files",
+          "type": "array"
+        },
+        "technologies": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Technologies",
+          "type": "array"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "device_correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Device Correlation Id"
+        }
+      },
+      "required": [
+        "ip",
+        "port",
+        "protocol"
+      ],
+      "title": "WebScanResultModel",
+      "type": "object"
+    }
+  },
+  "description": "Complete web scan results.",
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "device_id": {
+      "title": "Device Id",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    },
+    "module": {
+      "default": "web_scan",
+      "title": "Module",
+      "type": "string"
+    },
+    "module_version": {
+      "default": "0.1.0",
+      "title": "Module Version",
+      "type": "string"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/WebScanResultModel"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "summary": {
+      "additionalProperties": true,
+      "title": "Summary",
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "device_id",
+    "version",
+    "results",
+    "summary"
+  ],
+  "title": "EdgeWalker Web Scan Telemetry Schema",
+  "type": "object"
+}

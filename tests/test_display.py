@@ -101,7 +101,7 @@ def sample_cve_data():
 def test_build_telemetry_panel():
     panel = display.build_telemetry_panel()
     assert isinstance(panel, Panel)
-    assert "HELP IMPROVE EDGEWALKER" in str(panel.title)
+    assert "ANONYMOUS TELEMETRY" in str(panel.title)
 
 
 def test_build_mode_panel(tmp_path):

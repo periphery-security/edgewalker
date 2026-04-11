@@ -9,6 +9,8 @@ from __future__ import annotations
 # Standard Library
 import contextlib
 import os
+import sys
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Optional, Union, get_args, get_origin
@@ -26,17 +28,55 @@ from pydantic_settings import (
 )
 
 
+def is_testing() -> bool:
+    """Return True if we are running in a test environment (pytest)."""
+    if os.environ.get("EW_FORCE_NO_TESTING") == "1":
+        return False
+    return (
+        os.environ.get("PYTEST_CURRENT_TEST") is not None
+        or os.environ.get("EW_TESTING") == "1"
+        or "pytest" in sys.modules
+    )
+
+
 # ============================================================================
 # CONSTANTS & PATHS
 # ============================================================================
 def get_config_dir() -> Path:
     """Return the configuration directory, allowing override via environment variable."""
-    return Path(os.environ.get("EW_CONFIG_DIR", user_config_dir("edgewalker")))
+    if env_dir := os.environ.get("EW_CONFIG_DIR"):
+        return Path(env_dir)
+
+    # If running in pytest, use a temporary directory to avoid touching live config
+    if is_testing():
+        test_dir = Path(tempfile.gettempdir()) / "edgewalker-test" / "config"
+        with contextlib.suppress(OSError):
+            test_dir.mkdir(parents=True, exist_ok=True)
+        return test_dir
+
+    try:
+        return Path(user_config_dir("edgewalker"))
+    except (PermissionError, OSError):
+        # Fallback to a local directory if the system one is inaccessible
+        return Path.home() / ".edgewalker" / "config"
 
 
 def get_cache_dir() -> Path:
     """Return the cache directory, allowing override via environment variable."""
-    return Path(os.environ.get("EW_CACHE_DIR", user_cache_dir("edgewalker")))
+    if env_dir := os.environ.get("EW_CACHE_DIR"):
+        return Path(env_dir)
+
+    # If running in pytest, use a temporary directory
+    if is_testing():
+        test_dir = Path(tempfile.gettempdir()) / "edgewalker-test" / "cache"
+        with contextlib.suppress(OSError):
+            test_dir.mkdir(parents=True, exist_ok=True)
+        return test_dir
+
+    try:
+        return Path(user_cache_dir("edgewalker"))
+    except (PermissionError, OSError):
+        return Path.home() / ".edgewalker" / "cache"
 
 
 def get_data_dir() -> Path:
@@ -46,7 +86,17 @@ def get_data_dir() -> Path:
     from the application config in Library/Application Support (macOS)
     or ~/.config (Linux).  Override with EW_DATA_DIR.
     """
-    return Path(os.environ.get("EW_DATA_DIR", Path.home() / ".edgewalker"))
+    if env_dir := os.environ.get("EW_DATA_DIR"):
+        return Path(env_dir)
+
+    # If running in pytest, use a temporary directory
+    if is_testing():
+        test_dir = Path(tempfile.gettempdir()) / "edgewalker-test" / "data"
+        with contextlib.suppress(OSError):
+            test_dir.mkdir(parents=True, exist_ok=True)
+        return test_dir
+
+    return Path.home() / ".edgewalker"
 
 
 # Legacy constants for backward compatibility (evaluated at load time)
@@ -82,13 +132,21 @@ class Settings(BaseSettings):
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         """Customise settings sources to include YAML file."""
-        return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            YamlConfigSettingsSource(settings_cls, yaml_file=get_config_dir() / "config.yaml"),
-            file_secret_settings,
-        )
+        config_file = get_config_dir() / "config.yaml"
+        sources = [init_settings, env_settings, dotenv_settings]
+
+        # Only attempt to load YAML if we're not in a test environment
+        # or if the file is explicitly provided/accessible.
+        if not is_testing():
+            try:
+                if config_file.exists():
+                    sources.append(YamlConfigSettingsSource(settings_cls, yaml_file=config_file))
+            except (PermissionError, OSError):
+                # If we can't even check if it exists, skip it
+                pass
+
+        sources.append(file_secret_settings)
+        return tuple(sources)
 
     # ============================================================================
     # API
@@ -103,7 +161,7 @@ class Settings(BaseSettings):
     def validate_urls(cls, v: str, info: ValidationInfo) -> str:
         """Ensure URLs use https and warn if they point to unexpected domains."""
         # Skip strict https enforcement during tests if using http
-        if os.environ.get("PYTEST_CURRENT_TEST") and v.startswith("http://"):
+        if is_testing() and v.startswith("http://"):
             return v
 
         if not v.startswith("https://") and all(x not in v for x in ("localhost", "127.0.0.1")):
@@ -427,7 +485,7 @@ class Settings(BaseSettings):
             A list of warning messages.
         """
         # Skip security warnings during tests or if suppressed
-        if os.environ.get("PYTEST_CURRENT_TEST") or self.suppress_warnings:
+        if is_testing() or self.suppress_warnings:
             return []
 
         warnings = []
@@ -521,7 +579,7 @@ def get_active_overrides() -> dict[str, str]:
         ('environment variable' or '.env file').
     """
     # Skip overrides during tests to ensure consistent behavior
-    if os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("EW_ALLOW_OVERRIDES_IN_TESTS"):
+    if is_testing() and not os.environ.get("EW_ALLOW_OVERRIDES_IN_TESTS"):
         return {}
 
     overrides = {}
@@ -646,6 +704,7 @@ def save_settings(settings_obj: Settings) -> None:
 
     # Open with restricted permissions (0o600: read/write for owner only)
     try:
+        # Use os.open to ensure 0o600 permissions on creation
         fd = os.open(config_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             yaml.dump(data, f, sort_keys=False)

@@ -50,6 +50,7 @@ class SqlScanResultModel(BaseModel):
     privileges: Optional[str] = None
     error: Optional[str] = None
     tested_count: int = 0
+    device_correlation_id: Optional[str] = None
 
 
 class SqlScanModel(BaseModel):

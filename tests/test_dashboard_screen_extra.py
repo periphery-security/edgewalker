@@ -270,28 +270,6 @@ async def test_dashboard_on_scan_error_retry():
 
 
 @pytest.mark.asyncio
-async def test_dashboard_sql_web_actions():
-    """Test SQL and Web scan actions."""
-    app = EdgeWalkerApp()
-    with (
-        patch("textual.widgets.Header", return_value=MagicMock()),
-        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
-    ):
-        async with app.run_test() as pilot:
-            screen = DashboardScreen()
-            await app.push_screen(screen)
-            await pilot.pause()
-
-            with patch.object(screen, "_run_guided_sql_scan") as mock_sql:
-                screen.action_sql_scan()
-                assert mock_sql.called
-
-            with patch.object(screen, "_run_guided_web_scan") as mock_web:
-                screen.action_web_scan()
-                assert mock_web.called
-
-
-@pytest.mark.asyncio
 async def test_dashboard_view_raw():
     """Test action_view_raw."""
     app = EdgeWalkerApp()

@@ -27,7 +27,9 @@ def test_cli_config_set():
 def test_cli_config_path():
     result = runner.invoke(app, ["config", "path"])
     assert result.exit_code == 0
-    assert "config.yaml" in result.stdout
+    # Remove newlines to handle wrapping in some environments
+    clean_stdout = result.stdout.replace("\n", "").replace("\r", "")
+    assert "config.yaml" in clean_stdout
 
 
 def test_cli_report():

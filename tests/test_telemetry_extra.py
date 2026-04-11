@@ -24,10 +24,10 @@ def test_telemetry_enabled(tmp_path):
         settings.output_dir = tmp_path
         settings.telemetry_enabled = None
         tm = TelemetryManager(settings)
-        assert tm.is_telemetry_enabled() is False
-
-        tm.set_telemetry_status(True)
         assert tm.is_telemetry_enabled() is True
+
+        tm.set_telemetry_status(False)
+        assert tm.is_telemetry_enabled() is False
 
 
 def test_telemetry_anonymize():

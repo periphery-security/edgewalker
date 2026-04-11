@@ -160,9 +160,6 @@ async def test_dashboard_screen_actions_triggers():
                 screen.action_full_scan()
                 assert mock_push.call_count == 2
 
-                screen.action_cred_scan()
-                assert mock_push.call_count == 3
-
 
 @pytest.mark.asyncio
 async def test_dashboard_screen_clear_results(tmp_path):

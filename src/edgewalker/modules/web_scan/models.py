@@ -44,6 +44,7 @@ class WebScanResultModel(BaseModel):
     sensitive_files: list[str] = Field(default_factory=list)
     technologies: list[str] = Field(default_factory=list)
     error: Optional[str] = None
+    device_correlation_id: Optional[str] = None
 
 
 class WebScanModel(BaseModel):

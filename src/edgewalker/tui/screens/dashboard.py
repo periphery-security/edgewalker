@@ -30,9 +30,7 @@ from edgewalker.display import (
 from edgewalker.modules.port_scan.scanner import fix_nmap_permissions
 from edgewalker.tui.modals.dialogs import (
     ConfirmModal,
-    CredScanTypeModal,
     PermissionModal,
-    TargetInputModal,
 )
 from edgewalker.tui.widgets.navigation import NavigationPanel
 from edgewalker.tui.widgets.topology import TopologyWidget
@@ -47,12 +45,8 @@ class DashboardScreen(Screen):
         Binding("2", "topology", "Topology", show=True),
         Binding("3", "quick_scan", "Quick Scan", show=True),
         Binding("4", "full_scan", "Full Scan", show=True),
-        Binding("5", "cred_scan", "Password Test", show=True),
-        Binding("6", "cve_scan", "CVE Check", show=True),
-        Binding("7", "sql_scan", "SQL Audit", show=True),
-        Binding("8", "web_scan", "Web Audit", show=True),
-        Binding("9", "clear_results", "Clear All", show=True),
-        Binding("0", "view_raw", "Raw Results", show=True),
+        Binding("5", "clear_results", "Clear All", show=True),
+        Binding("6", "view_raw", "Raw Results", show=True),
         Binding("ctrl+c", "copy_report", "Copy Report", show=True),
         Binding("escape", "go_home", "Back", show=True),
     ]
@@ -204,7 +198,7 @@ class DashboardScreen(Screen):
         log.write(theme.gradient_text(theme.LOGO))
         log.write(f"\n  [{theme.TEXT}]Select a scan type from the menu to begin.[/]")
         log.write(
-            f"\n  [{theme.MUTED_STYLE}]Quick Scan (2) is recommended for first-time users.[/]"
+            f"\n  [{theme.MUTED_STYLE}]Quick Scan (3) is recommended for first-time users.[/]"
         )
 
     def _show_loading(self, message: str) -> None:
@@ -345,28 +339,11 @@ class DashboardScreen(Screen):
             return
         self._from_topology = False
         self.query_one("#topology-container").display = False
-        if not getattr(self.app, "has_nmap_permissions", True) and not settings.unprivileged:
-            self.notify("Port scanning requires elevated privileges.", severity="error")
-            return
 
-        # Check security warnings and overrides first
-        self._check_security_warnings(self._start_quick_scan_flow)
+        # First Party
+        from edgewalker.tui.screens.guided import GuidedAssessmentScreen  # noqa: PLC0415
 
-    def _start_quick_scan_flow(self) -> None:
-        """Internal flow to start a quick scan after checks."""
-        self._full_scan = False
-        self._run_creds = True
-        self._run_cves = True
-        self._run_sql = True
-        self._run_web = True
-        self._auto_run = False  # Manual trigger from dashboard
-
-        def start_scan(target: str) -> None:
-            self._auto_target = target
-            self._auto_step = 1
-            self._next_guided_step()
-
-        self.app.push_screen(TargetInputModal(), start_scan)
+        self.app.push_screen(GuidedAssessmentScreen(full_scan=False))
 
     def action_full_scan(self) -> None:
         """Start a guided full scan."""
@@ -374,65 +351,11 @@ class DashboardScreen(Screen):
             return
         self._from_topology = False
         self.query_one("#topology-container").display = False
-        if not getattr(self.app, "has_nmap_permissions", True) and not settings.unprivileged:
-            self.notify("Port scanning requires elevated privileges.", severity="error")
-            return
 
-        # Check security warnings and overrides first
-        self._check_security_warnings(self._start_full_scan_flow)
+        # First Party
+        from edgewalker.tui.screens.guided import GuidedAssessmentScreen  # noqa: PLC0415
 
-    def _start_full_scan_flow(self) -> None:
-        """Internal flow to start a full scan after checks."""
-        self._full_scan = True
-        self._run_creds = True
-        self._run_cves = True
-        self._run_sql = True
-        self._run_web = True
-        self._auto_run = False  # Manual trigger from dashboard
-
-        def start_scan(target: str) -> None:
-            self._auto_target = target
-            self._auto_step = 1
-            self._next_guided_step()
-
-        self.app.push_screen(TargetInputModal(), start_scan)
-
-    def action_cred_scan(self) -> None:
-        """Start a manual credential scan."""
-        if self.app.is_scanning:
-            return
-        self._from_topology = False
-        self.query_one("#topology-container").display = False
-
-        def on_depth_selected(full: bool) -> None:
-            self._full_creds = full
-            self._run_guided_cred_scan()
-
-        self.app.push_screen(CredScanTypeModal(), on_depth_selected)
-
-    def action_cve_scan(self) -> None:
-        """Start a manual CVE scan."""
-        if self.app.is_scanning:
-            return
-        self._from_topology = False
-        self.query_one("#topology-container").display = False
-        self._run_guided_cve_scan()
-
-    def action_sql_scan(self) -> None:
-        """Start a manual SQL scan."""
-        if self.app.is_scanning:
-            return
-        self._from_topology = False
-        self.query_one("#topology-container").display = False
-        self._run_guided_sql_scan()
-
-    def action_web_scan(self) -> None:
-        """Start a manual Web scan."""
-        if self.app.is_scanning:
-            return
-        self._from_topology = False
-        self.query_one("#topology-container").display = False
-        self._run_guided_web_scan()
+        self.app.push_screen(GuidedAssessmentScreen(full_scan=True))
 
     @work(exclusive=True, group="scan")
     async def _run_guided_port_scan(self) -> None:
