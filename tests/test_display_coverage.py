@@ -86,20 +86,23 @@ def test_build_risk_report_with_extras():
     sql_data = {
         "results": [
             {
-                "host": "192.168.1.10",
+                "ip": "192.168.1.10",
                 "service": "mysql",
-                "status": "vulnerable",
-                "details": "Default root password",
+                "status": "successful",
+                "version": "5.7",
+                "databases": ["test"],
             }
         ]
     }
     web_data = {
         "results": [
             {
-                "host": "192.168.1.10",
-                "url": "http://192.168.1.10/.env",
-                "vulnerability": "sensitive_file",
-                "details": "Found /.env",
+                "ip": "192.168.1.10",
+                "protocol": "http",
+                "port": 80,
+                "tls": {"expired": True},
+                "sensitive_files": [".env"],
+                "headers": {"csp": False, "hsts": False},
             }
         ]
     }

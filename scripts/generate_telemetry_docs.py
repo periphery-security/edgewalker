@@ -66,7 +66,7 @@ def generate_schemas() -> None:
             json.dump(schema, f, indent=2)
             f.write("\n")
 
-        print(f"Generated schema for {name} at {output_path}")
+        print(f"Schema generated: {output_path.name}")
 
 
 if __name__ == "__main__":

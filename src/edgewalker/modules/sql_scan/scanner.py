@@ -181,7 +181,7 @@ class MySqlScanner(BaseSqlScanner):
         self, username: str, password: str
     ) -> tuple[SqlStatusEnum, Optional[dict[str, Any]]]:
         """Attempt MySQL login."""
-        if not aiomysql:
+        if aiomysql is None:
             return SqlStatusEnum.unknown, {"error": "aiomysql not installed"}
 
         try:
@@ -223,7 +223,7 @@ class PostgreSqlScanner(BaseSqlScanner):
         self, username: str, password: str
     ) -> tuple[SqlStatusEnum, Optional[dict[str, Any]]]:
         """Attempt PostgreSQL login."""
-        if not asyncpg:
+        if asyncpg is None:
             return SqlStatusEnum.unknown, {"error": "asyncpg not installed"}
 
         try:
@@ -260,7 +260,7 @@ class RedisScanner(BaseSqlScanner):
         self, username: str, password: str
     ) -> tuple[SqlStatusEnum, Optional[dict[str, Any]]]:
         """Attempt Redis login."""
-        if not redis:
+        if redis is None:
             return SqlStatusEnum.unknown, {"error": "redis not installed"}
 
         try:
@@ -291,7 +291,7 @@ class MongoDbScanner(BaseSqlScanner):
         self, username: str, password: str
     ) -> tuple[SqlStatusEnum, Optional[dict[str, Any]]]:
         """Attempt MongoDB login."""
-        if not AsyncIOMotorClient:
+        if AsyncIOMotorClient is None:
             return SqlStatusEnum.unknown, {"error": "motor not installed"}
 
         try:
