@@ -1,6 +1,7 @@
 """Pydantic models for the CVE Scan module."""
 
 # Standard Library
+from typing import Optional
 
 # Third Party
 from pydantic import BaseModel, ConfigDict, Field, IPvAnyAddress, field_serializer
@@ -45,6 +46,9 @@ class CveScanResultModel(BaseModel):
     product: str = Field(description="Product name")
     version: str = Field(description="Product version")
     cves: list[CveModel] = Field(default_factory=list, description="List of CVEs found")
+    device_correlation_id: Optional[str] = Field(
+        default=None, description="Anonymous ID for correlating devices across scans"
+    )
 
     @field_serializer("ip")
     def serialize_ip(self, ip: IPvAnyAddress, info: object) -> str:

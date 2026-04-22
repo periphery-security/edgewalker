@@ -1,0 +1,64 @@
+remediations:
+  - id: default_creds_ssh
+    title: Default SSH Credentials
+    description: The device is accessible via SSH using default or weak credentials.
+    remediation: |
+      1. Log in to the device.
+      2. Change the password using the `passwd` command.
+      3. Consider disabling password authentication in `/etc/ssh/sshd_config` and using SSH keys instead.
+      4. Restart the SSH service: `sudo systemctl restart ssh`.
+
+  - id: default_creds_mysql
+    title: Default MySQL Credentials
+    description: The MySQL database is accessible using default credentials (e.g., root with no password).
+    remediation: |
+      1. Log in to MySQL: `mysql -u root`.
+      2. Set a strong password: `ALTER USER 'root'@'localhost' IDENTIFIED BY 'new_strong_password';`.
+      3. Remove anonymous users: `DELETE FROM mysql.user WHERE User='';`.
+      4. Disallow root login remotely if not needed.
+      5. Run `mysql_secure_installation` if available.
+
+  - id: anonymous_redis
+    title: Anonymous Redis Access
+    description: The Redis instance is accessible without any authentication.
+    remediation: |
+      1. Edit the Redis configuration file (usually `/etc/redis/redis.conf`).
+      2. Find the `requirepass` directive and set a strong password: `requirepass your_strong_password`.
+      3. Ensure Redis is bound to localhost or a private network: `bind 127.0.0.1`.
+      4. Restart Redis: `sudo systemctl restart redis`.
+
+  - id: missing_security_headers
+    title: Missing Web Security Headers
+    description: The web service is missing critical security headers (CSP, HSTS, etc.).
+    remediation: |
+      1. Configure your web server (Nginx, Apache) to include security headers.
+      2. For Nginx:
+         add_header Content-Security-Policy "default-src 'self';";
+         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+         add_header X-Frame-Options "SAMEORIGIN";
+      3. For Apache:
+         Header set Content-Security-Policy "default-src 'self';"
+         Header set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+         Header set X-Frame-Options "SAMEORIGIN"
+
+  - id: expired_tls_cert
+    title: Expired TLS Certificate
+    description: The SSL/TLS certificate for the web service has expired.
+    remediation: |
+      1. Renew the certificate through your provider (e.g., Let's Encrypt, DigiCert).
+      2. If using Let's Encrypt, run: `sudo certbot renew`.
+      3. Update the certificate files on your web server.
+      4. Restart the web server to apply changes.
+
+  - id: sensitive_files_exposed
+    title: Sensitive Files Exposed
+    description: Sensitive files like `.env` or `.git/config` are publicly accessible.
+    remediation: |
+      1. Remove the sensitive files from the web root if they are not needed.
+      2. Configure your web server to deny access to hidden files and directories.
+      3. For Nginx:
+         location ~ /\. { deny all; }
+      4. For Apache:
+         <DirectoryMatch "^\.|\/\.">
+           Require all denied
+         </DirectoryMatch>

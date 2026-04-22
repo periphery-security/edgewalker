@@ -1,0 +1,191 @@
+{
+  "$defs": {
+    "SqlCredentialsModel": {
+      "description": "Credentials found for a SQL service.",
+      "properties": {
+        "user": {
+          "title": "User",
+          "type": "string"
+        },
+        "password": {
+          "title": "Password",
+          "type": "string"
+        }
+      },
+      "required": [
+        "user",
+        "password"
+      ],
+      "title": "SqlCredentialsModel",
+      "type": "object"
+    },
+    "SqlScanResultModel": {
+      "description": "Result of a single SQL service scan.",
+      "properties": {
+        "ip": {
+          "title": "Ip",
+          "type": "string"
+        },
+        "port": {
+          "title": "Port",
+          "type": "integer"
+        },
+        "service": {
+          "$ref": "#/$defs/SqlServiceEnum"
+        },
+        "status": {
+          "$ref": "#/$defs/SqlStatusEnum"
+        },
+        "credentials": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SqlCredentialsModel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        },
+        "databases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Databases",
+          "type": "array"
+        },
+        "privileges": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Privileges"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "tested_count": {
+          "default": 0,
+          "title": "Tested Count",
+          "type": "integer"
+        },
+        "device_correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Device Correlation Id"
+        }
+      },
+      "required": [
+        "ip",
+        "port",
+        "service",
+        "status"
+      ],
+      "title": "SqlScanResultModel",
+      "type": "object"
+    },
+    "SqlServiceEnum": {
+      "description": "Supported SQL services.",
+      "enum": [
+        "mysql",
+        "postgresql",
+        "mssql",
+        "redis",
+        "mongodb"
+      ],
+      "title": "SqlServiceEnum",
+      "type": "string"
+    },
+    "SqlStatusEnum": {
+      "description": "Status of SQL scan.",
+      "enum": [
+        "successful",
+        "failed",
+        "ratelimit",
+        "unknown",
+        "anonymous"
+      ],
+      "title": "SqlStatusEnum",
+      "type": "string"
+    }
+  },
+  "description": "Complete SQL scan results.",
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "device_id": {
+      "title": "Device Id",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    },
+    "module": {
+      "default": "sql_scan",
+      "title": "Module",
+      "type": "string"
+    },
+    "module_version": {
+      "default": "0.1.0",
+      "title": "Module Version",
+      "type": "string"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/SqlScanResultModel"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "summary": {
+      "additionalProperties": true,
+      "title": "Summary",
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "device_id",
+    "version",
+    "results",
+    "summary"
+  ],
+  "title": "EdgeWalker Sql Scan Telemetry Schema",
+  "type": "object"
+}

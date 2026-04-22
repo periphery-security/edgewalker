@@ -98,6 +98,9 @@ class PasswordScanResultModel(BaseModel):
     product_version: Optional[str] = Field(
         default=None, description="Version of product using port"
     )
+    device_correlation_id: Optional[str] = Field(
+        default=None, description="Anonymous ID for correlating devices across scans"
+    )
 
     @field_serializer("ip")
     def serialize_ip(self, ip: IPvAnyAddress, info: object) -> str:

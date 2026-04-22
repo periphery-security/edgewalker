@@ -217,20 +217,18 @@ class EdgeWalkerApp(App):
         if self.telemetry.settings.telemetry_enabled is False:
             self.telemetry_status = "disabled"
 
-        # First-run opt-in check
+        # First-run telemetry notification
         if not self.telemetry.has_seen_telemetry_prompt():
 
-            def on_optin(opted_in: bool) -> None:
-                """Handle opt-in modal dismissal."""
-                self.telemetry.set_telemetry_status(opted_in)
-                if not opted_in:
-                    self.telemetry_status = "disabled"
+            def on_dismiss(_: None) -> None:
+                """Handle notification modal dismissal."""
+                self.telemetry.set_telemetry_status(True)
                 self._check_nmap_permissions()
                 self._check_previous_results()
                 self._check_config_overrides()
 
             self.push_screen(HomeScreen())
-            self.push_screen(TelemetryModal(), on_optin)
+            self.push_screen(TelemetryModal(), on_dismiss)
         else:
             self.push_screen(HomeScreen())
             self._check_nmap_permissions()

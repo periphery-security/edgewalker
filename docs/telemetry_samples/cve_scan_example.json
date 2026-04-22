@@ -1,0 +1,24 @@
+{
+  "device_id": "ew-7f8a9b0c1d2e",
+  "success": true,
+  "results": [
+    {
+      "ip": "192.168.1.0",
+      "device_correlation_id": "f6e5d4c3b2a1",
+      "cves": [
+        {
+          "id": "CVE-2021-22901",
+          "severity": "HIGH",
+          "description": "A vulnerability in Ubuntu's OpenSSH package...",
+          "service": "ssh",
+          "port": 22
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_hosts_scanned": 2,
+    "vulnerable_hosts": 1,
+    "total_cves": 1
+  }
+}

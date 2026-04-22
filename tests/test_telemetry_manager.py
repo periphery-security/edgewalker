@@ -35,7 +35,7 @@ def test_get_session_id_existing(telemetry_manager, tmp_path):
 
 def test_is_telemetry_enabled_none(telemetry_manager):
     telemetry_manager.settings.telemetry_enabled = None
-    assert telemetry_manager.is_telemetry_enabled() is False
+    assert telemetry_manager.is_telemetry_enabled() is True
 
 
 def test_is_telemetry_enabled_true(telemetry_manager):
@@ -159,7 +159,7 @@ def test_is_telemetry_enabled_migration_error(telemetry_manager, tmp_path):
     telemetry_manager.settings.telemetry_enabled = None
     (tmp_path / "optin").write_text("yes")
     with patch("pathlib.Path.read_text", side_effect=Exception("Read error")):
-        assert telemetry_manager.is_telemetry_enabled() is False
+        assert telemetry_manager.is_telemetry_enabled() is True
 
 
 @pytest.mark.asyncio

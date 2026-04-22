@@ -1,0 +1,357 @@
+{
+  "$defs": {
+    "Host": {
+      "description": "Host model.",
+      "properties": {
+        "ip": {
+          "description": "IP Address of host",
+          "format": "ipvanyaddress",
+          "title": "Ip",
+          "type": "string"
+        },
+        "mac": {
+          "description": "MAC Address of host",
+          "title": "Mac"
+        },
+        "hostname": {
+          "default": "",
+          "description": "Hostname of host",
+          "title": "Hostname",
+          "type": "string"
+        },
+        "vendor": {
+          "default": "Unknown",
+          "description": "Vendor of host",
+          "title": "Vendor",
+          "type": "string"
+        },
+        "state": {
+          "default": "up",
+          "description": "State of host",
+          "title": "State",
+          "type": "string"
+        },
+        "udp": {
+          "description": "List of open UDP ports on host",
+          "items": {
+            "$ref": "#/$defs/UdpPort"
+          },
+          "title": "Udp",
+          "type": "array"
+        },
+        "tcp": {
+          "description": "List of open TCP ports on host",
+          "items": {
+            "$ref": "#/$defs/TcpPort"
+          },
+          "title": "Tcp",
+          "type": "array"
+        },
+        "os": {
+          "description": "Top 3 most likely guesses at host OS",
+          "items": {
+            "type": "string"
+          },
+          "title": "Os",
+          "type": "array"
+        },
+        "mdns_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name discovered via mDNS",
+          "title": "Mdns Name"
+        },
+        "upnp_info": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Information discovered via UPnP",
+          "title": "Upnp Info"
+        },
+        "http_server": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "HTTP Server header",
+          "title": "Http Server"
+        },
+        "http_title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "HTTP page title",
+          "title": "Http Title"
+        },
+        "device_correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Anonymous ID for correlating devices across scans",
+          "title": "Device Correlation Id"
+        }
+      },
+      "required": [
+        "ip",
+        "mac"
+      ],
+      "title": "Host",
+      "type": "object"
+    },
+    "TcpPort": {
+      "description": "TCP port model.",
+      "properties": {
+        "port": {
+          "description": "Port number",
+          "maximum": 65535,
+          "minimum": 0,
+          "title": "Port",
+          "type": "integer"
+        },
+        "name": {
+          "description": "Name of protocol for port",
+          "title": "Name",
+          "type": "string"
+        },
+        "product_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of product using port",
+          "title": "Product Name"
+        },
+        "product_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Version of product using field",
+          "title": "Product Version"
+        }
+      },
+      "required": [
+        "port",
+        "name"
+      ],
+      "title": "TcpPort",
+      "type": "object"
+    },
+    "UdpPort": {
+      "description": "UDP port model.",
+      "properties": {
+        "port": {
+          "description": "Port number",
+          "maximum": 65535,
+          "minimum": 0,
+          "title": "Port",
+          "type": "integer"
+        },
+        "name": {
+          "description": "Name of protocol for port",
+          "title": "Name",
+          "type": "string"
+        },
+        "product_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Name of product using port",
+          "title": "Product Name"
+        },
+        "product_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Version of product using field",
+          "title": "Product Version"
+        }
+      },
+      "required": [
+        "port",
+        "name"
+      ],
+      "title": "UdpPort",
+      "type": "object"
+    }
+  },
+  "description": "Port scan model.",
+  "properties": {
+    "id": {
+      "description": "Unique identifier for the report.",
+      "title": "Id",
+      "type": "string"
+    },
+    "device_id": {
+      "default": "test-device",
+      "description": "Unique identifier for the module. (hash of MAC address)",
+      "title": "Device Id",
+      "type": "string"
+    },
+    "version": {
+      "default": "0.1.0",
+      "description": "Version number of the CLI.",
+      "format": "semver",
+      "title": "Version",
+      "type": "string"
+    },
+    "module": {
+      "default": "unspecified",
+      "description": "Name of the module that ran.",
+      "title": "Module",
+      "type": "string"
+    },
+    "module_version": {
+      "default": "0.1.0",
+      "description": "Version number of the module.",
+      "format": "semver",
+      "title": "Module Version",
+      "type": "string"
+    },
+    "timestamp": {
+      "description": "Timestamp when the module was run.",
+      "format": "date-time",
+      "title": "Timestamp",
+      "type": "string"
+    },
+    "is_demo": {
+      "default": false,
+      "description": "True if results are from demo mode.",
+      "title": "Is Demo",
+      "type": "boolean"
+    },
+    "hosts": {
+      "description": "List of hosts found",
+      "items": {
+        "$ref": "#/$defs/Host"
+      },
+      "title": "Hosts",
+      "type": "array"
+    },
+    "gateway_ip": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Detected gateway IP for the subnet",
+      "title": "Gateway Ip"
+    },
+    "all_ports": {
+      "default": false,
+      "description": "True for full_scan",
+      "title": "All Ports",
+      "type": "boolean"
+    },
+    "version_scan": {
+      "default": false,
+      "description": "True if we scan for software versions also",
+      "title": "Version Scan",
+      "type": "boolean"
+    },
+    "success": {
+      "default": true,
+      "description": "True if scan was successful",
+      "title": "Success",
+      "type": "boolean"
+    },
+    "target": {
+      "default": "",
+      "description": "Target of scan",
+      "title": "Target",
+      "type": "string"
+    },
+    "scan_type": {
+      "default": "quick",
+      "description": "Type of scan (quick or full)",
+      "title": "Scan Type",
+      "type": "string"
+    },
+    "hosts_responded": {
+      "default": 0,
+      "description": "Number of hosts that responded",
+      "title": "Hosts Responded",
+      "type": "integer"
+    },
+    "hosts_with_ports": {
+      "default": 0,
+      "description": "Number of hosts with open ports",
+      "title": "Hosts With Ports",
+      "type": "integer"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Error message if any",
+      "title": "Error"
+    }
+  },
+  "title": "EdgeWalker Port Scan Telemetry Schema",
+  "type": "object"
+}

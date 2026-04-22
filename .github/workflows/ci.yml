@@ -28,6 +28,10 @@ jobs:
         run: uv run task isort_check
       - name: Run Interrogate (Docstring Coverage)
         run: uv run task interrogate
+      - name: Verify Telemetry Schemas
+        run: |
+          uv run python scripts/generate_telemetry_docs.py
+          git diff --exit-code docs/telemetry_samples/
 
   type-check:
     name: Type Check

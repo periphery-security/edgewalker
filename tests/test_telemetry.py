@@ -36,12 +36,12 @@ def test_get_session_id(manager, tmp_path):
 
 
 def test_telemetry_enabled_status(manager, mock_settings):
-    assert manager.is_telemetry_enabled() is False
+    assert manager.is_telemetry_enabled() is True
 
     with patch("edgewalker.core.telemetry.save_settings"):
-        manager.set_telemetry_status(True)
-        mock_settings.telemetry_enabled = True
-        assert manager.is_telemetry_enabled() is True
+        manager.set_telemetry_status(False)
+        mock_settings.telemetry_enabled = False
+        assert manager.is_telemetry_enabled() is False
         assert manager.has_seen_telemetry_prompt() is True
 
 

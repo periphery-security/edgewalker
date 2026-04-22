@@ -114,3 +114,17 @@ async def test_guided_screen_input_submitted():
             await pilot.pause()
             assert screen.step == 3
             assert screen.config["target"] == "10.0.0.1"
+
+
+@pytest.mark.asyncio
+async def test_guided_screen_quit():
+    app = EdgeWalkerApp()
+    with patch("textual.widgets.Header", return_value=MagicMock()):
+        async with app.run_test() as pilot:
+            screen = GuidedAssessmentScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            with patch.object(app, "action_quit_app") as mock_quit:
+                screen.action_quit_app()
+                assert mock_quit.called

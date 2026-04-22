@@ -11,7 +11,7 @@ from edgewalker.core.theme_manager import ThemeManager
 
 @pytest.fixture
 def theme_manager(tmp_path):
-    with patch("edgewalker.core.theme_manager.user_config_dir", return_value=str(tmp_path)):
+    with patch("edgewalker.core.theme_manager.get_config_dir", return_value=tmp_path):
         tm = ThemeManager()
         tm.bundled_dir = tmp_path / "bundled"
         tm.user_dir = tmp_path / "user"

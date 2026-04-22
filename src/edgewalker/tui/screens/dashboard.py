@@ -30,9 +30,7 @@ from edgewalker.display import (
 from edgewalker.modules.port_scan.scanner import fix_nmap_permissions
 from edgewalker.tui.modals.dialogs import (
     ConfirmModal,
-    CredScanTypeModal,
     PermissionModal,
-    TargetInputModal,
 )
 from edgewalker.tui.widgets.navigation import NavigationPanel
 from edgewalker.tui.widgets.topology import TopologyWidget
@@ -47,10 +45,8 @@ class DashboardScreen(Screen):
         Binding("2", "topology", "Topology", show=True),
         Binding("3", "quick_scan", "Quick Scan", show=True),
         Binding("4", "full_scan", "Full Scan", show=True),
-        Binding("5", "cred_scan", "Password Test", show=True),
-        Binding("6", "cve_scan", "CVE Check", show=True),
-        Binding("8", "view_raw", "Raw Results", show=True),
-        Binding("9", "clear_results", "Clear All", show=True),
+        Binding("5", "clear_results", "Clear All", show=True),
+        Binding("6", "view_raw", "Raw Results", show=True),
         Binding("ctrl+c", "copy_report", "Copy Report", show=True),
         Binding("escape", "go_home", "Back", show=True),
     ]
@@ -63,6 +59,8 @@ class DashboardScreen(Screen):
         auto_target: str = "",
         run_creds: bool = False,
         run_cves: bool = False,
+        run_sql: bool = False,
+        run_web: bool = False,
         auto_run: bool = False,
         full_creds: bool = False,
     ) -> None:
@@ -75,6 +73,8 @@ class DashboardScreen(Screen):
             auto_target: Target for automatic scan.
             run_creds: Whether to run credential scan.
             run_cves: Whether to run CVE scan.
+            run_sql: Whether to run SQL audit.
+            run_web: Whether to run Web audit.
             auto_run: Whether to run automatically.
             full_creds: Whether to run full credential scan.
         """
@@ -84,6 +84,8 @@ class DashboardScreen(Screen):
         self._full_scan = full_scan
         self._run_creds = run_creds
         self._run_cves = run_cves
+        self._run_sql = run_sql
+        self._run_web = run_web
         self._auto_run = auto_run
         self._initial_report = show_report
         self._initial_topology = show_topology
@@ -196,7 +198,7 @@ class DashboardScreen(Screen):
         log.write(theme.gradient_text(theme.LOGO))
         log.write(f"\n  [{theme.TEXT}]Select a scan type from the menu to begin.[/]")
         log.write(
-            f"\n  [{theme.MUTED_STYLE}]Quick Scan (2) is recommended for first-time users.[/]"
+            f"\n  [{theme.MUTED_STYLE}]Quick Scan (3) is recommended for first-time users.[/]"
         )
 
     def _show_loading(self, message: str) -> None:
@@ -265,6 +267,16 @@ class DashboardScreen(Screen):
                 self._run_guided_cve_scan()
             else:
                 self._next_guided_step()
+        elif self._auto_step == 5:
+            if self._run_sql:
+                self._run_guided_sql_scan()
+            else:
+                self._next_guided_step()
+        elif self._auto_step == 6:
+            if self._run_web:
+                self._run_guided_web_scan()
+            else:
+                self._next_guided_step()
         else:
             self._auto_step = 0
             self._auto_run = False  # Reset auto-run when finished
@@ -327,26 +339,11 @@ class DashboardScreen(Screen):
             return
         self._from_topology = False
         self.query_one("#topology-container").display = False
-        if not getattr(self.app, "has_nmap_permissions", True) and not settings.unprivileged:
-            self.notify("Port scanning requires elevated privileges.", severity="error")
-            return
 
-        # Check security warnings and overrides first
-        self._check_security_warnings(self._start_quick_scan_flow)
+        # First Party
+        from edgewalker.tui.screens.guided import GuidedAssessmentScreen  # noqa: PLC0415
 
-    def _start_quick_scan_flow(self) -> None:
-        """Internal flow to start a quick scan after checks."""
-        self._full_scan = False
-        self._run_creds = True
-        self._run_cves = True
-        self._auto_run = False  # Manual trigger from dashboard
-
-        def start_scan(target: str) -> None:
-            self._auto_target = target
-            self._auto_step = 1
-            self._next_guided_step()
-
-        self.app.push_screen(TargetInputModal(), start_scan)
+        self.app.push_screen(GuidedAssessmentScreen(full_scan=False))
 
     def action_full_scan(self) -> None:
         """Start a guided full scan."""
@@ -354,47 +351,11 @@ class DashboardScreen(Screen):
             return
         self._from_topology = False
         self.query_one("#topology-container").display = False
-        if not getattr(self.app, "has_nmap_permissions", True) and not settings.unprivileged:
-            self.notify("Port scanning requires elevated privileges.", severity="error")
-            return
 
-        # Check security warnings and overrides first
-        self._check_security_warnings(self._start_full_scan_flow)
+        # First Party
+        from edgewalker.tui.screens.guided import GuidedAssessmentScreen  # noqa: PLC0415
 
-    def _start_full_scan_flow(self) -> None:
-        """Internal flow to start a full scan after checks."""
-        self._full_scan = True
-        self._run_creds = True
-        self._run_cves = True
-        self._auto_run = False  # Manual trigger from dashboard
-
-        def start_scan(target: str) -> None:
-            self._auto_target = target
-            self._auto_step = 1
-            self._next_guided_step()
-
-        self.app.push_screen(TargetInputModal(), start_scan)
-
-    def action_cred_scan(self) -> None:
-        """Start a manual credential scan."""
-        if self.app.is_scanning:
-            return
-        self._from_topology = False
-        self.query_one("#topology-container").display = False
-
-        def on_depth_selected(full: bool) -> None:
-            self._full_creds = full
-            self._run_guided_cred_scan()
-
-        self.app.push_screen(CredScanTypeModal(), on_depth_selected)
-
-    def action_cve_scan(self) -> None:
-        """Start a manual CVE scan."""
-        if self.app.is_scanning:
-            return
-        self._from_topology = False
-        self.query_one("#topology-container").display = False
-        self._run_guided_cve_scan()
+        self.app.push_screen(GuidedAssessmentScreen(full_scan=True))
 
     @work(exclusive=True, group="scan")
     async def _run_guided_port_scan(self) -> None:
@@ -553,6 +514,34 @@ class DashboardScreen(Screen):
         else:
             results_dict = results
 
+        # Build the full report with all available data
+        with open(settings.output_dir / "port_scan.json") as f:
+            final_port_data = json.load(f)
+
+        cve_data = {}
+        cve_file = settings.output_dir / "cve_scan.json"
+        if cve_file.exists():
+            with open(cve_file) as f:
+                cve_data = json.load(f)
+
+        sql_data = {}
+        sql_file = settings.output_dir / "sql_scan.json"
+        if sql_file.exists():
+            with open(sql_file) as f:
+                sql_data = json.load(f)
+
+        web_data = {}
+        web_file = settings.output_dir / "web_scan.json"
+        if web_file.exists():
+            with open(web_file) as f:
+                web_data = json.load(f)
+
+        renderables, report_data = build_risk_report(
+            final_port_data, results_dict, cve_data, sql_data, web_data
+        )
+        if report_data:
+            save_results(report_data, "security_report.json")
+
         vuln = results_dict.get("summary", {}).get("vulnerable_hosts", 0)
         self._write_step_header(3, 4, "CREDENTIAL CHECK")
 
@@ -604,6 +593,126 @@ class DashboardScreen(Screen):
             else:
                 results_dict = results
 
+            # Build the full report with all available data
+            with open(settings.output_dir / "port_scan.json") as f:
+                final_port_data = json.load(f)
+
+            cred_data = {}
+            pwd_file = settings.output_dir / "password_scan.json"
+            if pwd_file.exists():
+                with open(pwd_file) as f:
+                    cred_data = json.load(f)
+
+            sql_data = {}
+            sql_file = settings.output_dir / "sql_scan.json"
+            if sql_file.exists():
+                with open(sql_file) as f:
+                    sql_data = json.load(f)
+
+            web_data = {}
+            web_file = settings.output_dir / "web_scan.json"
+            if web_file.exists():
+                with open(web_file) as f:
+                    web_data = json.load(f)
+
+            renderables, report_data = build_risk_report(
+                final_port_data, cred_data, results_dict, sql_data, web_data
+            )
+            if report_data:
+                save_results(report_data, "security_report.json")
+
+            self._on_guided_cve_done(results_dict, renderables)
+        except Exception as e:
+            self._on_scan_error(f"CVE scan failed: {str(e)}")
+
+    @work(exclusive=True, group="scan")
+    async def _run_guided_sql_scan(self) -> None:
+        """Run the guided SQL scan asynchronously."""
+        self.app.is_scanning = True
+        self.app.scanner.progress_callback = self.app.notify_progress
+        self._show_loading("Auditing SQL services...")
+        try:
+            results = await self.app.scanner.perform_sql_scan()
+            self._on_guided_sql_done(results)
+        except Exception as e:
+            self._on_scan_error(f"SQL scan failed: {str(e)}")
+
+    def _on_guided_sql_done(self, results: object) -> None:
+        """Handle completion of the guided SQL scan."""
+        self.app.is_scanning = False
+        log = self._get_log()
+        log.clear()
+
+        if hasattr(results, "model_dump"):
+            results_dict = results.model_dump(mode="json")
+        else:
+            results_dict = results
+
+        # Build the full report with all available data
+        with open(settings.output_dir / "port_scan.json") as f:
+            final_port_data = json.load(f)
+
+        cred_data = {}
+        pwd_file = settings.output_dir / "password_scan.json"
+        if pwd_file.exists():
+            with open(pwd_file) as f:
+                cred_data = json.load(f)
+
+        cve_data = {}
+        cve_file = settings.output_dir / "cve_scan.json"
+        if cve_file.exists():
+            with open(cve_file) as f:
+                cve_data = json.load(f)
+
+        web_data = {}
+        web_file = settings.output_dir / "web_scan.json"
+        if web_file.exists():
+            with open(web_file) as f:
+                web_data = json.load(f)
+
+        renderables, report_data = build_risk_report(
+            final_port_data, cred_data, cve_data, results_dict, web_data
+        )
+        if report_data:
+            save_results(report_data, "security_report.json")
+
+        vuln = results_dict.get("summary", {}).get("vulnerable_services", 0)
+        self._write_step_header(5, 6, "SQL SECURITY AUDIT")
+
+        if vuln > 0:
+            msg = Text()
+            msg.append("\n  ", style="")
+            msg.append(f"{vuln} SQL service(s)", style=theme.RISK_CRITICAL)
+            msg.append(
+                " have security issues or default credentials.\n",
+                style=theme.TEXT,
+            )
+        else:
+            msg = Text()
+            msg.append(
+                "\n  No SQL security issues found on discovered services.\n",
+                style=theme.SUCCESS,
+            )
+        log.write(msg)
+
+        # We could add a build_sql_display here if needed
+        self._show_continue()
+
+    @work(exclusive=True, group="scan")
+    async def _run_guided_web_scan(self) -> None:
+        """Run the guided web scan asynchronously."""
+        self.app.is_scanning = True
+        self.app.scanner.progress_callback = self.app.notify_progress
+        self._show_loading("Auditing web services...")
+        try:
+            results = await self.app.scanner.perform_web_scan()
+            self.app.is_scanning = False
+
+            if hasattr(results, "model_dump"):
+                results_dict = results.model_dump(mode="json")
+            else:
+                results_dict = results
+
             # Build the full report
             with open(settings.output_dir / "port_scan.json") as f:
                 final_port_data = json.load(f)
@@ -614,13 +723,48 @@ class DashboardScreen(Screen):
                 with open(pwd_file) as f:
                     cred_data = json.load(f)
 
-            renderables, report_data = build_risk_report(final_port_data, cred_data, results_dict)
+            cve_data = {}
+            cve_file = settings.output_dir / "cve_scan.json"
+            if cve_file.exists():
+                with open(cve_file) as f:
+                    cve_data = json.load(f)
+
+            sql_data = {}
+            sql_file = settings.output_dir / "sql_scan.json"
+            if sql_file.exists():
+                with open(sql_file) as f:
+                    sql_data = json.load(f)
+
+            renderables, report_data = build_risk_report(
+                final_port_data, cred_data, cve_data, sql_data, results_dict
+            )
             if report_data:
                 save_results(report_data, "security_report.json")
 
-            self._on_guided_cve_done(results_dict, renderables)
+            self._on_guided_web_done(results_dict, renderables)
         except Exception as e:
-            self._on_scan_error(f"CVE scan failed: {str(e)}")
+            self._on_scan_error(f"Web scan failed: {str(e)}")
+
+    def _on_guided_web_done(self, results: dict, report_renderables: list) -> None:
+        """Handle completion of the guided web scan."""
+        self.app.is_scanning = False
+
+        # Build a Group of renderables for the Static widget
+        header = Text()
+        header.append("\n  STEP 6/6: SECURITY ASSESSMENT\n", style=f"bold {theme.HEADER}")
+        header.append("  " + theme.ICON_LINE_BOLD * 40 + "\n", style=theme.MUTED_STYLE)
+
+        footer = Text(
+            "\n  Assessment complete. Use [1] to view the full report.\n", style=theme.SUCCESS
+        )
+
+        # Combine all into a Group
+        all_renderables = [header] + report_renderables + [footer]
+        self._update_report_view(Group(*all_renderables))
+
+        self._auto_step = 0
+        self.query_one("#nav-panel").update_status()
+        self._show_continue("Done")
 
     def _update_report_view(self, renderable: object) -> None:
         """Update the selectable report view and capture plain text for clipboard."""
@@ -651,23 +795,8 @@ class DashboardScreen(Screen):
     def _on_guided_cve_done(self, results: dict, report_renderables: list) -> None:
         """Handle completion of the guided CVE scan."""
         self.app.is_scanning = False
-
-        # Build a Group of renderables for the Static widget
-        header = Text()
-        header.append("\n  STEP 4/4: SECURITY ASSESSMENT\n", style=f"bold {theme.HEADER}")
-        header.append("  " + theme.ICON_LINE_BOLD * 40 + "\n", style=theme.MUTED_STYLE)
-
-        footer = Text(
-            "\n  Assessment complete. Use [1] to view the full report.\n", style=theme.SUCCESS
-        )
-
-        # Combine all into a Group
-        all_renderables = [header] + report_renderables + [footer]
-        self._update_report_view(Group(*all_renderables))
-
-        self._auto_step = 0
         self.query_one("#nav-panel").update_status()
-        self._show_continue("Done")
+        self._show_continue()
 
     def action_show_report(self) -> None:
         """Load and display the last security report."""
@@ -693,7 +822,19 @@ class DashboardScreen(Screen):
             with open(cve_file) as f:
                 cve_data = json.load(f)
 
-        renderables, _ = build_risk_report(port_data, cred_data, cve_data)
+        sql_data = {}
+        sql_file = settings.output_dir / "sql_scan.json"
+        if sql_file.exists():
+            with open(sql_file) as f:
+                sql_data = json.load(f)
+
+        web_data = {}
+        web_file = settings.output_dir / "web_scan.json"
+        if web_file.exists():
+            with open(web_file) as f:
+                web_data = json.load(f)
+
+        renderables, _ = build_risk_report(port_data, cred_data, cve_data, sql_data, web_data)
         self._update_report_view(Group(*renderables))
 
     async def action_topology(self) -> None:
@@ -719,11 +860,23 @@ class DashboardScreen(Screen):
             with open(cve_file) as f:
                 cve_data = json.load(f)
 
+        sql_data = {}
+        sql_file = settings.output_dir / "sql_scan.json"
+        if sql_file.exists():
+            with open(sql_file) as f:
+                sql_data = json.load(f)
+
+        web_data = {}
+        web_file = settings.output_dir / "web_scan.json"
+        if web_file.exists():
+            with open(web_file) as f:
+                web_data = json.load(f)
+
         # Calculate risk for each host to ensure topology has latest data
         # First Party
         from edgewalker.core.risk import RiskEngine  # noqa: PLC0415
 
-        engine = RiskEngine(port_data, cred_data, cve_data)
+        engine = RiskEngine(port_data, cred_data, cve_data, sql_data, web_data)
         for host in port_data.get("hosts", []):
             host["risk"] = engine.calculate_device_risk(host.get("ip"))
 

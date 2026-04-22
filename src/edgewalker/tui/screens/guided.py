@@ -25,16 +25,22 @@ class GuidedAssessmentScreen(Screen):
         Binding("q", "quit_app", "Quit", show=True),
     ]
 
-    def __init__(self) -> None:
-        """Initialize the guided assessment screen."""
+    def __init__(self, full_scan: bool = False) -> None:
+        """Initialize the guided assessment screen.
+
+        Args:
+            full_scan: Whether to pre-configure for a full scan.
+        """
         super().__init__()
         self.step = 1
         self.config: dict[str, Any] = {
-            "full_scan": False,
+            "full_scan": full_scan,
             "target": port_scan.get_default_target(),
             "run_creds": True,
             "full_creds": False,
             "run_cves": True,
+            "run_sql": True,
+            "run_web": True,
         }
 
     def compose(self) -> ComposeResult:
@@ -115,6 +121,16 @@ class GuidedAssessmentScreen(Screen):
                     value=self.config["run_cves"],
                     id="chk-cves",
                 ),
+                Checkbox(
+                    "Audit SQL services (MySQL, Redis, etc.)",
+                    value=self.config["run_sql"],
+                    id="chk-sql",
+                ),
+                Checkbox(
+                    "Audit web services (Headers, SSL, etc.)",
+                    value=self.config["run_web"],
+                    id="chk-web",
+                ),
             )
 
         elif self.step == 4:
@@ -125,18 +141,25 @@ class GuidedAssessmentScreen(Screen):
             # Build summary strings to avoid long lines
             pass_test = f"[green]Yes[/] ({cred_mode})" if self.config["run_creds"] else "[red]No[/]"
             cve_test = "[green]Yes[/]" if self.config["run_cves"] else "[red]No[/]"
+            sql_test = "[green]Yes[/]" if self.config["run_sql"] else "[red]No[/]"
+            web_test = "[green]Yes[/]" if self.config["run_web"] else "[red]No[/]"
 
             summary = (
                 f"Assessment Summary:\n\n"
                 f"  {theme.ICON_BULLET} Mode: [bold]{mode} Scan[/]\n"
                 f"  {theme.ICON_BULLET} Target: [bold]{self.config['target']}[/]\n"
                 f"  {theme.ICON_BULLET} Password Test: {pass_test}\n"
-                f"  {theme.ICON_BULLET} CVE Check: {cve_test}\n\n"
+                f"  {theme.ICON_BULLET} CVE Check: {cve_test}\n"
+                f"  {theme.ICON_BULLET} SQL Audit: {sql_test}\n"
+                f"  {theme.ICON_BULLET} Web Audit: {web_test}\n\n"
                 "Click 'RUN' to begin the assessment."
             )
             content.mount(Static(summary, classes="wizard-text"))
             btn_next.label = "RUN"
             btn_next.variant = "success"
+
+        # Focus the primary action button by default
+        btn_next.focus()
 
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
         """Handle radio set changes."""
@@ -167,6 +190,8 @@ class GuidedAssessmentScreen(Screen):
                 self.config["run_creds"] = self.query_one("#chk-creds", Checkbox).value
                 self.config["full_creds"] = self.query_one("#chk-full-creds", Checkbox).value
                 self.config["run_cves"] = self.query_one("#chk-cves", Checkbox).value
+                self.config["run_sql"] = self.query_one("#chk-sql", Checkbox).value
+                self.config["run_web"] = self.query_one("#chk-web", Checkbox).value
 
             if self.step < 4:
                 self.step += 1
@@ -183,6 +208,8 @@ class GuidedAssessmentScreen(Screen):
                 auto_target=self.config["target"],
                 run_creds=self.config["run_creds"],
                 run_cves=self.config["run_cves"],
+                run_sql=self.config["run_sql"],
+                run_web=self.config["run_web"],
                 auto_run=True,
                 full_creds=self.config["full_creds"],
             )

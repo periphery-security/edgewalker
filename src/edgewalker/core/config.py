@@ -9,6 +9,8 @@ from __future__ import annotations
 # Standard Library
 import contextlib
 import os
+import sys
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Optional, Union, get_args, get_origin
@@ -26,17 +28,55 @@ from pydantic_settings import (
 )
 
 
+def is_testing() -> bool:
+    """Return True if we are running in a test environment (pytest)."""
+    if os.environ.get("EW_FORCE_NO_TESTING") == "1":
+        return False
+    return (
+        os.environ.get("PYTEST_CURRENT_TEST") is not None
+        or os.environ.get("EW_TESTING") == "1"
+        or "pytest" in sys.modules
+    )
+
+
 # ============================================================================
 # CONSTANTS & PATHS
 # ============================================================================
 def get_config_dir() -> Path:
     """Return the configuration directory, allowing override via environment variable."""
-    return Path(os.environ.get("EW_CONFIG_DIR", user_config_dir("edgewalker")))
+    if env_dir := os.environ.get("EW_CONFIG_DIR"):
+        return Path(env_dir)
+
+    # If running in pytest, use a temporary directory to avoid touching live config
+    if is_testing():
+        test_dir = Path(tempfile.gettempdir()) / "edgewalker-test" / "config"
+        with contextlib.suppress(OSError):
+            test_dir.mkdir(parents=True, exist_ok=True)
+        return test_dir
+
+    try:
+        return Path(user_config_dir("edgewalker"))
+    except (PermissionError, OSError):
+        # Fallback to a local directory if the system one is inaccessible
+        return Path.home() / ".edgewalker" / "config"
 
 
 def get_cache_dir() -> Path:
     """Return the cache directory, allowing override via environment variable."""
-    return Path(os.environ.get("EW_CACHE_DIR", user_cache_dir("edgewalker")))
+    if env_dir := os.environ.get("EW_CACHE_DIR"):
+        return Path(env_dir)
+
+    # If running in pytest, use a temporary directory
+    if is_testing():
+        test_dir = Path(tempfile.gettempdir()) / "edgewalker-test" / "cache"
+        with contextlib.suppress(OSError):
+            test_dir.mkdir(parents=True, exist_ok=True)
+        return test_dir
+
+    try:
+        return Path(user_cache_dir("edgewalker"))
+    except (PermissionError, OSError):
+        return Path.home() / ".edgewalker" / "cache"
 
 
 def get_data_dir() -> Path:
@@ -46,7 +86,17 @@ def get_data_dir() -> Path:
     from the application config in Library/Application Support (macOS)
     or ~/.config (Linux).  Override with EW_DATA_DIR.
     """
-    return Path(os.environ.get("EW_DATA_DIR", Path.home() / ".edgewalker"))
+    if env_dir := os.environ.get("EW_DATA_DIR"):
+        return Path(env_dir)
+
+    # If running in pytest, use a temporary directory
+    if is_testing():
+        test_dir = Path(tempfile.gettempdir()) / "edgewalker-test" / "data"
+        with contextlib.suppress(OSError):
+            test_dir.mkdir(parents=True, exist_ok=True)
+        return test_dir
+
+    return Path.home() / ".edgewalker"
 
 
 # Legacy constants for backward compatibility (evaluated at load time)
@@ -82,13 +132,21 @@ class Settings(BaseSettings):
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         """Customise settings sources to include YAML file."""
-        return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            YamlConfigSettingsSource(settings_cls, yaml_file=get_config_dir() / "config.yaml"),
-            file_secret_settings,
-        )
+        config_file = get_config_dir() / "config.yaml"
+        sources = [init_settings, env_settings, dotenv_settings]
+
+        # Only attempt to load YAML if we're not in a test environment
+        # or if the file is explicitly provided/accessible.
+        if not is_testing():
+            try:
+                if config_file.exists():
+                    sources.append(YamlConfigSettingsSource(settings_cls, yaml_file=config_file))
+            except (PermissionError, OSError):
+                # If we can't even check if it exists, skip it
+                pass
+
+        sources.append(file_secret_settings)
+        return tuple(sources)
 
     # ============================================================================
     # API
@@ -103,7 +161,7 @@ class Settings(BaseSettings):
     def validate_urls(cls, v: str, info: ValidationInfo) -> str:
         """Ensure URLs use https and warn if they point to unexpected domains."""
         # Skip strict https enforcement during tests if using http
-        if os.environ.get("PYTEST_CURRENT_TEST") and v.startswith("http://"):
+        if is_testing() and v.startswith("http://"):
             return v
 
         if not v.startswith("https://") and all(x not in v for x in ("localhost", "127.0.0.1")):
@@ -234,6 +292,10 @@ class Settings(BaseSettings):
             7547,  # Network services
             8123,
             32400,  # Smart home & media
+            3306,
+            5432,
+            6379,
+            27017,  # Databases
             6667,  # Suspicious
         ],
         description="Common IoT ports for quick scan",
@@ -244,9 +306,11 @@ class Settings(BaseSettings):
     # ============================================================================
     category_weights: dict[str, float] = Field(
         default={
-            "exposure": 0.25,
-            "credentials": 0.40,
-            "vulnerabilities": 0.35,
+            "exposure": 0.20,
+            "credentials": 0.30,
+            "vulnerabilities": 0.25,
+            "sql": 0.15,
+            "web": 0.10,
         },
         description="Category weights (must sum to 1.0)",
     )
@@ -257,6 +321,10 @@ class Settings(BaseSettings):
             5900: 70,  # VNC
             21: 60,  # FTP
             22: 30,  # SSH
+            3306: 50,
+            5432: 50,
+            6379: 60,
+            27017: 60,
         },
         description="Port severity scores (0-100)",
     )
@@ -274,6 +342,27 @@ class Settings(BaseSettings):
     )
     cred_severity_default: int = Field(default=80)
     cred_extra_penalty: int = Field(default=5)
+
+    sql_severity: dict[str, int] = Field(
+        default={
+            "mysql": 80,
+            "postgresql": 80,
+            "redis": 90,
+            "mongodb": 90,
+        },
+        description="SQL vulnerability severity scores (0-100)",
+    )
+    sql_severity_default: int = Field(default=70)
+
+    web_severity: dict[str, int] = Field(
+        default={
+            "expired_cert": 70,
+            "sensitive_file": 90,
+            "missing_headers": 40,
+        },
+        description="Web vulnerability severity scores (0-100)",
+    )
+    web_severity_default: int = Field(default=30)
 
     cve_severity: dict[str, int] = Field(
         default={
@@ -349,6 +438,46 @@ class Settings(BaseSettings):
         description="Unique identifier for this installation (Read-only)",
     )
 
+    def __init__(self, **kwargs: object) -> None:
+        """Initialize settings and perform migrations."""
+        super().__init__(**kwargs)
+        self._migrate_iot_ports()
+        self._migrate_category_weights()
+
+    def _migrate_iot_ports(self) -> None:
+        """Ensure new SQL and Web ports are in iot_ports if not explicitly removed."""
+        required_ports = [3306, 5432, 6379, 27017]
+        modified = False
+        for port in required_ports:
+            if port not in self.iot_ports:
+                self.iot_ports.append(port)
+                modified = True
+
+        if modified:
+            # Sort for consistency
+            self.iot_ports.sort()
+
+    def _migrate_category_weights(self) -> None:
+        """Ensure new categories are in category_weights."""
+        defaults = {
+            "exposure": 0.20,
+            "credentials": 0.30,
+            "vulnerabilities": 0.25,
+            "sql": 0.15,
+            "web": 0.10,
+        }
+        modified = False
+        for key, val in defaults.items():
+            if key not in self.category_weights:
+                self.category_weights[key] = val
+                modified = True
+
+        if modified:
+            # Normalize weights to sum to 1.0
+            total = sum(self.category_weights.values())
+            for key in self.category_weights:
+                self.category_weights[key] /= total
+
     def get_security_warnings(self) -> list[str]:
         """Identify non-standard or insecure security-sensitive settings.
 
@@ -356,7 +485,7 @@ class Settings(BaseSettings):
             A list of warning messages.
         """
         # Skip security warnings during tests or if suppressed
-        if os.environ.get("PYTEST_CURRENT_TEST") or self.suppress_warnings:
+        if is_testing() or self.suppress_warnings:
             return []
 
         warnings = []
@@ -450,7 +579,7 @@ def get_active_overrides() -> dict[str, str]:
         ('environment variable' or '.env file').
     """
     # Skip overrides during tests to ensure consistent behavior
-    if os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("EW_ALLOW_OVERRIDES_IN_TESTS"):
+    if is_testing() and not os.environ.get("EW_ALLOW_OVERRIDES_IN_TESTS"):
         return {}
 
     overrides = {}
@@ -508,31 +637,74 @@ def init_config() -> None:
         save_settings(settings)
     else:
         # Ensure new required fields (like device_id) are persisted to existing files
+        # and handle stale paths
         try:
             with open(config_file, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
 
+            modified = False
             if "device_id" not in data:
+                modified = True
+
+            # Migration: Check for stale creds_file path from old versions
+            if "creds_file" in data:
+                creds_path_str = str(data["creds_file"])
+                creds_path = Path(creds_path_str)
+
+                is_stale = False
+                if not creds_path.exists():
+                    is_stale = True
+                elif "hackathon-q2-2025" in creds_path_str:
+                    # Specifically target the old absolute path known to be problematic
+                    is_stale = True
+                else:
+                    # Heuristic: if it doesn't have mysql, it's the old version
+                    try:
+                        with open(creds_path, "r") as f:
+                            content = f.read(4096)  # Just check the beginning/reasonable chunk
+                            if "mysql" not in content:
+                                is_stale = True
+                    except Exception:
+                        is_stale = True
+
+                if is_stale:
+                    logger.warning(
+                        f"Stale or missing creds_file detected: {creds_path_str}. "
+                        "Resetting to default."
+                    )
+                    settings.creds_file = Settings.model_fields["creds_file"].default
+                    modified = True
+
+            if modified:
                 save_settings(settings)
         except Exception as e:
             logger.debug(f"Failed to check/update existing config: {e}")
 
 
 def save_settings(settings_obj: Settings) -> None:
-    """Save settings to the YAML configuration file."""
+    """Save settings to the YAML configuration file.
+
+    Only saves settings that differ from their default values,
+    ensuring portability across different machines and project locations.
+    """
     get_config_dir().mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(get_config_dir(), 0o700)
     config_file = settings_obj.config_file
 
-    data = settings_obj.model_dump(mode="json")
+    # Use exclude_defaults=True to keep config.yaml clean and portable.
+    # This prevents absolute paths (like default creds_file) from being hardcoded.
+    data = settings_obj.model_dump(mode="json", exclude_defaults=True)
 
-    # Paths need to be stringified for YAML
-    data["cache_dir"] = str(settings_obj.cache_dir.absolute())
-    data["output_dir"] = str(settings_obj.output_dir.absolute())
-    data["theme"] = settings_obj.theme
+    # ALWAYS save device_id as it is generated once and must persist
+    data["device_id"] = settings_obj.device_id
+
+    # If theme is modified, ensure it's saved
+    if settings_obj.theme != "periphery":
+        data["theme"] = settings_obj.theme
 
     # Open with restricted permissions (0o600: read/write for owner only)
     try:
+        # Use os.open to ensure 0o600 permissions on creation
         fd = os.open(config_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             yaml.dump(data, f, sort_keys=False)

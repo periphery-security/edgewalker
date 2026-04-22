@@ -257,6 +257,29 @@ def run_guided_scan(
     )
 
 
+@app.command("cve")
+def run_cve_scan() -> None:
+    """Run a CVE vulnerability scan on discovered services."""
+    print_logo()
+    asyncio.run(ScanController().run_cve_scan())
+
+
+@app.command("sql")
+def run_sql_scan(
+    top_n: int = typer.Option(10, help="Number of top credentials to test per service."),
+) -> None:
+    """Audit discovered SQL services for weak credentials and misconfigurations."""
+    print_logo()
+    asyncio.run(ScanController().run_sql_scan(top_n=top_n))
+
+
+@app.command("web")
+def run_web_scan() -> None:
+    """Audit discovered web services for security headers and sensitive files."""
+    print_logo()
+    asyncio.run(ScanController().run_web_scan())
+
+
 @app.command()
 def report() -> None:
     """View the latest security risk assessment report."""

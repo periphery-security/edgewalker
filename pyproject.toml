@@ -28,6 +28,10 @@ dependencies = [
     "validators>=0.35.0",
     "zeroconf>=0.143.0",
     "beautifulsoup4>=4.13.3",
+    "aiomysql>=0.2.0",
+    "asyncpg>=0.30.0",
+    "redis>=5.2.1",
+    "motor>=3.6.1",
 ]
 
 [dependency-groups]

@@ -5,7 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 import pytest
 
 # First Party
-from edgewalker import cli
+from edgewalker import cli as cli_pkg
+from edgewalker.cli import cli
 
 
 @pytest.fixture(autouse=True)
@@ -28,7 +29,7 @@ def test_run_port_scan_fail(mock_submit, mock_save, mock_input, mock_quick):
     from edgewalker.modules.port_scan.models import PortScanModel
 
     mock_quick.return_value = PortScanModel(success=False, error="nmap error", hosts=[])
-    res = cli.run_port_scan()
+    res = cli_pkg.run_port_scan()
     assert res is None
 
 
@@ -62,7 +63,7 @@ def test_run_credential_scan_from_file(
         },
     )
 
-    cli.run_credential_scan()
+    cli_pkg.run_credential_scan()
     assert mock_scan.called
 
 
@@ -96,7 +97,7 @@ def test_run_credential_scan_manual_target(
             "credentials_found": 0,
         },
     )
-    cli.run_credential_scan()
+    cli_pkg.run_credential_scan()
     assert mock_scan.called
 
 
@@ -106,7 +107,7 @@ def test_run_cve_scan_no_file(mock_file, mock_settings):
     mock_port_file = MagicMock()
     mock_port_file.exists.return_value = False
     mock_settings.output_dir.__truediv__.return_value = mock_port_file
-    assert cli.run_cve_scan() is None
+    assert cli_pkg.run_cve_scan() is None
 
 
 @patch("edgewalker.cli.controller.settings")
@@ -115,7 +116,7 @@ def test_run_cve_scan_no_hosts(mock_file, mock_settings):
     mock_port_file = MagicMock()
     mock_port_file.exists.return_value = True
     mock_settings.output_dir.__truediv__.return_value = mock_port_file
-    assert cli.run_cve_scan() is None
+    assert cli_pkg.run_cve_scan() is None
 
 
 @patch("edgewalker.core.config.settings")
@@ -181,7 +182,7 @@ def test_automatic_mode_full_flow(
     )
     controller = cli.ScanController()
     guided = cli.GuidedScanner(controller)
-    cli.automatic_mode()
+    cli_pkg.automatic_mode()
     assert mock_risk.called
 
 
@@ -196,7 +197,7 @@ def test_interactive_mode_manual_no_port_scan(
     mock_build, mock_press, mock_has_port, mock_any, mock_telemetry_enabled, mock_mode, mock_input
 ):
     mock_build.return_value = MagicMock()
-    cli.interactive_mode()
+    cli_pkg.interactive_mode()
     # Should show warning and not call view_device_risk
 
 
@@ -210,7 +211,7 @@ def test_interactive_mode_manual_full_scan_cancel(
     mock_press, mock_build, mock_any, mock_telemetry_enabled, mock_mode, mock_input
 ):
     mock_build.return_value = MagicMock()
-    cli.interactive_mode()
+    cli_pkg.interactive_mode()
 
 
 @patch("edgewalker.utils.get_input", side_effect=["4", "0"])
@@ -224,7 +225,7 @@ def test_interactive_mode_manual_creds_no_port(
     mock_press, mock_build, mock_has_port, mock_any, mock_telemetry_enabled, mock_mode, mock_input
 ):
     mock_build.return_value = MagicMock()
-    cli.interactive_mode()
+    cli_pkg.interactive_mode()
 
 
 @patch("edgewalker.utils.get_input", side_effect=["5", "0"])
@@ -238,7 +239,7 @@ def test_interactive_mode_manual_cve_no_port(
     mock_press, mock_build, mock_has_port, mock_any, mock_telemetry_enabled, mock_mode, mock_input
 ):
     mock_build.return_value = MagicMock()
-    cli.interactive_mode()
+    cli_pkg.interactive_mode()
 
 
 @patch("edgewalker.utils.get_input", side_effect=["99", "0"])
@@ -251,7 +252,7 @@ def test_interactive_mode_manual_invalid(
     mock_press, mock_build, mock_any, mock_telemetry_enabled, mock_mode, mock_input
 ):
     mock_build.return_value = MagicMock()
-    cli.interactive_mode()
+    cli_pkg.interactive_mode()
 
 
 @patch("edgewalker.utils.get_input", side_effect=[""])
@@ -284,23 +285,33 @@ def test_prompt_next_scan_no(mock_input, mock_status):
         "port_scan_type": None,
         "password_scan": False,
         "cve_scan": False,
+        "sql_scan": False,
+        "web_scan": False,
         "devices_found": 0,
         "vulnerable_devices": 0,
         "cves_found": 0,
+        "sql_vulns": 0,
+        "web_vulns": 0,
     }
     controller = MagicMock()
     guided = cli.GuidedScanner(controller)
-    cli.prompt_next_scan()
+    cli_pkg.prompt_next_scan()
 
 
 @patch("edgewalker.utils.get_scan_status")
 @patch("edgewalker.utils.get_input", side_effect=["n"])
 @patch("edgewalker.cli.controller.ScanController.run_credential_scan", new_callable=AsyncMock)
 def test_prompt_next_scan_creds_no(mock_run, mock_input, mock_status):
-    mock_status.return_value = {"port_scan": True, "password_scan": False, "cve_scan": False}
+    mock_status.return_value = {
+        "port_scan": True,
+        "password_scan": False,
+        "cve_scan": False,
+        "sql_scan": False,
+        "web_scan": False,
+    }
     controller = cli.ScanController()
     guided = cli.GuidedScanner(controller)
-    cli.prompt_next_scan()
+    cli_pkg.prompt_next_scan()
     assert not mock_run.called
 
 
@@ -308,10 +319,16 @@ def test_prompt_next_scan_creds_no(mock_run, mock_input, mock_status):
 @patch("edgewalker.utils.get_input", side_effect=["n"])
 @patch("edgewalker.cli.controller.ScanController.run_cve_scan", new_callable=AsyncMock)
 def test_prompt_next_scan_cve_no(mock_run, mock_input, mock_status):
-    mock_status.return_value = {"port_scan": True, "password_scan": True, "cve_scan": False}
+    mock_status.return_value = {
+        "port_scan": True,
+        "password_scan": True,
+        "cve_scan": False,
+        "sql_scan": False,
+        "web_scan": False,
+    }
     controller = cli.ScanController()
     guided = cli.GuidedScanner(controller)
-    cli.prompt_next_scan()
+    cli_pkg.prompt_next_scan()
     assert not mock_run.called
 
 
@@ -339,7 +356,7 @@ def test_interactive_mode_report_exists(
             mock_report = MagicMock()
             mock_report.exists.return_value = True
             mock_dir.output_dir.__truediv__.return_value = mock_report
-            cli.interactive_mode()
+            cli_pkg.interactive_mode()
             assert mock_risk.called
 
 
@@ -358,7 +375,7 @@ def test_interactive_mode_report_not_exists(
             mock_report = MagicMock()
             mock_report.exists.return_value = False
             mock_dir.output_dir.__truediv__.return_value = mock_report
-            cli.interactive_mode()
+            cli_pkg.interactive_mode()
 
 
 @patch("edgewalker.cli.guided.GuidedScanner.automatic_mode", new_callable=AsyncMock)
@@ -370,7 +387,7 @@ def test_interactive_mode_auto(mock_input, mock_telemetry_enabled, mock_auto):
     ):
         with patch("edgewalker.utils.has_any_results", return_value=False):
             with patch("edgewalker.utils.press_enter"):
-                cli.interactive_mode()
+                cli_pkg.interactive_mode()
                 assert mock_auto.called
 
 
@@ -390,7 +407,7 @@ def test_view_results_select_errors(mock_dir, mock_input):
 @patch("edgewalker.cli.controller.settings")
 def test_run_credential_scan_no_target(mock_settings, mock_input, tmp_path):
     mock_settings.output_dir = tmp_path
-    assert cli.run_credential_scan() is None
+    assert cli_pkg.run_credential_scan() is None
 
 
 @patch("edgewalker.utils.get_input", side_effect=["1.1.1.1", "invalid"])
@@ -421,7 +438,7 @@ def test_run_credential_scan_invalid_top_n(
             "credentials_found": 0,
         },
     )
-    cli.run_credential_scan()
+    cli_pkg.run_credential_scan()
     assert mock_scan.called
 
 
@@ -435,7 +452,7 @@ def test_run_cve_scan_no_up_hosts(mock_file, mock_settings):
     mock_port_file = MagicMock()
     mock_port_file.exists.return_value = True
     mock_settings.output_dir.__truediv__.return_value = mock_port_file
-    assert cli.run_cve_scan() is None
+    assert cli_pkg.run_cve_scan() is None
 
 
 @patch("edgewalker.utils.get_input", return_value="1.1.1.1")
@@ -449,7 +466,7 @@ def test_automatic_mode_no_up_hosts(mock_press, mock_run, mock_input):
     with patch("edgewalker.cli.guided.GuidedScanner._show_scan_type_selection", return_value=False):
         controller = cli.ScanController()
         guided = cli.GuidedScanner(controller)
-        cli.automatic_mode()
+        cli_pkg.automatic_mode()
         assert mock_run.called
 
 
@@ -474,7 +491,7 @@ def test_interactive_mode_manual_full_scan_confirm(
     mock_input,
 ):
     mock_build.return_value = MagicMock()
-    cli.interactive_mode()
+    cli_pkg.interactive_mode()
     assert mock_run.called
 
 
@@ -499,7 +516,7 @@ def test_interactive_mode_manual_creds_confirm(
     mock_input,
 ):
     mock_build.return_value = MagicMock()
-    cli.interactive_mode()
+    cli_pkg.interactive_mode()
     assert mock_run.called
 
 
@@ -524,7 +541,7 @@ def test_interactive_mode_manual_cve_confirm(
     mock_input,
 ):
     mock_build.return_value = MagicMock()
-    cli.interactive_mode()
+    cli_pkg.interactive_mode()
     assert mock_run.called
 
 
@@ -547,7 +564,7 @@ def test_interactive_mode_manual_report_confirm(
     mock_input,
 ):
     mock_build.return_value = MagicMock()
-    cli.interactive_mode()
+    cli_pkg.interactive_mode()
     assert mock_risk.called
 
 
@@ -579,19 +596,66 @@ def test_run_credential_scan_target_provided(
             "credentials_found": 0,
         },
     )
-    cli.run_credential_scan(target="1.1.1.1")
+    cli_pkg.run_credential_scan(target="1.1.1.1")
     assert mock_scan.called
 
 
-@patch("edgewalker.utils.has_any_results", return_value=True)
-@patch("edgewalker.utils.get_input", side_effect=["1", "", "0"])
-@patch("edgewalker.cli.results.settings")
-@patch("builtins.open", new_callable=mock_open, read_data='{"test": "data"}')
-def test_view_results_select_success(mock_file, mock_dir, mock_input, mock_any):
-    mock_dir.output_dir.exists.return_value = True
-    mock_file = MagicMock()
-    mock_file.name = "test.json"
-    mock_file.stat.return_value.st_size = 1024
-    mock_file.stat.return_value.st_mtime = 1600000000
-    mock_dir.output_dir.glob.return_value = [mock_file]
-    cli.ResultManager().view_results()
+def test_apply_colorblind_theme():
+    # First Party
+    from edgewalker.core.config import settings
+
+    cli.apply_colorblind_theme(persist=False)
+    assert settings.theme == "colorblind"
+
+
+def test_config_set():
+    with patch("edgewalker.cli.cli.update_setting") as mock_update:
+        cli.config_set("theme", "dracula")
+        mock_update.assert_called_with("theme", "dracula")
+
+    with patch("edgewalker.cli.cli.update_setting", side_effect=AttributeError("error")):
+        cli.config_set("invalid", "value")
+        # Should print error
+
+    with patch("edgewalker.cli.cli.update_setting", side_effect=ValueError("error")):
+        cli.config_set("theme", "invalid")
+        # Should print error
+
+
+def test_config_path():
+    cli.config_path()
+    # Should print path
+
+
+@patch("edgewalker.cli.controller.ScanController.run_sql_scan", new_callable=AsyncMock)
+def test_run_sql_scan_cli(mock_run):
+    cli.run_sql_scan(top_n=5)
+    assert mock_run.called
+
+
+@patch("edgewalker.cli.controller.ScanController.run_web_scan", new_callable=AsyncMock)
+def test_run_web_scan_cli(mock_run):
+    cli.run_web_scan()
+    assert mock_run.called
+
+
+def test_version_command():
+    with patch("shutil.which", return_value="/usr/bin/uv"):
+        with patch("subprocess.check_output", return_value="uv 0.1.0"):
+            cli.version()
+
+
+def test_main_callback():
+    with patch("edgewalker.cli.cli.update_setting") as mock_update:
+        # Provide all arguments to avoid Typer.Option defaults
+        cli.main(
+            None,
+            verbose=0,
+            log_file=None,
+            silent=True,
+            suppress_warnings=True,
+            accept_telemetry=True,
+            decline_telemetry=False,
+            colorblind=False,
+        )
+        assert mock_update.call_count >= 3

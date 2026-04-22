@@ -57,7 +57,8 @@ class TelemetryManager:
             except Exception as e:
                 logger.error(f"Failed to migrate legacy optin file: {e}")
 
-        return False
+        # Default to True (Opt-out by default)
+        return True
 
     def set_telemetry_status(self, opted_in: bool) -> None:
         """Save user's opt-in preference to config."""
@@ -93,6 +94,17 @@ class TelemetryManager:
             )
         return mac
 
+    def _get_device_correlation_id(self, identifier: str) -> str:
+        """Generate a stable, anonymous correlation ID for a device.
+
+        Uses a keyed hash (HMAC-like) of the device identifier (IP or MAC)
+        and the persistent session_id to allow correlating the same device
+        across different scan types without revealing its true identity.
+        """
+        session_id = self.get_session_id()
+        keyed_hash = hashlib.sha256(f"{identifier}{session_id}".encode()).hexdigest()
+        return keyed_hash[:12]  # 12 chars is enough for local network uniqueness
+
     def anonymize_scan_data(self, data: dict[str, Any]) -> dict[str, Any]:
         """Anonymize sensitive data in scan results."""
         # Use json for deep copy to ensure we don't modify original
@@ -107,6 +119,15 @@ class TelemetryManager:
         # Anonymize hosts
         if "hosts" in anon:
             for host in anon["hosts"]:
+                raw_ip = host.get("ip") or host.get("host")
+                raw_mac = host.get("mac")
+
+                # Add correlation ID before anonymizing the raw values
+                if raw_ip:
+                    host["device_correlation_id"] = self._get_device_correlation_id(raw_ip)
+                elif raw_mac:
+                    host["device_correlation_id"] = self._get_device_correlation_id(raw_mac)
+
                 if "ip" in host:
                     host["ip"] = self.anonymize_ip(host["ip"])
                 if "mac" in host:
@@ -134,6 +155,10 @@ class TelemetryManager:
         # Anonymize results (password_scan and cve_scan)
         if "results" in anon:
             for res in anon["results"]:
+                raw_ip = res.get("ip")
+                if raw_ip:
+                    res["device_correlation_id"] = self._get_device_correlation_id(raw_ip)
+
                 if "ip" in res:
                     res["ip"] = self.anonymize_ip(res["ip"])
 

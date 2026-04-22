@@ -21,30 +21,19 @@ async def test_telemetry_modal():
     async with app.run_test() as pilot:
         modal = TelemetryModal()
 
-        # Test Yes
-        result = None
+        dismissed = False
 
-        def on_dismiss(val):
-            nonlocal result
-            result = val
+        def on_dismiss(_):
+            nonlocal dismissed
+            dismissed = True
 
         await app.push_screen(modal, on_dismiss)
         await pilot.pause()
 
-        btn_yes = modal.query_one("#optin-yes", Button)
-        btn_yes.post_message(Button.Pressed(btn_yes))
+        btn_ok = modal.query_one("#optin-ok", Button)
+        btn_ok.post_message(Button.Pressed(btn_ok))
         await pilot.pause()
-        assert result is True
-
-        # Test No
-        modal = TelemetryModal()
-        await app.push_screen(modal, on_dismiss)
-        await pilot.pause()
-
-        btn_no = modal.query_one("#optin-no", Button)
-        btn_no.post_message(Button.Pressed(btn_no))
-        await pilot.pause()
-        assert result is False
+        assert dismissed is True
 
 
 @pytest.mark.asyncio

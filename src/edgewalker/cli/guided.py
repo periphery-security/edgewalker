@@ -88,7 +88,21 @@ class GuidedScanner:
         utils.console.print()
         await self.controller.run_cve_scan(port_results=port_results)
 
-        # Step 6: Show report
+        # Step 6: Run SQL scan
+        utils.console.print()
+        utils.console.print()
+        logger.info("CVE scan complete. Now auditing SQL services...")
+        utils.console.print()
+        await self.controller.run_sql_scan(port_results=port_results, top_n=top_n, verbose=verbose)
+
+        # Step 7: Run Web scan
+        utils.console.print()
+        utils.console.print()
+        logger.info("SQL audit complete. Now auditing web services...")
+        utils.console.print()
+        await self.controller.run_web_scan(port_results=port_results, verbose=verbose)
+
+        # Step 8: Show report
         utils.console.print()
         utils.console.print()
         logger.success("All scans complete! Generating your security report...")
@@ -103,7 +117,13 @@ class GuidedScanner:
         utils.console.print()
 
         # All scans complete?
-        if status["port_scan"] and status["password_scan"] and status["cve_scan"]:
+        if (
+            status["port_scan"]
+            and status["password_scan"]
+            and status["cve_scan"]
+            and status["sql_scan"]
+            and status["web_scan"]
+        ):
             lines = [
                 "",
                 f"  [{theme.SUCCESS}]{theme.ICON_CHECK} All scans complete![/{theme.SUCCESS}]",
@@ -116,6 +136,14 @@ class GuidedScanner:
                 (
                     f"    [bold {theme.WARNING}]{status['cves_found']}"
                     f"[/bold {theme.WARNING}] CVEs found"
+                ),
+                (
+                    f"    [{theme.RISK_CRITICAL}]{status['sql_vulns']}"
+                    f"[/{theme.RISK_CRITICAL}] SQL vulnerabilities"
+                ),
+                (
+                    f"    [{theme.RISK_CRITICAL}]{status['web_vulns']}"
+                    f"[/{theme.RISK_CRITICAL}] Web vulnerabilities"
                 ),
                 "",
             ]
@@ -155,6 +183,30 @@ class GuidedScanner:
             choice = utils.get_input("Run now? [Y/n]", "y")
             if choice.lower() != "n":
                 await self.controller.run_cve_scan()
+                await self.prompt_next_scan()
+            return
+
+        if not status["sql_scan"] and status["port_scan"]:
+            utils.console.print()
+            utils.console.print(
+                f"[{theme.HEADER}]{theme.ICON_ARROW} Next:[/{theme.HEADER}] "
+                "SQL Audit - check database security"
+            )
+            choice = utils.get_input("Run now? [Y/n]", "y")
+            if choice.lower() != "n":
+                await self.controller.run_sql_scan()
+                await self.prompt_next_scan()
+            return
+
+        if not status["web_scan"] and status["port_scan"]:
+            utils.console.print()
+            utils.console.print(
+                f"[{theme.HEADER}]{theme.ICON_ARROW} Next:[/{theme.HEADER}] "
+                "Web Audit - check web service security"
+            )
+            choice = utils.get_input("Run now? [Y/n]", "y")
+            if choice.lower() != "n":
+                await self.controller.run_web_scan()
                 await self.prompt_next_scan()
             return
 

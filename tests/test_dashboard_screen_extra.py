@@ -3,7 +3,7 @@
 # Standard Library
 import json
 from contextlib import contextmanager
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 # Third Party
 import pytest
@@ -267,3 +267,124 @@ async def test_dashboard_on_scan_error_retry():
             screen._auto_step = 0
             screen._on_scan_error("Error")
             assert screen._auto_step == -1
+
+
+@pytest.mark.asyncio
+async def test_dashboard_view_raw():
+    """Test action_view_raw."""
+    app = EdgeWalkerApp()
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            with patch.object(screen, "notify") as mock_notify:
+                screen.action_view_raw()
+                assert mock_notify.called
+
+
+@pytest.mark.asyncio
+async def test_dashboard_on_guided_sql_done(tmp_path):
+    """Test _on_guided_sql_done."""
+    app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
+    (tmp_path / "port_scan.json").write_text(json.dumps({"hosts": [], "summary": {}}))
+
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            results = {"summary": {"vulnerable_services": 1}}
+            screen._on_guided_sql_done(results)
+
+            log = screen.query_one("#wizard-log", RichLog)
+            all_text = "\n".join(line.text for line in log.lines)
+            assert "SQL SECURITY AUDIT" in all_text
+
+
+@pytest.mark.asyncio
+async def test_dashboard_handle_permission_error():
+    """Test _handle_permission_error."""
+    app = EdgeWalkerApp()
+    with patch("edgewalker.tui.app.check_nmap_permissions", return_value=True):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            with patch.object(app, "push_screen") as mock_push:
+                screen._handle_permission_error("Permission denied")
+                assert mock_push.called
+
+                # Simulate "fix" choice
+                callback = mock_push.call_args[0][1]
+                with patch(
+                    "edgewalker.tui.screens.dashboard.fix_nmap_permissions", return_value=True
+                ):
+                    with patch.object(screen, "_run_guided_port_scan") as mock_retry:
+                        # Mock app.suspend to be a no-op context manager
+                        # Standard Library
+                        from contextlib import contextmanager
+
+                        @contextmanager
+                        def mock_suspend():
+                            yield
+
+                        with patch.object(app, "suspend", side_effect=mock_suspend):
+                            callback("fix")
+                            assert mock_retry.called
+
+                # Simulate "unprivileged" choice
+                with patch("edgewalker.tui.screens.dashboard.update_setting") as mock_update:
+                    with patch.object(screen, "_run_guided_port_scan") as mock_retry:
+                        callback("unprivileged")
+                        assert mock_update.called
+                        assert mock_retry.called
+
+
+@pytest.mark.asyncio
+async def test_dashboard_run_guided_scans():
+    """Test _run_guided_*_scan methods."""
+    app = EdgeWalkerApp()
+    with patch("edgewalker.tui.app.check_nmap_permissions", return_value=True):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen(show_report=False)
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            with patch.object(
+                app.scanner, "perform_credential_scan", new_callable=AsyncMock
+            ) as mock_cred:
+                mock_cred.return_value = MagicMock(results=[], summary={})
+                worker = screen._run_guided_cred_scan()
+                await worker.wait()
+                assert mock_cred.called
+
+            with patch.object(app.scanner, "perform_cve_scan", new_callable=AsyncMock) as mock_cve:
+                mock_cve.return_value = MagicMock(results=[], summary={})
+                worker = screen._run_guided_cve_scan()
+                await worker.wait()
+                assert mock_cve.called
+
+            with patch.object(app.scanner, "perform_sql_scan", new_callable=AsyncMock) as mock_sql:
+                mock_sql.return_value = MagicMock(results=[], summary={})
+                worker = screen._run_guided_sql_scan()
+                await worker.wait()
+                assert mock_sql.called
+
+            with patch.object(app.scanner, "perform_web_scan", new_callable=AsyncMock) as mock_web:
+                mock_web.return_value = MagicMock(results=[], summary={})
+                # Mock file reading in _run_guided_web_scan
+                with patch("builtins.open", mock_open(read_data='{"hosts": []}')):
+                    worker = screen._run_guided_web_scan()
+                    await worker.wait()
+                    assert mock_web.called

@@ -21,6 +21,8 @@ from edgewalker.modules import port_scan
 from edgewalker.modules.cve_scan.models import CveScanModel
 from edgewalker.modules.password_scan.models import PasswordScanModel
 from edgewalker.modules.port_scan.models import PortScanModel
+from edgewalker.modules.sql_scan.models import SqlScanModel
+from edgewalker.modules.web_scan.models import WebScanModel
 
 
 class ScanController:
@@ -214,6 +216,75 @@ class ScanController:
 
         return results
 
+    async def run_sql_scan(
+        self,
+        port_results: Optional[PortScanModel] = None,
+        top_n: Optional[int] = 10,
+        verbose: bool = False,
+    ) -> Optional[SqlScanModel]:
+        """Run SQL scan and display results asynchronously."""
+        utils.print_header("SQL SECURITY AUDIT")
+
+        if port_results is None:
+            port_file = settings.output_dir / "port_scan.json"
+            if port_file.exists():
+                with open(port_file) as f:
+                    port_data = json.load(f)
+                port_results = PortScanModel(**port_data)
+            else:
+                logger.error("No port scan results found. Run a port scan first.")
+                return None
+
+        logger.info("Auditing discovered SQL services for weak credentials and misconfigurations")
+        utils.console.print()
+
+        try:
+            results = await self.scanner.perform_sql_scan(
+                port_results=port_results, top_n=top_n, verbose=verbose
+            )
+        except Exception as e:
+            logger.error(f"SQL scan failed: {str(e)}")
+            return None
+
+        # Display results (using generic display for now, can be specialized later)
+        utils.console.print()
+        logger.success(f"Results saved to: {settings.output_dir / 'sql_scan.json'}")
+
+        return results
+
+    async def run_web_scan(
+        self, port_results: Optional[PortScanModel] = None, verbose: bool = False
+    ) -> Optional[WebScanModel]:
+        """Run web scan and display results asynchronously."""
+        utils.print_header("WEB APPLICATION AUDIT")
+
+        if port_results is None:
+            port_file = settings.output_dir / "port_scan.json"
+            if port_file.exists():
+                with open(port_file) as f:
+                    port_data = json.load(f)
+                port_results = PortScanModel(**port_data)
+            else:
+                logger.error("No port scan results found. Run a port scan first.")
+                return None
+
+        logger.info("Auditing discovered web services for security headers and sensitive files")
+        utils.console.print()
+
+        try:
+            results = await self.scanner.perform_web_scan(
+                port_results=port_results, verbose=verbose
+            )
+        except Exception as e:
+            logger.error(f"Web scan failed: {str(e)}")
+            return None
+
+        # Display results
+        utils.console.print()
+        logger.success(f"Results saved to: {settings.output_dir / 'web_scan.json'}")
+
+        return results
+
     def view_device_risk(self) -> None:
         """View device risk assessment report."""
         utils.clear_screen()
@@ -223,6 +294,8 @@ class ScanController:
         port_scan_file = settings.output_dir / "port_scan.json"
         password_scan_file = settings.output_dir / "password_scan.json"
         cve_scan_file = settings.output_dir / "cve_scan.json"
+        sql_scan_file = settings.output_dir / "sql_scan.json"
+        web_scan_file = settings.output_dir / "web_scan.json"
 
         if not port_scan_file.exists():
             logger.error("No port scan results found. Run a port scan first.")
@@ -241,7 +314,19 @@ class ScanController:
             with open(cve_scan_file) as f:
                 cve_data = json.load(f)
 
-        renderables, report_data = build_risk_report(port_data, cred_data, cve_data)
+        sql_data = {}
+        if sql_scan_file.exists():
+            with open(sql_scan_file) as f:
+                sql_data = json.load(f)
+
+        web_data = {}
+        if web_scan_file.exists():
+            with open(web_scan_file) as f:
+                web_data = json.load(f)
+
+        renderables, report_data = build_risk_report(
+            port_data, cred_data, cve_data, sql_data, web_data
+        )
 
         for renderable in renderables:
             utils.console.print(renderable)

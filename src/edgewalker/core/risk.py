@@ -9,12 +9,17 @@ from __future__ import annotations
 # Standard Library
 from typing import Any, Type, TypeVar
 
+# Third Party
+import yaml
+
 # First Party
 from edgewalker import theme
 from edgewalker.core.config import settings
 from edgewalker.modules.cve_scan.models import CveScanModel
 from edgewalker.modules.password_scan.models import PasswordScanModel
 from edgewalker.modules.port_scan.models import PortScanModel
+from edgewalker.modules.sql_scan.models import SqlScanModel
+from edgewalker.modules.web_scan.models import WebScanModel
 
 T = TypeVar("T")
 
@@ -27,6 +32,8 @@ class RiskEngine:
         port_data: PortScanModel | dict[str, Any],
         cred_data: PasswordScanModel | dict[str, Any],
         cve_data: CveScanModel | dict[str, Any],
+        sql_data: SqlScanModel | dict[str, Any] | None = None,
+        web_data: WebScanModel | dict[str, Any] | None = None,
         gateway_ip: str | None = None,
     ) -> None:
         """Initialize the risk engine with scan data."""
@@ -34,7 +41,12 @@ class RiskEngine:
         self.port_data = self._ensure_model(port_data, PortScanModel)
         self.cred_data = self._ensure_model(cred_data, PasswordScanModel)
         self.cve_data = self._ensure_model(cve_data, CveScanModel)
+        self.sql_data = self._ensure_model(sql_data, SqlScanModel) if sql_data else None
+        self.web_data = self._ensure_model(web_data, WebScanModel) if web_data else None
         self.gateway_ip = gateway_ip or getattr(self.port_data, "gateway_ip", None)
+
+        # Load remediations
+        self.remediations = self._load_remediations()
 
         # Index data by IP for performance (O(1) lookup)
         # Use string keys for compatibility with tests
@@ -54,9 +66,18 @@ class RiskEngine:
         results = getattr(self.cred_data, "results", [])
         if not results and isinstance(self.cred_data, dict):
             results = self.cred_data.get("results", [])
+            if not results:
+                hosts = self.cred_data.get("hosts", [])
+                for h in hosts:
+                    ip = h.get("host")
+                    services = h.get("services", {})
+                    for svc, details in services.items():
+                        if details.get("status") == "vulnerable":
+                            self._cred_index.setdefault(ip, []).append(svc)
 
         if isinstance(results, list):
             for item in results:
+                # ... (rest of the loop)
                 ip = str(getattr(item, "ip", item.get("ip") if isinstance(item, dict) else ""))
                 login_attempt = getattr(
                     item,
@@ -100,28 +121,52 @@ class RiskEngine:
                         # If no creds object but successful, just add the service name
                         self._cred_index.setdefault(ip, []).append(service)
 
-        # Handle legacy format if index is empty
-        if not self._cred_index:
-            legacy_hosts = getattr(self.cred_data, "hosts", [])
-            if not legacy_hosts and isinstance(self.cred_data, dict):
-                legacy_hosts = self.cred_data.get("hosts", [])
+        # Index SQL
+        self._sql_index: dict[str, list[Any]] = {}
+        if self.sql_data:
+            sql_results = getattr(self.sql_data, "results", [])
+            if not sql_results and isinstance(self.sql_data, dict):
+                sql_results = self.sql_data.get("results", [])
 
-            if isinstance(legacy_hosts, list):
-                for host_item in legacy_hosts:
-                    ip = str(host_item.get("host") or host_item.get("ip", ""))
-                    if not ip:
-                        continue
-                    services = host_item.get("services", {})
-                    if isinstance(services, dict):
-                        for svc_name, svc_data in services.items():
-                            if svc_data.get("status") == "vulnerable":
-                                self._cred_index.setdefault(ip, []).append(svc_name)
+            if isinstance(sql_results, list):
+                for res in sql_results:
+                    ip = str(getattr(res, "ip", res.get("ip") if isinstance(res, dict) else ""))
+                    if ip:
+                        self._sql_index.setdefault(ip, []).append(
+                            res.model_dump() if hasattr(res, "model_dump") else res
+                        )
+
+        # Index Web
+        self._web_index: dict[str, list[Any]] = {}
+        if self.web_data:
+            web_results = getattr(self.web_data, "results", [])
+            if not web_results and isinstance(self.web_data, dict):
+                web_results = self.web_data.get("results", [])
+
+            if isinstance(web_results, list):
+                for res in web_results:
+                    ip = str(getattr(res, "ip", res.get("ip") if isinstance(res, dict) else ""))
+                    if ip:
+                        self._web_index.setdefault(ip, []).append(
+                            res.model_dump() if hasattr(res, "model_dump") else res
+                        )
 
         # Index CVEs
         self._cve_index: dict[str, list[Any]] = {}
         cve_results = getattr(self.cve_data, "results", [])
         if not cve_results and isinstance(self.cve_data, dict):
             cve_results = self.cve_data.get("results", [])
+            # Legacy support for {"hosts": [{"ip": "...", "services": [{"cves": [...]}]}]}
+            if not cve_results:
+                hosts = self.cve_data.get("hosts", [])
+                for h in hosts:
+                    ip = h.get("ip")
+                    services = h.get("services", [])
+                    all_cves = []
+                    for svc in services:
+                        all_cves.extend(svc.get("cves", []))
+                    if ip and all_cves:
+                        self._cve_index[ip] = all_cves
 
         if isinstance(cve_results, list):
             for res in cve_results:
@@ -133,24 +178,17 @@ class RiskEngine:
                             c.model_dump() if hasattr(c, "model_dump") else c for c in cves
                         ]
 
-        # Handle legacy format if index is empty
-        if not self._cve_index:
-            legacy_cve_hosts = getattr(self.cve_data, "hosts", [])
-            if not legacy_cve_hosts and isinstance(self.cve_data, dict):
-                legacy_cve_hosts = self.cve_data.get("hosts", [])
-
-            if isinstance(legacy_cve_hosts, list):
-                for host_item in legacy_cve_hosts:
-                    ip = str(host_item.get("ip", ""))
-                    if not ip:
-                        continue
-                    services = host_item.get("services", [])
-                    all_cves = []
-                    if isinstance(services, list):
-                        for svc in services:
-                            all_cves.extend(svc.get("cves", []))
-                    if all_cves:
-                        self._cve_index[ip] = all_cves
+    def _load_remediations(self) -> dict[str, Any]:
+        """Load remediation database from YAML."""
+        rem_file = settings.creds_file.parent / "remediation.yaml"
+        if not rem_file.exists():
+            return {}
+        try:
+            with open(rem_file, "r") as f:
+                data = yaml.safe_load(f)
+                return {r["id"]: r for r in data.get("remediations", [])}
+        except Exception:
+            return {}
 
     def _ensure_model(self, data: object, model_class: Type[T]) -> T | object:
         """Attempt to validate data against model_class, return raw data on failure."""
@@ -175,12 +213,20 @@ class RiskEngine:
         # 3. Vulnerability Score (CVEs)
         vulnerabilities = self._calculate_vulnerability_score(ip)
 
+        # 4. SQL Score
+        sql_score = self._calculate_sql_score(ip)
+
+        # 5. Web Score
+        web_score = self._calculate_web_score(ip)
+
         # Weighted Average
         weights = settings.category_weights
         score = (
-            (exposure * weights["exposure"])
-            + (credentials * weights["credentials"])
-            + (vulnerabilities * weights["vulnerabilities"])
+            (exposure * weights.get("exposure", 0.20))
+            + (credentials * weights.get("credentials", 0.30))
+            + (vulnerabilities * weights.get("vulnerabilities", 0.25))
+            + (sql_score * weights.get("sql", 0.15))
+            + (web_score * weights.get("web", 0.10))
         )
 
         # Gateway Prioritization: If this is the gateway, vulnerabilities are more critical
@@ -222,6 +268,36 @@ class RiskEngine:
         cves = self._cve_index.get(ip, [])
         cve_list = [f"{c.get('id')} ({c.get('severity')})" for c in cves]
 
+        # Map Remediations
+        device_remediations = []
+        if weak_creds:
+            device_remediations.append(self.remediations.get("default_creds_ssh"))
+
+        sql_results = self._sql_index.get(ip, [])
+        for res in sql_results:
+            if res.get("status") == "successful":
+                device_remediations.append(self.remediations.get("default_creds_mysql"))
+            elif res.get("status") == "anonymous":
+                device_remediations.append(self.remediations.get("anonymous_redis"))
+
+        web_results = self._web_index.get(ip, [])
+        for res in web_results:
+            if res.get("tls") and res["tls"].get("expired"):
+                device_remediations.append(self.remediations.get("expired_tls_cert"))
+            if res.get("sensitive_files"):
+                device_remediations.append(self.remediations.get("sensitive_files_exposed"))
+            if not res.get("headers", {}).get("csp") or not res.get("headers", {}).get("hsts"):
+                device_remediations.append(self.remediations.get("missing_security_headers"))
+
+        # Filter out None and duplicates
+        device_remediations = [r for r in device_remediations if r]
+        seen_rem = set()
+        unique_remediations = []
+        for r in device_remediations:
+            if r["id"] not in seen_rem:
+                unique_remediations.append(r)
+                seen_rem.add(r["id"])
+
         # Get discovery info
         mdns_name = getattr(
             host, "mdns_name", host.get("mdns_name") if isinstance(host, dict) else None
@@ -246,6 +322,9 @@ class RiskEngine:
             "raw_weak_creds": weak_creds,
             "cves": cve_list,
             "raw_cves": cves,
+            "sql_findings": sql_results,
+            "web_findings": web_results,
+            "remediations": unique_remediations,
             "mdns_name": mdns_name,
             "upnp_info": upnp_info,
             "http_server": http_server,
@@ -254,6 +333,8 @@ class RiskEngine:
                 "exposure": exposure,
                 "credentials": credentials,
                 "vulnerabilities": vulnerabilities,
+                "sql": sql_score,
+                "web": web_score,
             },
         }
 
@@ -312,6 +393,41 @@ class RiskEngine:
         extra = (len(vuln_services) - 1) * settings.cred_extra_penalty
         return min(100, max_sev + extra)
 
+    def _calculate_sql_score(self, ip: str) -> int:
+        """Score based on SQL vulnerabilities."""
+        sql_results = self._sql_index.get(ip, [])
+        if not sql_results:
+            return 0
+
+        max_sev = 0
+        for res in sql_results:
+            if res.get("status") in ["successful", "anonymous"]:
+                svc = str(res.get("service", "")).lower()
+                if "." in svc:
+                    svc = svc.split(".")[-1]
+                sev = settings.sql_severity.get(svc, settings.sql_severity_default)
+                if sev > max_sev:
+                    max_sev = sev
+
+        return max_sev
+
+    def _calculate_web_score(self, ip: str) -> int:
+        """Score based on Web vulnerabilities."""
+        web_results = self._web_index.get(ip, [])
+        if not web_results:
+            return 0
+
+        score = 0
+        for res in web_results:
+            if res.get("tls") and res["tls"].get("expired"):
+                score = max(score, settings.web_severity.get("expired_cert", 70))
+            if res.get("sensitive_files"):
+                score = max(score, settings.web_severity.get("sensitive_file", 90))
+            if not res.get("headers", {}).get("csp") or not res.get("headers", {}).get("hsts"):
+                score = max(score, settings.web_severity.get("missing_headers", 40))
+
+        return min(100, score)
+
     def _calculate_vulnerability_score(self, ip: str) -> int:
         """Score based on known CVEs."""
         cves = self._cve_index.get(ip, [])
@@ -348,26 +464,42 @@ class RiskEngine:
         if not device_reports:
             return "A", "No devices found or scanned.", theme.SUCCESS
 
-        # Check for default credentials (instant F)
-        has_creds = any(d["risk"]["factors"]["credentials"] > 0 for d in device_reports)
-        if has_creds:
+        # Check for critical vulnerabilities (instant F)
+        # 1. Default credentials
+        has_creds = any(d["risk"]["factors"].get("credentials", 0) > 0 for d in device_reports)
+        # 2. Successful SQL login or anonymous access
+        has_sql_vuln = any(d["risk"]["factors"].get("sql", 0) >= 80 for d in device_reports)
+        # 3. Exposed sensitive files
+        has_web_vuln = any(d["risk"]["factors"].get("web", 0) >= 90 for d in device_reports)
+
+        if has_creds or has_sql_vuln or has_web_vuln:
             # Check if it's the gateway
-            gateway_creds = any(
-                d["risk"]["factors"]["credentials"] > 0 and d["risk"].get("is_gateway")
+            gateway_critical = any(
+                (
+                    d["risk"]["factors"].get("credentials", 0) > 0
+                    or d["risk"]["factors"].get("sql", 0) >= 80
+                    or d["risk"]["factors"].get("web", 0) >= 90
+                )
+                and d["risk"].get("is_gateway")
                 for d in device_reports
             )
-            if gateway_creds:
+            if gateway_critical:
                 return (
                     "F",
-                    "CRITICAL: Default credentials found on your GATEWAY. "
+                    "CRITICAL: Severe vulnerabilities found on your GATEWAY. "
                     "Your entire network is at extreme risk.",
                     theme.RISK_CRITICAL,
                 )
-            return (
-                "F",
-                "Default credentials found. Your network is trivially compromisable.",
-                theme.RISK_CRITICAL,
-            )
+
+            reason = "Critical vulnerabilities found. Your network is trivially compromisable."
+            if has_creds:
+                reason = "Default credentials found. Your network is at high risk."
+            elif has_sql_vuln:
+                reason = "Unsecured database services found. Your data is at risk."
+            elif has_web_vuln:
+                reason = "Sensitive files or insecure web services found."
+
+            return ("F", reason, theme.RISK_CRITICAL)
 
         # Get worst device score
         max_score = max(d["risk"]["score"] for d in device_reports)

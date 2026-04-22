@@ -142,6 +142,9 @@ class Host(BaseModel):
     )
     http_server: Optional[str] = Field(default=None, description="HTTP Server header")
     http_title: Optional[str] = Field(default=None, description="HTTP page title")
+    device_correlation_id: Optional[str] = Field(
+        default=None, description="Anonymous ID for correlating devices across scans"
+    )
 
     @field_serializer("ip")
     def serialize_ip(self, ip: IPvAnyAddress, info: object) -> str:

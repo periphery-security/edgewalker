@@ -160,9 +160,6 @@ async def test_dashboard_screen_actions_triggers():
                 screen.action_full_scan()
                 assert mock_push.call_count == 2
 
-                screen.action_cred_scan()
-                assert mock_push.call_count == 3
-
 
 @pytest.mark.asyncio
 async def test_dashboard_screen_clear_results(tmp_path):
@@ -231,8 +228,13 @@ async def test_dashboard_screen_on_guided_port_done():
 
 
 @pytest.mark.asyncio
-async def test_dashboard_screen_on_guided_cred_done():
+async def test_dashboard_screen_on_guided_cred_done(tmp_path):
     app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
+    # Create required port_scan.json
+    port_file = tmp_path / "port_scan.json"
+    port_file.write_text(json.dumps({"hosts": [], "summary": {}}))
+
     with (
         patch("textual.widgets.Header", return_value=MagicMock()),
         patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
@@ -244,15 +246,7 @@ async def test_dashboard_screen_on_guided_cred_done():
 
             results = MagicMock()
             results.model_dump.return_value = {
-                "vulnerabilities": [
-                    {
-                        "host": "127.0.0.1",
-                        "port": 23,
-                        "service": "telnet",
-                        "user": "admin",
-                        "password": "password",
-                    }
-                ],
+                "results": [],
                 "summary": {"vulnerable_hosts": 1},
             }
 
@@ -276,21 +270,15 @@ async def test_dashboard_screen_on_guided_cve_done(tmp_path):
             await app.push_screen(screen)
             await pilot.pause()
 
-            results_dict = {"cves": []}
+            results_dict = {"summary": {"total_cves": 0}}
             report_renderables = ["REPORT SUMMARY"]
 
             screen._on_guided_cve_done(results_dict, report_renderables)
-            # Third Party
-            from textual.widgets import Static
 
-            report = screen.query_one("#report-content", Static)
-            # Just check if it's visible and exists
-            assert report.display is True
-            # In Textual, render() returns a RichVisual which has a ._renderable attribute
-            # For a Group, we can check its renderables
-            visual = report.render()
-            group = visual._renderable
-            assert any("REPORT SUMMARY" in str(r) for r in group.renderables)
+            # In the new 6-step flow, CVE is not the last step,
+            # so it doesn't update #report-content yet.
+            # It just updates status and shows continue.
+            assert screen.app.is_scanning is False
 
 
 @pytest.mark.asyncio

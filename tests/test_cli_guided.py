@@ -41,14 +41,24 @@ async def test_guided_prompt_next():
     with patch(
         "edgewalker.utils.get_scan_status",
         side_effect=[
-            {"port_scan": True, "password_scan": False, "cve_scan": False},
+            {
+                "port_scan": True,
+                "password_scan": False,
+                "cve_scan": False,
+                "sql_scan": False,
+                "web_scan": False,
+            },
             {
                 "port_scan": True,
                 "password_scan": True,
                 "cve_scan": True,
+                "sql_scan": True,
+                "web_scan": True,
                 "devices_found": 1,
                 "vulnerable_devices": 0,
                 "cves_found": 0,
+                "sql_vulns": 0,
+                "web_vulns": 0,
             },
         ],
     ):

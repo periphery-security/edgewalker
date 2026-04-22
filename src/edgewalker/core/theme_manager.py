@@ -12,8 +12,10 @@ from typing import Any, Dict, List, Optional
 
 # Third Party
 import yaml
-from platformdirs import user_config_dir
 from textual.theme import Theme
+
+# First Party
+from edgewalker.core.config import get_config_dir
 
 
 class ThemeManager:
@@ -22,7 +24,7 @@ class ThemeManager:
     def __init__(self) -> None:
         """Initialize the ThemeManager."""
         self.bundled_dir = Path(__file__).parent.parent / "skins"
-        self.user_dir = Path(user_config_dir("edgewalker")) / "themes"
+        self.user_dir = get_config_dir() / "themes"
         self._themes: Dict[str, Path] = {}
         self._metadata: Dict[str, Dict[str, Any]] = {}
 

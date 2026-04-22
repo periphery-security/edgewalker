@@ -112,33 +112,70 @@ def get_scan_status() -> dict:
         "port_scan_type": None,
         "password_scan": False,
         "cve_scan": False,
+        "sql_scan": False,
+        "web_scan": False,
         "devices_found": 0,
         "vulnerable_devices": 0,
         "cves_found": 0,
+        "sql_vulns": 0,
+        "web_vulns": 0,
     }
 
     output_dir = get_output_dir()
     port_file = output_dir / "port_scan.json"
     if port_file.exists():
-        status["port_scan"] = True
-        with open(port_file) as f:
-            data = json.load(f)
-        status["port_scan_type"] = data.get("scan_type", "quick")
-        status["devices_found"] = len([h for h in data.get("hosts", []) if h.get("state") == "up"])
+        try:
+            with open(port_file) as f:
+                data = json.load(f)
+            status["port_scan"] = True
+            status["port_scan_type"] = data.get("scan_type", "quick")
+            status["devices_found"] = len([
+                h for h in data.get("hosts", []) if h.get("state") == "up"
+            ])
+        except (PermissionError, json.JSONDecodeError):
+            pass
 
     pwd_file = output_dir / "password_scan.json"
     if pwd_file.exists():
-        status["password_scan"] = True
-        with open(pwd_file) as f:
-            data = json.load(f)
-        status["vulnerable_devices"] = data.get("summary", {}).get("vulnerable_hosts", 0)
+        try:
+            with open(pwd_file) as f:
+                data = json.load(f)
+            status["password_scan"] = True
+            status["vulnerable_devices"] = data.get("summary", {}).get("vulnerable_hosts", 0)
+        except (PermissionError, json.JSONDecodeError):
+            pass
 
     cve_file = output_dir / "cve_scan.json"
     if cve_file.exists():
-        status["cve_scan"] = True
-        with open(cve_file) as f:
-            data = json.load(f)
-        status["cves_found"] = data.get("summary", {}).get("total_cves", 0)
+        try:
+            with open(cve_file) as f:
+                data = json.load(f)
+            status["cve_scan"] = True
+            status["cves_found"] = data.get("summary", {}).get("total_cves", 0)
+        except (PermissionError, json.JSONDecodeError):
+            pass
+
+    sql_file = output_dir / "sql_scan.json"
+    if sql_file.exists():
+        try:
+            with open(sql_file) as f:
+                data = json.load(f)
+            status["sql_scan"] = True
+            status["sql_vulns"] = data.get("summary", {}).get("vulnerable_services", 0)
+        except (PermissionError, json.JSONDecodeError):
+            pass
+
+    web_file = output_dir / "web_scan.json"
+    if web_file.exists():
+        try:
+            with open(web_file) as f:
+                data = json.load(f)
+            status["web_scan"] = True
+            status["web_vulns"] = data.get("summary", {}).get("vulnerable_headers", 0) + data.get(
+                "summary", {}
+            ).get("sensitive_files_found", 0)
+        except (PermissionError, json.JSONDecodeError):
+            pass
 
     return status
 
@@ -285,24 +322,10 @@ def ensure_telemetry_choice() -> None:
 
     if not telemetry.has_seen_telemetry_prompt():
         if settings.silent_mode:
-            # Third Party
-            import typer  # noqa: PLC0415
-
-            console.print()
-            console.print(
-                Panel(
-                    f"[bold {theme.DANGER}]ERROR: Telemetry choice required in silent mode."
-                    f"[/bold {theme.DANGER}]\n\n"
-                    "When running with [bold]--silent[/bold], you must explicitly provide a "
-                    "telemetry choice if one has not been set yet.\n\n"
-                    "Use [bold]--accept-telemetry[/bold] to opt-in or "
-                    "[bold]--decline-telemetry[/bold] to opt-out.",
-                    border_style=theme.DANGER,
-                    box=theme.BOX_STYLE,
-                    width=theme.get_ui_width(),
-                )
-            )
-            raise typer.Exit(code=1)
+            # In silent mode, we just enable it by default if not explicitly declined
+            if not settings.decline_telemetry:
+                telemetry.set_telemetry_status(True)
+            return
 
         # First Party
         from edgewalker.display import build_telemetry_panel  # noqa: PLC0415
@@ -311,24 +334,8 @@ def ensure_telemetry_choice() -> None:
         console.print(build_telemetry_panel())
         console.print()
 
-        choice = get_input("Share anonymous data to help secure IoT devices? [Y/n]", "y")
-        opted_in = choice.lower() != "n"
-        telemetry.set_telemetry_status(opted_in)
-
-        if opted_in:
-            console.print()
-            console.print(
-                f"[{theme.SUCCESS}]{theme.ICON_CHECK} Thank you! Your anonymous contributions "
-                f"will help secure IoT devices worldwide.[/{theme.SUCCESS}]"
-            )
-        else:
-            console.print()
-            console.print(
-                f"[{theme.MUTED_STYLE}]No problem. You can change this later in your "
-                f"config file: {settings.model_config.get('yaml_file')}[/{theme.MUTED_STYLE}]"
-            )
-
-        press_enter()
+        choice = get_input("Enable anonymous telemetry? (y/n)", default="y").lower()
+        telemetry.set_telemetry_status(choice == "y")
 
 
 def get_progress() -> Progress:

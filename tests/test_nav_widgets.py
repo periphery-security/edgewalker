@@ -61,6 +61,10 @@ async def test_navigation_panel_update():
             "vulnerable_devices": 1,
             "cve_scan": True,
             "cves_found": 5,
+            "sql_scan": False,
+            "web_scan": False,
+            "sql_vulns": 0,
+            "web_vulns": 0,
         },
     ):
         async with app.run_test() as pilot:

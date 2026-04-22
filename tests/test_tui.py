@@ -6,7 +6,6 @@ import pytest
 
 # First Party
 from edgewalker.tui.app import EdgeWalkerApp
-from edgewalker.tui.modals.dialogs import TargetInputModal
 from edgewalker.tui.screens.dashboard import DashboardScreen
 from edgewalker.tui.screens.home import HomeScreen
 
@@ -99,13 +98,16 @@ async def test_dashboard_screen_actions(mock_telemetry_enabled):
             # Test navigation actions
             await pilot.press("3")  # Quick scan
             await pilot.pause()
-            assert isinstance(app.screen, TargetInputModal)
+            # First Party
+            from edgewalker.tui.screens.guided import GuidedAssessmentScreen
+
+            assert isinstance(app.screen, GuidedAssessmentScreen)
             await pilot.press("escape")
             await pilot.pause()
 
             await pilot.press("4")  # Full scan
             await pilot.pause()
-            assert isinstance(app.screen, TargetInputModal)
+            assert isinstance(app.screen, GuidedAssessmentScreen)
             await pilot.press("escape")
             await pilot.pause()
 

@@ -291,7 +291,7 @@ async def test_password_scanner_scan_hosts_no_work():
 def test_load_credentials(tmp_path):
     creds_file = tmp_path / "creds.csv"
     creds_file.write_text("service,user,password\nssh,root,root\n")
-    with patch("edgewalker.modules.password_scan.scanner.CREDS_CSV", creds_file):
+    with patch("edgewalker.modules.password_scan.scanner.settings.creds_file", creds_file):
         scanner._cred_cache = {}  # Reset cache
         res = scanner.load_credentials("ssh")
         assert len(res) == 1
@@ -301,36 +301,38 @@ def test_load_credentials(tmp_path):
 def test_load_credentials_verbose():
     scanner._cred_cache = {"ssh": [("u", "p")]}
     scanner._printed_services = set()
-    with patch("builtins.print") as mock_print:
+    with patch("edgewalker.modules.password_scan.scanner.logger.info") as mock_info:
         scanner.load_credentials("ssh")
-        assert mock_print.called
+        assert mock_info.called
 
 
 def test_load_credentials_already_printed():
     scanner._cred_cache = {"ssh": [("u", "p")]}
     scanner._printed_services = {"ssh"}
-    with patch("builtins.print") as mock_print:
+    with patch("edgewalker.modules.password_scan.scanner.logger.info") as mock_info:
         scanner.load_credentials("ssh")
-        assert not mock_print.called
+        assert not mock_info.called
 
 
 def test_load_credentials_not_found():
     scanner._cred_cache = {}
     with patch("edgewalker.modules.password_scan.scanner._load_csv", return_value={}):
-        with patch("builtins.print") as mock_print:
+        with patch("edgewalker.modules.password_scan.scanner.logger.warning") as mock_warn:
             scanner.load_credentials("unknown")
-            assert mock_print.called
+            assert mock_warn.called
 
 
 def test_load_csv_no_file(tmp_path):
-    with patch("edgewalker.modules.password_scan.scanner.CREDS_CSV", tmp_path / "nonexistent.csv"):
+    with patch(
+        "edgewalker.modules.password_scan.scanner.settings.creds_file", tmp_path / "nonexistent.csv"
+    ):
         assert scanner._load_csv() == {}
 
 
 def test_load_csv_success(tmp_path):
     csv_file = tmp_path / "creds.csv"
     csv_file.write_text("service,user,password\nssh,root,root\nftp,admin,admin\n")
-    with patch("edgewalker.modules.password_scan.scanner.CREDS_CSV", csv_file):
+    with patch("edgewalker.modules.password_scan.scanner.settings.creds_file", csv_file):
         res = scanner._load_csv()
         assert "ssh" in res
         assert "ftp" in res

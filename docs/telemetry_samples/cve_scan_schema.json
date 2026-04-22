@@ -1,0 +1,169 @@
+{
+  "$defs": {
+    "CveModel": {
+      "description": "Model for storing CVE details.",
+      "properties": {
+        "id": {
+          "description": "CVE ID",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "description": "CVE description",
+          "title": "Description",
+          "type": "string"
+        },
+        "severity": {
+          "description": "CVE severity",
+          "title": "Severity",
+          "type": "string"
+        },
+        "score": {
+          "description": "CVSS base score",
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "severity",
+        "score"
+      ],
+      "title": "CveModel",
+      "type": "object"
+    },
+    "CveScanResultModel": {
+      "description": "Model for storing CVE scan results for a single service.",
+      "properties": {
+        "ip": {
+          "description": "Target IP address",
+          "format": "ipvanyaddress",
+          "title": "Ip",
+          "type": "string"
+        },
+        "port": {
+          "description": "Target port number",
+          "title": "Port",
+          "type": "integer"
+        },
+        "service": {
+          "description": "Service name",
+          "title": "Service",
+          "type": "string"
+        },
+        "product": {
+          "description": "Product name",
+          "title": "Product",
+          "type": "string"
+        },
+        "version": {
+          "description": "Product version",
+          "title": "Version",
+          "type": "string"
+        },
+        "cves": {
+          "description": "List of CVEs found",
+          "items": {
+            "$ref": "#/$defs/CveModel"
+          },
+          "title": "Cves",
+          "type": "array"
+        },
+        "device_correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Anonymous ID for correlating devices across scans",
+          "title": "Device Correlation Id"
+        }
+      },
+      "required": [
+        "ip",
+        "port",
+        "service",
+        "product",
+        "version"
+      ],
+      "title": "CveScanResultModel",
+      "type": "object"
+    }
+  },
+  "description": "Model for storing CVE scan results.",
+  "properties": {
+    "id": {
+      "description": "Unique identifier for the report.",
+      "title": "Id",
+      "type": "string"
+    },
+    "device_id": {
+      "default": "test-device",
+      "description": "Unique identifier for the module. (hash of MAC address)",
+      "title": "Device Id",
+      "type": "string"
+    },
+    "version": {
+      "default": "0.1.0",
+      "description": "Version number of the CLI.",
+      "format": "semver",
+      "title": "Version",
+      "type": "string"
+    },
+    "module": {
+      "default": "unspecified",
+      "description": "Name of the module that ran.",
+      "title": "Module",
+      "type": "string"
+    },
+    "module_version": {
+      "default": "0.1.0",
+      "description": "Version number of the module.",
+      "format": "semver",
+      "title": "Module Version",
+      "type": "string"
+    },
+    "timestamp": {
+      "description": "Timestamp when the module was run.",
+      "format": "date-time",
+      "title": "Timestamp",
+      "type": "string"
+    },
+    "is_demo": {
+      "default": false,
+      "description": "True if results are from demo mode.",
+      "title": "Is Demo",
+      "type": "boolean"
+    },
+    "results": {
+      "description": "List of CVE scan results",
+      "items": {
+        "$ref": "#/$defs/CveScanResultModel"
+      },
+      "title": "Results",
+      "type": "array"
+    },
+    "summary": {
+      "additionalProperties": true,
+      "description": "Summary of scan results",
+      "title": "Summary",
+      "type": "object"
+    },
+    "hosts": {
+      "description": "List of hosts (for backward compatibility)",
+      "items": {},
+      "title": "Hosts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "results"
+  ],
+  "title": "EdgeWalker Cve Scan Telemetry Schema",
+  "type": "object"
+}

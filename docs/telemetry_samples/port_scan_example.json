@@ -1,0 +1,53 @@
+{
+  "device_id": "ew-7f8a9b0c1d2e",
+  "target": "192.168.1.0/24",
+  "success": true,
+  "hosts": [
+    {
+      "ip": "192.168.1.0",
+      "mac": "00:11:22:00:00:00",
+      "hostname": "",
+      "vendor": "Ubiquiti Networks",
+      "state": "up",
+      "device_correlation_id": "a1b2c3d4e5f6",
+      "tcp": [
+        {
+          "port": 80,
+          "state": "open",
+          "service": "http",
+          "version": "nginx",
+          "product": "EdgeRouter"
+        },
+        {
+          "port": 443,
+          "state": "open",
+          "service": "https",
+          "version": "nginx",
+          "product": "EdgeRouter"
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.0",
+      "mac": "00:0C:29:00:00:00",
+      "hostname": "",
+      "vendor": "VMware",
+      "state": "up",
+      "device_correlation_id": "f6e5d4c3b2a1",
+      "tcp": [
+        {
+          "port": 22,
+          "state": "open",
+          "service": "ssh",
+          "version": "OpenSSH 8.9p1",
+          "product": "Ubuntu"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_hosts": 2,
+    "up_hosts": 2,
+    "total_ports": 3
+  }
+}
