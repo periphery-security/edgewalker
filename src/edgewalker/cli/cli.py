@@ -20,6 +20,7 @@ from typing import Optional
 import typer
 from rich import box
 from rich.panel import Panel
+from rich.prompt import Confirm
 from rich.table import Table
 
 # First Party
@@ -37,9 +38,11 @@ from edgewalker.core.config import (
 from edgewalker.core.logger_config import setup_logging
 from edgewalker.tui.app import EdgeWalkerApp
 from edgewalker.utils import (
+    check_for_updates,
     console,
     ensure_telemetry_choice,
     print_logo,
+    run_upgrade,
 )
 
 
@@ -474,6 +477,24 @@ def main(
 
     # Configure logging using the Typer options
     setup_logging(verbosity=verbose, log_file=log_file)
+
+    # Check for updates (CLI only, TUI handles its own)
+    if ctx and not ctx.invoked_subcommand and not silent:
+        if new_version := check_for_updates():
+            console.print()
+            console.print(
+                Panel(
+                    f"[bold {theme.SUCCESS}]A new version of EdgeWalker is available: "
+                    f"v{new_version}[/]\n"
+                    f"[dim]You are currently running v{__version__}[/]",
+                    border_style=theme.SUCCESS,
+                    box=theme.BOX_STYLE,
+                    width=theme.get_ui_width(),
+                )
+            )
+            if Confirm.ask(f"Upgrade to v{new_version} now?", default=True):
+                run_upgrade(new_version)
+            console.print()
 
 
 def interactive_mode() -> None:

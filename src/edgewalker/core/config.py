@@ -438,6 +438,16 @@ class Settings(BaseSettings):
         description="Unique identifier for this installation (Read-only)",
     )
 
+    auto_update_check: bool = Field(
+        default=True,
+        description="Automatically check for updates on startup",
+    )
+
+    last_update_check: float = Field(
+        default=0.0,
+        description="Unix timestamp of the last update check",
+    )
+
     def __init__(self, **kwargs: object) -> None:
         """Initialize settings and perform migrations."""
         super().__init__(**kwargs)

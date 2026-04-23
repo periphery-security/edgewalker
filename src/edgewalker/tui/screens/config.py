@@ -134,6 +134,17 @@ class ConfigScreen(Screen):
                         )
 
                         with Horizontal(classes="config-row"):
+                            yield Label(
+                                f"Auto Update Check{self._get_override_label('auto_update_check')}",
+                                classes="config-label",
+                            )
+                            yield Switch(value=settings.auto_update_check, id="auto_update_check")
+                        yield Label(
+                            "Automatically check for updates on startup (once per day).",
+                            classes="config-help",
+                        )
+
+                        with Horizontal(classes="config-row"):
                             yield Label("Device ID", classes="config-label")
                             yield Label(settings.device_id, id="device_id_label")
                         yield Label(
@@ -492,6 +503,7 @@ class ConfigScreen(Screen):
             simple_fields = [
                 "telemetry_enabled",
                 "unprivileged",
+                "auto_update_check",
                 "nvd_api_key",
                 "mac_api_key",
                 "nvd_api_url",

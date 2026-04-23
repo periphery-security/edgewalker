@@ -10,7 +10,7 @@ from textual.reactive import reactive
 from textual.widgets import Static
 
 # First Party
-from edgewalker import theme
+from edgewalker import __version__, theme
 from edgewalker.utils import get_scan_status
 
 
@@ -98,6 +98,31 @@ class TelemetryStatus(Static):
         return Text("")
 
 
+class VersionStatus(Static):
+    """A small indicator for application version and update status."""
+
+    status = reactive("idle")
+
+    def on_mount(self) -> None:
+        """Watch the app's update status for changes."""
+        self.watch(self.app, "update_status", self._on_update_change, init=True)
+
+    def _on_update_change(self, status: str) -> None:
+        """Update internal status when app status changes."""
+        self.status = status
+
+    def render(self) -> Text:
+        """Render the version status."""
+        version_text = f"v{__version__}"
+        if self.status in ("idle", "checking"):
+            return Text(f"{version_text} (Checking...)", style=f"{theme.MUTED}")
+        elif self.status == "up-to-date":
+            return Text(f"{version_text} (Up to date)", style=f"{theme.MUTED}")
+        elif self.status == "available":
+            return Text(f"{version_text} (Update available!)", style=f"bold {theme.ACCENT}")
+        return Text(version_text, style=f"{theme.MUTED}")
+
+
 class NavPanel(Vertical):
     """Sidebar navigation and status panel (Legacy name for tests)."""
 
@@ -117,9 +142,10 @@ class NavPanel(Vertical):
         yield NavItem("4", "Full Scan")
         yield NavItem("5", "Clear All")
 
-        # Add telemetry status at the bottom
+        # Add telemetry and version status at the bottom
         yield Vertical(id="nav-bottom-spacer")
         yield TelemetryStatus(id="telemetry-status")
+        yield VersionStatus(id="version-status")
 
     def on_mount(self) -> None:
         """Update status on mount."""

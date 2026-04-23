@@ -238,3 +238,39 @@ class PermissionModal(ModalScreen[str]):
             self.dismiss("unprivileged")
         else:
             self.dismiss("cancel")
+
+
+class UpdateModal(ModalScreen[bool]):
+    """Modal dialog for update notification."""
+
+    def __init__(self, version: str, **kwargs: object) -> None:
+        """Initialize the update modal.
+
+        Args:
+            version: The new version string.
+            kwargs: Additional arguments for the screen.
+        """
+        super().__init__(**kwargs)
+        self.new_version = version
+
+    def compose(self) -> ComposeResult:
+        """Compose the modal layout."""
+        with Container(id="update-dialog", classes="modal-container"):
+            yield Static("UPDATE AVAILABLE", id="update-title", classes="modal-title")
+            yield Static(
+                f"A new version of EdgeWalker is available: [bold]v{self.new_version}[/]\n\n"
+                "Would you like to upgrade now? The application will exit to perform the upgrade.",
+                id="update-text",
+                classes="modal-body",
+            )
+            with Horizontal(id="update-buttons", classes="modal-buttons"):
+                yield Button("Later", variant="default", id="update-no")
+                yield Button("Upgrade Now", variant="success", id="update-yes")
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button presses."""
+        if event.button.id == "update-yes":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)

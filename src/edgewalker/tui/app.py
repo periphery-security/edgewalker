@@ -25,8 +25,13 @@ from edgewalker.core.telemetry import TelemetryManager
 from edgewalker.core.theme_manager import theme_manager
 from edgewalker.modules.port_scan.scanner import check_nmap_permissions, fix_nmap_permissions
 from edgewalker.theme import load_active_theme
-from edgewalker.tui.modals.dialogs import ConfirmModal, PermissionModal, TelemetryModal
-from edgewalker.utils import has_any_results
+from edgewalker.tui.modals.dialogs import (
+    ConfirmModal,
+    PermissionModal,
+    TelemetryModal,
+    UpdateModal,
+)
+from edgewalker.utils import check_for_updates, has_any_results, run_upgrade
 
 
 class VersionProvider(Provider):
@@ -158,6 +163,7 @@ class EdgeWalkerApp(App):
     COMMANDS = App.COMMANDS | {SettingsProvider, ThemeProvider, VersionProvider}
 
     telemetry_status = reactive("idle")
+    update_status = reactive("idle")
     has_nmap_permissions = reactive(True)
 
     def __init__(self, **kwargs: object) -> None:
@@ -226,6 +232,7 @@ class EdgeWalkerApp(App):
                 self._check_nmap_permissions()
                 self._check_previous_results()
                 self._check_config_overrides()
+                self.run_worker(self._check_for_updates_async())
 
             self.push_screen(HomeScreen())
             self.push_screen(TelemetryModal(), on_dismiss)
@@ -234,6 +241,27 @@ class EdgeWalkerApp(App):
             self._check_nmap_permissions()
             self._check_previous_results()
             self._check_config_overrides()
+            self.run_worker(self._check_for_updates_async())
+
+    async def _check_for_updates_async(self) -> None:
+        """Check for updates in the background."""
+        # Standard Library
+        import asyncio  # noqa: PLC0415
+
+        self.update_status = "checking"
+        new_version = await asyncio.to_thread(check_for_updates)
+        if new_version:
+            self.update_status = "available"
+
+            def on_update_choice(upgrade: bool) -> None:
+                if upgrade:
+                    with self.suspend():
+                        run_upgrade(new_version)
+                    self.exit()
+
+            self.push_screen(UpdateModal(new_version), on_update_choice)
+        else:
+            self.update_status = "up-to-date"
 
     def _check_config_overrides(self) -> bool:
         """Check for configuration overrides and notify the user.

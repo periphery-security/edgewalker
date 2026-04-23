@@ -8,10 +8,14 @@ import contextlib
 import ipaddress
 import json
 import os
+import subprocess  # nosec: B404
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
 # Third Party
+import httpx
 import semver
 from rich.console import Console
 from rich.panel import Panel
@@ -24,8 +28,8 @@ from rich.progress import (
 )
 
 # First Party
-from edgewalker import theme
-from edgewalker.core.config import get_active_overrides, settings
+from edgewalker import __version__, theme
+from edgewalker.core.config import get_active_overrides, save_settings, settings
 from edgewalker.core.telemetry import TelemetryManager
 
 # Rich console — single instance shared across the application
@@ -354,3 +358,82 @@ def get_progress() -> Progress:
         console=console,
         transient=True,
     )
+
+
+def check_for_updates() -> str | None:
+    """Check if a newer version of EdgeWalker is available on PyPI.
+
+    Returns:
+        The latest version string if an update is available, None otherwise.
+    """
+    if not settings.auto_update_check:
+        return None
+
+    # Check at most once every 24 hours
+    now = time.time()
+    if now - settings.last_update_check < 86400:
+        return None
+
+    # Update last check time immediately to prevent concurrent checks
+    settings.last_update_check = now
+    save_settings(settings)
+
+    try:
+        response = httpx.get("https://pypi.org/pypi/edgewalker/json", timeout=5.0)
+        if response.status_code == 200:
+            data = response.json()
+            latest_version = data["info"]["version"]
+
+            # Compare versions using semver
+            current = semver.VersionInfo.parse(__version__)
+            latest = semver.VersionInfo.parse(latest_version)
+
+            if latest > current:
+                return latest_version
+    except Exception:  # nosec: B110
+        # Silently fail on network errors or parsing issues
+        pass
+
+    return None
+
+
+def get_upgrade_command() -> list[str]:
+    """Determine the appropriate upgrade command based on installation method.
+
+    Returns:
+        A list of command arguments.
+    """
+    executable = sys.executable
+    if "pipx" in executable:
+        return ["pipx", "upgrade", "edgewalker"]
+    if "uv" in executable:
+        return ["uv", "tool", "upgrade", "edgewalker"]
+
+    # Fallback to pip in the current environment (works for venv and global)
+    return [executable, "-m", "pip", "install", "-U", "edgewalker"]
+
+
+def run_upgrade(version: str) -> None:
+    """Execute the upgrade command and exit.
+
+    Args:
+        version: The version string to upgrade to.
+    """
+    cmd = get_upgrade_command()
+    cmd_str = " ".join(cmd)
+
+    console.print()
+    print_info(f"Upgrading EdgeWalker to v{version}...")
+    console.print(f"[dim]Running: {cmd_str}[/dim]")
+    console.print()
+
+    try:
+        subprocess.run(cmd, check=True)  # nosec: B603
+        print_success("Upgrade complete! Please restart EdgeWalker.")
+        sys.exit(0)
+    except subprocess.CalledProcessError as e:
+        print_error(f"Upgrade failed: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print_error(f"An unexpected error occurred during upgrade: {e}")
+        sys.exit(1)
