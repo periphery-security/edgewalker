@@ -6,6 +6,7 @@ from __future__ import annotations
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -106,15 +107,40 @@ class NavItem(Static):
     the panel can paint a cursor highlight on the active view.
     """
 
-    def __init__(self, key: str, label: str, view: str | None = None, **kwargs: object) -> None:
+    class Selected(Message):
+        """Posted when a nav item is clicked, carrying its bound action name."""
+
+        def __init__(self, action: str) -> None:
+            """Initialize the message.
+
+            Args:
+                action: The dashboard action name to run.
+            """
+            self.action = action
+            super().__init__()
+
+    def __init__(
+        self,
+        key: str,
+        label: str,
+        view: str | None = None,
+        action: str | None = None,
+        **kwargs: object,
+    ) -> None:
         """Initialize the navigation item."""
         super().__init__(**kwargs)
         self.key = key
         self.label = label
         self.view = view
+        self.action = action
         self.active = False
         self.compact = False
         self.add_class("nav-link")
+
+    def on_click(self) -> None:
+        """Run the bound action when the item is clicked (mouse parity)."""
+        if self.action:
+            self.post_message(self.Selected(self.action))
 
     def set_compact(self, compact: bool) -> None:
         """Toggle the key-only rendering used in the narrow sidebar."""
@@ -249,15 +275,15 @@ class NavPanel(Vertical):
         yield NavSeparator()
 
         yield Static("SCAN", classes="nav-group")
-        yield NavItem("s", "Quick scan", id="nav-quick")
-        yield NavItem("S", "Full scan", id="nav-full")
-        yield NavItem("r", "Re-run all", id="nav-rerun")
+        yield NavItem("s", "Quick scan", action="quick_scan", id="nav-quick")
+        yield NavItem("S", "Full scan", action="full_scan", id="nav-full")
+        yield NavItem("r", "Re-run all", action="run_all", id="nav-rerun")
 
         yield Static("VIEW", classes="nav-group")
-        yield NavItem("o", "Overview", view="overview", id="nav-overview")
-        yield NavItem("d", "Devices", view="devices", id="nav-devices")
-        yield NavItem("f", "Findings", view="findings", id="nav-findings")
-        yield NavItem("l", "Live log", view="live-log", id="nav-live-log")
+        yield NavItem("o", "Overview", view="overview", action="overview", id="nav-overview")
+        yield NavItem("d", "Devices", view="devices", action="devices", id="nav-devices")
+        yield NavItem("f", "Findings", view="findings", action="findings", id="nav-findings")
+        yield NavItem("l", "Live log", view="live-log", action="live_log", id="nav-live-log")
 
         # Add telemetry status at the bottom
         yield Vertical(id="nav-bottom-spacer")

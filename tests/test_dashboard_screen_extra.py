@@ -302,6 +302,41 @@ async def test_dashboard_run_all_reuses_saved_target(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_dashboard_sidebar_click_runs_action():
+    """Sidebar items are clickable and run the same action as their key."""
+    app = EdgeWalkerApp()
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test(size=(120, 35)) as pilot:
+            # Third Party
+            from textual.widgets import ContentSwitcher
+
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+            switcher = screen.query_one("#view-switcher", ContentSwitcher)
+
+            # Clicking a VIEW item switches the view.
+            await pilot.click("#nav-findings")
+            await pilot.pause()
+            assert switcher.current == "findings"
+
+            await pilot.click("#nav-overview")
+            await pilot.pause()
+            assert switcher.current == "overview"
+
+            # Clicking a SCAN item runs its action (opens the config modal).
+            await pilot.click("#nav-quick")
+            await pilot.pause()
+            # First Party
+            from edgewalker.tui.screens.guided import GuidedAssessmentScreen
+
+            assert isinstance(app.screen, GuidedAssessmentScreen)
+
+
+@pytest.mark.asyncio
 async def test_dashboard_responsive_breakpoint():
     """Crossing the width breakpoint collapses / restores the sidebar."""
     app = EdgeWalkerApp()

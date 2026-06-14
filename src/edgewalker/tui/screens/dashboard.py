@@ -34,7 +34,12 @@ from edgewalker.tui.modals.dialogs import (
     ConfirmModal,
     PermissionModal,
 )
-from edgewalker.tui.widgets.navigation import NavigationPanel, ScanProgress, StatusBadge
+from edgewalker.tui.widgets.navigation import (
+    NavigationPanel,
+    NavItem,
+    ScanProgress,
+    StatusBadge,
+)
 from edgewalker.tui.widgets.overview import build_findings_view, build_overview
 from edgewalker.tui.widgets.topology import TopologyWidget
 from edgewalker.utils import save_results
@@ -176,6 +181,10 @@ class DashboardScreen(Screen):
             # Fresh start: prime the live-log idle text, land on the overview.
             self._show_welcome()
             self.action_overview()
+
+    async def on_nav_item_selected(self, event: NavItem.Selected) -> None:
+        """Run the action bound to a clicked sidebar item (click/key parity)."""
+        await self.run_action(event.action)
 
     def _switch_view(self, view: str) -> None:
         """Activate a named view and sync the sidebar cursor highlight."""

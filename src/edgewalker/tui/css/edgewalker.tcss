@@ -217,6 +217,11 @@ NavSeparator {
     padding: 0 1;
 }
 
+/* Clickable affordance — items respond to the mouse as well as the keyboard. */
+.nav-link:hover {
+    background: $primary 15%;
+}
+
 /* Cursor highlight on the active dashboard view (mockup: .navline.sel). */
 .nav-link.-active {
     background: $primary 28%;
