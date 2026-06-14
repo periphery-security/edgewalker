@@ -93,3 +93,17 @@ def test_findings_view_none_and_empty_states():
     summary = _summary()
     summary.findings = []
     assert "No findings" in _render(overview.build_findings_view(summary))
+
+
+def test_findings_view_filters_by_query():
+    summary = _summary()
+    # Query matches only the CVE finding's title.
+    text = _render(overview.build_findings_view(summary, query="cve"))
+    assert "CVE-2023-1234" in text
+    assert "Default credentials" not in text
+    # A non-matching query shows the empty-filter message.
+    assert "No findings match" in _render(overview.build_findings_view(summary, query="zzz"))
+    # Matching is case-insensitive and spans host/detail too.
+    assert "Default credentials" in _render(
+        overview.build_findings_view(summary, query="192.168.1.42")
+    )

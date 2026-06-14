@@ -139,6 +139,13 @@ SplashScreen, ModalScreen {
     background: $background;
 }
 
+/* Filter box (/) — revealed above the active view on demand. */
+#filter-input {
+    width: 100%;
+    height: 3;
+    dock: top;
+}
+
 #view-switcher {
     width: 100%;
     height: 100%;

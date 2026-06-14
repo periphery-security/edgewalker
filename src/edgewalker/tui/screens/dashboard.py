@@ -16,7 +16,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, ContentSwitcher, Footer, Header, RichLog, Static, Tree
+from textual.widgets import Button, ContentSwitcher, Footer, Header, Input, RichLog, Static, Tree
 
 # First Party
 from edgewalker import theme
@@ -57,6 +57,7 @@ class DashboardScreen(Screen):
         Binding("d", "devices", "Devices", show=False),
         Binding("f", "findings", "Findings", show=False),
         Binding("l", "live_log", "Live Log", show=False),
+        Binding("slash", "filter", "Filter", show=False, key_display="/"),
         Binding("ctrl+c", "copy_report", "Copy Report", show=False),
         # Hidden numeric aliases for existing muscle memory / tests.
         Binding("1", "show_report", "Risk Report", show=False),
@@ -108,6 +109,7 @@ class DashboardScreen(Screen):
         self._full_creds = full_creds
         self._current_report_text = ""
         self._from_topology = False
+        self._filter_query = ""
 
     def compose(self) -> ComposeResult:
         """Compose the dashboard layout.
@@ -120,6 +122,7 @@ class DashboardScreen(Screen):
         with Horizontal():
             yield NavigationPanel(id="nav-panel")
             with Vertical(id="main-content"):
+                yield Input(placeholder="filter — esc to clear", id="filter-input")
                 with ContentSwitcher(initial="overview", id="view-switcher"):
                     yield ScrollableContainer(
                         Static(id="report-content", expand=True),
@@ -140,6 +143,13 @@ class DashboardScreen(Screen):
     def on_mount(self) -> None:
         """Handle screen mount."""
         self.query_one("#continue-btn").display = False
+        # Keep the hidden filter box out of the focus chain so it can't grab
+        # the initial focus and swallow mnemonic keys (s/d/f/…).
+        filter_input = self.query_one("#filter-input", Input)
+        filter_input.display = False
+        filter_input.can_focus = False
+        if self.focused is filter_input:
+            self.set_focus(None)
         self._update_permissions()
 
         # Replay progress log if a scan is active or was recently active.
@@ -945,16 +955,65 @@ class DashboardScreen(Screen):
         summary = build_summary(Engine.load_report_inputs())
         self._update_report_view(build_overview(summary))
 
+    def _render_findings(self) -> None:
+        """(Re)render the findings list, honouring the active filter."""
+        summary = build_summary(Engine.load_report_inputs())
+        self.query_one("#findings-content", Static).update(
+            build_findings_view(summary, self._filter_query)
+        )
+
     def action_findings(self) -> None:
         """Show the full prioritised findings list."""
         self._from_topology = False
-        summary = build_summary(Engine.load_report_inputs())
-        self.query_one("#findings-content", Static).update(build_findings_view(summary))
+        self._render_findings()
         self._switch_view("findings")
 
     def action_live_log(self) -> None:
         """Show the live scan log view."""
         self._switch_view("live-log")
+
+    # ------------------------------------------------------------- filter (`/`)
+
+    def action_filter(self) -> None:
+        """Reveal the filter box for the findings / devices views."""
+        view = self.query_one("#view-switcher", ContentSwitcher).current
+        if view not in ("findings", "devices"):
+            self.notify("Filter is available in Devices and Findings.", severity="information")
+            return
+        filter_input = self.query_one("#filter-input", Input)
+        filter_input.can_focus = True
+        filter_input.display = True
+        filter_input.focus()
+
+    async def _apply_filter(self) -> None:
+        """Re-render the active view for the current filter query."""
+        view = self.query_one("#view-switcher", ContentSwitcher).current
+        if view == "findings":
+            self._render_findings()
+        elif view == "devices":
+            await self._render_devices()
+
+    async def on_input_changed(self, event: Input.Changed) -> None:
+        """Live-filter the active view as the query changes."""
+        if event.input.id == "filter-input":
+            self._filter_query = event.value
+            await self._apply_filter()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Enter in the filter box hands focus back to the device tree."""
+        if event.input.id == "filter-input":
+            with contextlib.suppress(Exception):
+                self.query_one("#topology-tree").focus()
+
+    def _clear_filter(self) -> None:
+        """Hide the filter box and drop the query."""
+        filter_input = self.query_one("#filter-input", Input)
+        filter_input.value = ""
+        filter_input.display = False
+        filter_input.can_focus = False
+        if self.focused is filter_input:
+            self.set_focus(None)
+        self._filter_query = ""
 
     def action_show_report(self) -> None:
         """Load and display the last (detailed) security report."""
@@ -1001,55 +1060,46 @@ class DashboardScreen(Screen):
     async def action_devices(self) -> None:
         """Show the network topology / device table in the dashboard."""
         self._from_topology = False
-        port_file = settings.output_dir / "port_scan.json"
-        if not port_file.exists():
+        if not (settings.output_dir / "port_scan.json").exists():
             self.notify("Port scan required first.", severity="warning")
             return
+        await self._render_devices()
+        self._switch_view("devices")
+        with contextlib.suppress(Exception):
+            self.query_one("#topology-tree").focus()
 
-        with open(port_file) as f:
-            port_data = json.load(f)
+    @staticmethod
+    def _host_matches(host: dict, query: str) -> bool:
+        """Case-insensitive match over a host's ip / hostname / vendor."""
+        haystack = f"{host.get('ip', '')} {host.get('hostname', '')} {host.get('vendor', '')}"
+        return query in haystack.lower()
 
-        cred_data = {}
-        pwd_file = settings.output_dir / "password_scan.json"
-        if pwd_file.exists():
-            with open(pwd_file) as f:
-                cred_data = json.load(f)
+    async def _render_devices(self) -> None:
+        """(Re)mount the topology tree, honouring the active filter.
 
-        cve_data = {}
-        cve_file = settings.output_dir / "cve_scan.json"
-        if cve_file.exists():
-            with open(cve_file) as f:
-                cve_data = json.load(f)
+        Does not steal focus, so it is safe to call on every filter keystroke.
+        """
+        inputs = Engine.load_report_inputs()
+        port_data = inputs.get("port") or {}
 
-        sql_data = {}
-        sql_file = settings.output_dir / "sql_scan.json"
-        if sql_file.exists():
-            with open(sql_file) as f:
-                sql_data = json.load(f)
-
-        web_data = {}
-        web_file = settings.output_dir / "web_scan.json"
-        if web_file.exists():
-            with open(web_file) as f:
-                web_data = json.load(f)
-
-        # Calculate risk for each host to ensure topology has latest data
+        # Calculate risk for each host to ensure topology has latest data.
         # First Party
         from edgewalker.core.risk import RiskEngine  # noqa: PLC0415
 
-        engine = RiskEngine(port_data, cred_data, cve_data, sql_data, web_data)
+        engine = RiskEngine(port_data, inputs["cred"], inputs["cve"], inputs["sql"], inputs["web"])
         for host in port_data.get("hosts", []):
             host["risk"] = engine.calculate_device_risk(host.get("ip"))
 
-        container = self.query_one("#devices", ScrollableContainer)
+        query = self._filter_query.strip().lower()
+        if query:
+            hosts = [h for h in port_data.get("hosts", []) if self._host_matches(h, query)]
+            port_data = {**port_data, "hosts": hosts}
 
-        # Check if tree already exists to avoid DuplicateIds error
+        container = self.query_one("#devices", ScrollableContainer)
+        # Remove any existing tree to avoid DuplicateIds error.
         with contextlib.suppress(Exception):
-            existing_tree = self.query_one("#topology-tree")
-            await existing_tree.remove()
+            await self.query_one("#topology-tree").remove()
         await container.mount(TopologyWidget(port_data, id="topology-tree"))
-        self._switch_view("devices")
-        self.query_one("#topology-tree").focus()
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         """Handle device selection in the topology tree."""
@@ -1085,7 +1135,8 @@ class DashboardScreen(Screen):
                 "GENERAL",
                 [
                     ("Enter", "Drill in / continue"),
-                    ("esc", "Back / cancel"),
+                    ("/", "Filter devices / findings"),
+                    ("esc", "Back / clear / cancel"),
                     ("ctrl+c", "Copy report"),
                     ("?", "This help"),
                     ("q", "Quit"),
@@ -1128,6 +1179,12 @@ class DashboardScreen(Screen):
     async def action_go_home(self) -> None:
         """Go back to the previous view or home."""
         switcher = self.query_one("#view-switcher", ContentSwitcher)
+
+        # 0. An open filter? Clear it first (esc unwinds one level at a time).
+        if self.query_one("#filter-input", Input).display:
+            self._clear_filter()
+            await self._apply_filter()
+            return
 
         # 1. A device report drilled in from the devices view → back to devices.
         if switcher.current == "overview" and self._from_topology:

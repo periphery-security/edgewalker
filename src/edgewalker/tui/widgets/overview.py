@@ -149,20 +149,36 @@ def build_findings_panel(summary: AssessmentSummary, limit: int = 6) -> Panel:
     )
 
 
-def build_findings_view(summary: Optional[AssessmentSummary]) -> RenderableType:
-    """The dedicated findings view: every finding, most severe first."""
+def _finding_matches(finding: Finding, query: str) -> bool:
+    """Case-insensitive substring match across a finding's fields."""
+    haystack = f"{finding.severity} {finding.title} {finding.host} {finding.detail}".lower()
+    return query in haystack
+
+
+def build_findings_view(summary: Optional[AssessmentSummary], query: str = "") -> RenderableType:
+    """The dedicated findings view: every finding, most severe first.
+
+    When ``query`` is set, only findings matching it (across severity, title,
+    host, and detail) are shown.
+    """
+    query = query.strip().lower()
     if summary is None:
         body: RenderableType = Text("No assessment yet — press s to run a scan.", style=theme.MUTED)
     elif not summary.findings:
         body = Text("No findings — nothing actionable detected.", style=theme.SUCCESS)
     else:
-        lines = Table.grid()
-        for finding in summary.findings:
-            lines.add_row(_finding_line(finding))
-        body = lines
+        findings = [f for f in summary.findings if not query or _finding_matches(f, query)]
+        if not findings:
+            body = Text(f"No findings match “{query}”.", style=theme.MUTED)
+        else:
+            lines = Table.grid()
+            for finding in findings:
+                lines.add_row(_finding_line(finding))
+            body = lines
+    title = "FINDINGS" if not query else f"FINDINGS · filter “{query}”"
     return Panel(
         body,
-        title=f"[{theme.HEADER}]FINDINGS[/]",
+        title=f"[{theme.HEADER}]{title}[/]",
         border_style=theme.ACCENT,
         box=theme.BOX_STYLE,
     )

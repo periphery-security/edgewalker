@@ -302,6 +302,91 @@ async def test_dashboard_run_all_reuses_saved_target(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_dashboard_filter_findings_and_devices(tmp_path):
+    """`/` reveals the filter box and live-filters findings and devices."""
+    app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
+    (tmp_path / "port_scan.json").write_text(
+        json.dumps({
+            "target": "192.168.1.0/24",
+            "hosts": [
+                {
+                    "ip": "192.168.1.5",
+                    "hostname": "cam",
+                    "vendor": "Acme",
+                    "state": "up",
+                    "tcp": [],
+                },
+                {
+                    "ip": "192.168.1.9",
+                    "hostname": "nas",
+                    "vendor": "Synology",
+                    "state": "up",
+                    "tcp": [],
+                },
+            ],
+        })
+    )
+
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            # Third Party
+            from textual.widgets import Input
+
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            filter_input = screen.query_one("#filter-input", Input)
+            assert filter_input.display is False
+
+            # `/` on a non-filterable view just notifies (overview is active).
+            with patch.object(screen, "notify") as mock_notify:
+                screen.action_filter()
+                assert mock_notify.called
+            assert filter_input.display is False
+
+            # On the findings view, `/` reveals the box and typing filters live.
+            screen.action_findings()
+            await pilot.pause()
+            screen.action_filter()
+            await pilot.pause()
+            assert filter_input.display is True
+
+            filter_input.value = "cve"
+            await pilot.pause()
+            assert screen._filter_query == "cve"
+
+            # On the devices view, the filter rebuilds the tree with matches only.
+            screen._filter_query = ""
+            await screen.action_devices()
+            await pilot.pause()
+            screen._filter_query = "synology"
+            await screen._render_devices()
+            await pilot.pause()
+            tree = screen.query_one("#topology-tree")
+
+            def _all_labels(node):
+                acc = [node.label.plain]
+                for child in node.children:
+                    acc.extend(_all_labels(child))
+                return acc
+
+            labels = " ".join(_all_labels(tree.root))
+            assert "nas" in labels  # the matching host (Synology)
+            assert "cam" not in labels  # filtered out
+
+            # esc clears the filter and hides the box.
+            await screen.action_go_home()
+            await pilot.pause()
+            assert filter_input.display is False
+            assert screen._filter_query == ""
+
+
+@pytest.mark.asyncio
 async def test_dashboard_live_scan_state_machine():
     """Entering a phase flips the sidebar badges and the live-scan header."""
     app = EdgeWalkerApp()
