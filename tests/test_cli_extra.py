@@ -166,22 +166,29 @@ def test_show_mode_selection_exit(mock_input):
 
 @patch("edgewalker.cli.guided.GuidedScanner._show_scan_type_selection", return_value=False)
 @patch("edgewalker.utils.get_input", return_value="1.1.1.1")
-@patch("edgewalker.cli.controller.ScanController.run_port_scan", new_callable=AsyncMock)
-@patch("edgewalker.cli.controller.ScanController.run_credential_scan", new_callable=AsyncMock)
-@patch("edgewalker.cli.controller.ScanController.run_cve_scan", new_callable=AsyncMock)
+@patch("edgewalker.core.scanner_service.ScannerService.perform_port_scan", new_callable=AsyncMock)
+@patch(
+    "edgewalker.core.scanner_service.ScannerService.perform_credential_scan",
+    new_callable=AsyncMock,
+)
+@patch("edgewalker.core.scanner_service.ScannerService.perform_cve_scan", new_callable=AsyncMock)
+@patch("edgewalker.core.scanner_service.ScannerService.perform_sql_scan", new_callable=AsyncMock)
+@patch("edgewalker.core.scanner_service.ScannerService.perform_web_scan", new_callable=AsyncMock)
 @patch("edgewalker.cli.controller.ScanController.view_device_risk")
 @patch("edgewalker.utils.press_enter")
 def test_automatic_mode_full_flow(
-    mock_press, mock_risk, mock_cve, mock_pwd, mock_port, mock_input, mock_type
+    mock_press, mock_risk, mock_web, mock_sql, mock_cve, mock_pwd, mock_port, mock_input, mock_type
 ):
     # First Party
+    from edgewalker.modules.cve_scan.models import CveScanModel
+    from edgewalker.modules.password_scan.models import PasswordScanModel
     from edgewalker.modules.port_scan.models import PortScanModel
 
     mock_port.return_value = PortScanModel(
         hosts=[{"ip": "1.1.1.1", "state": "up", "mac": "00:00:00:00:00:00"}]
     )
-    controller = cli.ScanController()
-    guided = cli.GuidedScanner(controller)
+    mock_pwd.return_value = PasswordScanModel(results=[], summary={"vulnerable_hosts": 0})
+    mock_cve.return_value = CveScanModel(results=[], summary={"total_cves": 0})
     cli_pkg.automatic_mode()
     assert mock_risk.called
 
@@ -457,15 +464,18 @@ def test_run_cve_scan_no_up_hosts(mock_file, mock_settings):
 
 @patch("edgewalker.utils.get_input", return_value="1.1.1.1")
 @patch(
-    "edgewalker.cli.controller.ScanController.run_port_scan",
+    "edgewalker.core.scanner_service.ScannerService.perform_port_scan",
     new_callable=AsyncMock,
-    return_value={"hosts": [{"state": "down"}]},
 )
 @patch("edgewalker.utils.press_enter")
 def test_automatic_mode_no_up_hosts(mock_press, mock_run, mock_input):
+    # First Party
+    from edgewalker.modules.port_scan.models import PortScanModel
+
+    mock_run.return_value = PortScanModel(
+        hosts=[{"ip": "1.1.1.1", "state": "down", "mac": "00:00:00:00:00:00"}]
+    )
     with patch("edgewalker.cli.guided.GuidedScanner._show_scan_type_selection", return_value=False):
-        controller = cli.ScanController()
-        guided = cli.GuidedScanner(controller)
         cli_pkg.automatic_mode()
         assert mock_run.called
 

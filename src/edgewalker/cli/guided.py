@@ -10,8 +10,24 @@ from rich.panel import Panel
 # First Party
 from edgewalker import theme, utils
 from edgewalker.cli.controller import ScanController
-from edgewalker.display import build_scan_type_panel
+from edgewalker.core.config import settings
+from edgewalker.core.engine import AssessmentOptions, Engine, PhaseResult
+from edgewalker.display import (
+    build_credential_display,
+    build_cve_display,
+    build_port_scan_display,
+    build_scan_type_panel,
+)
 from edgewalker.modules import port_scan
+from edgewalker.modules.port_scan.models import PortScanModel
+
+#: Human-readable lead-in shown before each module renders, keyed by module.
+_PHASE_LEAD_IN: dict[str, str] = {
+    "credential": "Port scan complete. Now testing for default credentials...",
+    "cve": "Credential scan complete. Now checking for known vulnerabilities (CVEs)...",
+    "sql": "CVE scan complete. Now auditing SQL services...",
+    "web": "SQL audit complete. Now auditing web services...",
+}
 
 
 class GuidedScanner:
@@ -24,6 +40,9 @@ class GuidedScanner:
             controller: The scan controller to use for execution.
         """
         self.controller = controller
+        # Share the controller's scanner service so telemetry callbacks stay wired.
+        # getattr keeps spec'd test doubles (which omit instance attributes) working.
+        self.engine = Engine(getattr(controller, "scanner", None))
 
     async def automatic_mode(
         self,
@@ -33,7 +52,11 @@ class GuidedScanner:
         unprivileged: bool = False,
         verbose: bool = False,
     ) -> None:
-        """Run the automatic guided security assessment asynchronously."""
+        """Run the automatic guided security assessment asynchronously.
+
+        Sequencing and gating come from the shared :class:`Engine`; this method
+        only handles the CLI's interactive prompts and rendering.
+        """
         # Step 1: Choose scan type
         if full_scan is None:
             utils.clear_screen()
@@ -48,66 +71,81 @@ class GuidedScanner:
             logger.info(f"A {scan_type.lower()} port scan will discover devices on your network.")
             target = utils.get_input("Target (IP/range)", default_target)
 
-        # Step 3: Run port scan
-        utils.console.print()
-        logger.info(f"Starting {scan_type.lower()} port scan on {target}...")
-        port_results = await self.controller.run_port_scan(
-            full=full_scan, target=target, unprivileged=unprivileged, verbose=verbose
+        opts = AssessmentOptions(
+            target=target,
+            full_scan=full_scan,
+            full_creds=full_creds,
+            unprivileged=unprivileged,
+            verbose=verbose,
         )
 
-        if not port_results:
-            logger.error("Port scan failed. Returning to mode selection.")
+        # Step 3+: Drive the canonical sequence through the engine.
+        utils.console.print()
+        logger.info(f"Starting {scan_type.lower()} port scan on {target}...")
+
+        hosts_found = 0
+        self.engine.progress_callback = self._progress_callback
+        try:
+            async for phase in self.engine.run_assessment(opts):
+                if phase.module == "port" and isinstance(phase.result, PortScanModel):
+                    hosts_found = len([h for h in phase.result.hosts if h.state == "up"])
+                self._render_phase(phase)
+        except (FileNotFoundError, ValueError) as e:
+            logger.error(f"Port scan failed: {e}. Returning to mode selection.")
             utils.press_enter()
             return
+        finally:
+            self.engine.progress_callback = None
 
-        if hasattr(port_results, "hosts"):
-            hosts_up = [h for h in port_results.hosts if h.state == "up"]
-        else:
-            hosts_up = [h for h in port_results.get("hosts", []) if h.get("state") == "up"]
-
-        if not hosts_up:
+        if hosts_found == 0:
             logger.warning("No devices found on the network.")
             utils.press_enter()
             return
 
-        # Step 4: Run credential scan
-        utils.console.print()
-        utils.console.print()
-        logger.info("Port scan complete. Now testing for default credentials...")
-        utils.console.print()
-
-        top_n = None if full_creds else 10
-        await self.controller.run_credential_scan(
-            port_results=port_results, top_n=top_n, interactive=False
-        )
-
-        # Step 5: Run CVE scan
-        utils.console.print()
-        utils.console.print()
-        logger.info("Credential scan complete. Now checking for known vulnerabilities (CVEs)...")
-        utils.console.print()
-        await self.controller.run_cve_scan(port_results=port_results)
-
-        # Step 6: Run SQL scan
-        utils.console.print()
-        utils.console.print()
-        logger.info("CVE scan complete. Now auditing SQL services...")
-        utils.console.print()
-        await self.controller.run_sql_scan(port_results=port_results, top_n=top_n, verbose=verbose)
-
-        # Step 7: Run Web scan
-        utils.console.print()
-        utils.console.print()
-        logger.info("SQL audit complete. Now auditing web services...")
-        utils.console.print()
-        await self.controller.run_web_scan(port_results=port_results, verbose=verbose)
-
-        # Step 8: Show report
+        # Final step: Show report
         utils.console.print()
         utils.console.print()
         logger.success("All scans complete! Generating your security report...")
         utils.console.print()
         self.controller.view_device_risk()
+
+    def _progress_callback(self, event: str, data: str) -> None:
+        """Render live scan progress (chiefly credential attempts) to the console."""
+        if event == "service_start":
+            logger.info(data)
+        elif event == "cred_progress":
+            utils.console.print(f"    [dim]{data}[/dim]", end="\r")
+        elif event == "cred_found":
+            logger.success(f"Found: {data}")
+
+    def _render_phase(self, phase: PhaseResult) -> None:
+        """Render a single completed assessment phase to the console."""
+        if phase.skipped or phase.result is None:
+            return
+
+        if lead_in := _PHASE_LEAD_IN.get(phase.module):
+            utils.console.print()
+            utils.console.print()
+            logger.info(lead_in)
+            utils.console.print()
+
+        builders = {
+            "port": (build_port_scan_display, "port_scan.json", "SCAN RESULTS"),
+            "credential": (build_credential_display, "password_scan.json", None),
+            "cve": (build_cve_display, "cve_scan.json", None),
+        }
+
+        if phase.module in builders:
+            builder, filename, header = builders[phase.module]
+            if header:
+                utils.print_header(header)
+            for renderable in builder(phase.result.model_dump(mode="json")):
+                utils.console.print(renderable)
+            utils.console.print()
+            logger.success(f"Results saved to: {settings.output_dir / filename}")
+        else:
+            # SQL and web have no dedicated console display yet; just confirm save.
+            logger.success(f"Results saved to: {settings.output_dir / phase.module}_scan.json")
 
     async def prompt_next_scan(self) -> None:
         """After a scan completes, suggest the next step asynchronously."""
