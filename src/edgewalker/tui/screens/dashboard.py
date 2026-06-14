@@ -44,18 +44,20 @@ class DashboardScreen(Screen):
     """Main dashboard for running scans and viewing results."""
 
     BINDINGS = [
-        # SCAN group.
+        # Footer (Tier 1) shows only the essentials — scanning, help, back.
+        # The sidebar always lists the SCAN/VIEW mnemonics with a cursor
+        # highlight, and `?` opens the full keymap, so the rest stay hidden.
         Binding("s", "quick_scan", "Quick Scan", show=True),
         Binding("S", "full_scan", "Full Scan", show=True),
-        Binding("r", "run_all", "Re-run All", show=True),
-        # VIEW group.
-        Binding("o", "overview", "Overview", show=True),
-        Binding("d", "devices", "Devices", show=True),
-        Binding("f", "findings", "Findings", show=True),
-        Binding("l", "live_log", "Live Log", show=True),
-        Binding("ctrl+c", "copy_report", "Copy Report", show=True),
         Binding("question_mark", "help", "Help", show=True, key_display="?"),
         Binding("escape", "go_home", "Back", show=True),
+        # SCAN / VIEW group bindings (surfaced by the sidebar + ? overlay).
+        Binding("r", "run_all", "Re-run All", show=False),
+        Binding("o", "overview", "Overview", show=False),
+        Binding("d", "devices", "Devices", show=False),
+        Binding("f", "findings", "Findings", show=False),
+        Binding("l", "live_log", "Live Log", show=False),
+        Binding("ctrl+c", "copy_report", "Copy Report", show=False),
         # Hidden numeric aliases for existing muscle memory / tests.
         Binding("1", "show_report", "Risk Report", show=False),
         Binding("2", "devices", "Devices", show=False),

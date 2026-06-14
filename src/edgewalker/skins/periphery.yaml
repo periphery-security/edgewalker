@@ -16,7 +16,9 @@ theme:
   boost: "#1e1e3a"
   dark: true
   variables:
-    muted: "#555555"
+    # Lifted from #555555 (2.55:1, fails WCAG) to the mockup's muted, which
+    # clears the 3:1 contrast floor on the #0f0f1a background.
+    muted: "#6a6a85"
     text: "#c0c0c0"
     danger: "#DC0000"
     surface-alt: "#16213e"

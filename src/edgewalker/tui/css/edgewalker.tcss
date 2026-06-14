@@ -1,5 +1,25 @@
 /* EdgeWalker TCSS stylesheet */
 
+/* ── Semantic design tokens ──────────────────────────────────────────────
+   Brand palette is wired through theme_manager / skins as Textual theme
+   vars. Reference UI *roles* below, never raw hex in widget styles:
+
+     $primary   Electric Violet — structure, borders, the active accent
+     $accent    Cyan — focus & interactive accents ONLY
+     $success / $warning / $error — severity greens / ambers / reds
+     $background / $surface / $panel — layered depth, darkest → lightest
+
+   The tokens below derive the de-emphasised "muted" and "hairline" roles so
+   widgets stop repeating an ad-hoc `$foreground 50%`. */
+$ew-muted: $foreground 50%;
+$ew-hairline: $primary 40%;
+
+/* Secondary / metadata text. Pair with a symbol or label — never rely on
+   the dim colour alone (NO_COLOR + colour-blind safety). */
+.muted {
+    color: $ew-muted;
+}
+
 Screen {
     background: $background;
 }
@@ -81,7 +101,7 @@ SplashScreen, GuidedAssessmentScreen, ModalScreen {
 #home-prompt {
     width: 100%;
     text-align: center;
-    color: $foreground 50%;
+    color: $ew-muted;
     margin-top: 1;
 }
 
@@ -99,7 +119,7 @@ SplashScreen, GuidedAssessmentScreen, ModalScreen {
 #home-contributors {
     width: 100%;
     text-align: center;
-    color: $foreground 50%;
+    color: $ew-muted;
     margin-top: 2;
 }
 
@@ -174,6 +194,7 @@ NavSeparator {
     width: 100%;
     height: 1;
     margin: 1 0;
+    color: $ew-hairline;
 }
 
 .nav-link {
@@ -253,7 +274,7 @@ Checkbox:focus {
 }
 
 Checkbox > .toggle {
-    color: $foreground 50%;
+    color: $ew-muted;
 }
 
 Checkbox.-on > .toggle {
@@ -262,7 +283,7 @@ Checkbox.-on > .toggle {
 }
 
 RadioButton > .toggle {
-    color: $foreground 50%;
+    color: $ew-muted;
 }
 
 RadioButton.-on > .toggle {
@@ -334,12 +355,12 @@ Header {
 
 Footer {
     background: $surface;
-    color: $foreground 50%;
+    color: $ew-muted;
 }
 
 Input {
     background: $panel;
-    border: solid $foreground 50%;
+    border: solid $ew-muted;
     color: $foreground;
 }
 
@@ -429,7 +450,7 @@ Input:focus {
 
 .config-help {
     width: 100%;
-    color: $foreground 50%;
+    color: $ew-muted;
     text-style: italic;
     margin-bottom: 1;
     padding-left: 2;

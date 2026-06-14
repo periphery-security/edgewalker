@@ -81,11 +81,15 @@ class NavItem(Static):
 
 
 class NavSeparator(Static):
-    """A hairline divider in the navigation panel."""
+    """A hairline divider in the navigation panel.
+
+    Renders an uncoloured box-drawing rule; the hairline tint comes from the
+    ``$ew-hairline`` CSS token so it tracks the active skin's primary colour.
+    """
 
     def render(self) -> Text:
         """Render a thin box-drawing hairline instead of an ASCII rule."""
-        return Text(theme.ICON_LINE * 20, style=theme.MUTED)
+        return Text(theme.ICON_LINE * 20)
 
 
 class TelemetryStatus(Static):
