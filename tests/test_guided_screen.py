@@ -1,12 +1,15 @@
 # Standard Library
+import io
 from unittest.mock import MagicMock, patch
 
 # Third Party
 import pytest
+from rich.console import Console
 from textual.widgets import Button, Checkbox, Input, RadioButton
 
 # First Party
 from edgewalker.tui.app import EdgeWalkerApp
+from edgewalker.tui.screens.dashboard import DashboardScreen
 from edgewalker.tui.screens.guided import GuidedAssessmentScreen
 
 
@@ -109,6 +112,37 @@ async def test_guided_screen_input_submit_starts_scan():
                 await pilot.pause()
                 assert mock_dismiss.called
                 assert mock_dismiss.call_args[0][0]["target"] == "10.0.0.1"
+
+
+@pytest.mark.asyncio
+async def test_guided_screen_is_modal_over_dashboard():
+    """The config is a translucent modal — the dashboard shows through behind."""
+    app = EdgeWalkerApp()
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test(size=(120, 35)) as pilot:
+            await app.push_screen(DashboardScreen())
+            await pilot.pause()
+            await app.push_screen(GuidedAssessmentScreen())
+            await pilot.pause()
+
+            screen = app.screen
+            # Translucent screen background (dimmed dashboard, not opaque).
+            assert screen.styles.background.a < 1.0
+            # The dashboard is a background screen below the modal.
+            assert any(isinstance(s, DashboardScreen) for s in app._background_screens)
+
+            # And its sidebar content actually composites through the veil.
+            console = Console(width=120, height=35, file=io.StringIO(), record=True)
+            console.print(
+                app.screen._compositor.render_update(
+                    full=True, screen_stack=app._background_screens, simplify=True
+                )
+            )
+            composite = console.export_text()
+            assert "Network" in composite  # a dashboard sidebar label, shown behind
 
 
 @pytest.mark.asyncio

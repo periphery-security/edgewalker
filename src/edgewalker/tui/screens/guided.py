@@ -58,54 +58,58 @@ class GuidedAssessmentScreen(ModalScreen):
         }
 
     def compose(self) -> ComposeResult:
-        """Compose the single configuration panel (overlaid on the dashboard)."""
-        with Vertical(id="wizard-outer"):
-            with Vertical(id="scan-config", classes="modal-container"):
-                yield Static("CONFIGURE SCAN", classes="modal-title")
+        """Compose the single configuration panel (overlaid on the dashboard).
 
-                yield Static("SCAN DEPTH", classes="wizard-section")
-                yield RadioSet(
-                    RadioButton(
-                        "Quick — common IoT ports (~30s)",
-                        value=not self.config["full_scan"],
-                        id="radio-quick",
-                    ),
-                    RadioButton(
-                        "Full — all 65535 ports (~15m)",
-                        value=self.config["full_scan"],
-                        id="radio-full",
-                    ),
-                    id="wizard-depth-radio",
-                )
+        The box is the screen's only child so the (translucent) screen
+        background stays uncovered and the dimmed dashboard shows through; a
+        full-size wrapper would make the compositor treat the screen as opaque.
+        """
+        with Vertical(id="scan-config", classes="modal-container"):
+            yield Static("CONFIGURE SCAN", classes="modal-title")
 
-                yield Static("TARGET", classes="wizard-section")
-                yield Input(
-                    value=self.config["target"],
-                    placeholder="e.g. 192.168.1.0/24",
-                    id="wizard-target-input",
-                )
+            yield Static("SCAN DEPTH", classes="wizard-section")
+            yield RadioSet(
+                RadioButton(
+                    "Quick — common IoT ports (~30s)",
+                    value=not self.config["full_scan"],
+                    id="radio-quick",
+                ),
+                RadioButton(
+                    "Full — all 65535 ports (~15m)",
+                    value=self.config["full_scan"],
+                    id="radio-full",
+                ),
+                id="wizard-depth-radio",
+            )
 
-                yield Static("ADDITIONAL TESTS", classes="wizard-section")
-                yield Checkbox("Default passwords", value=self.config["run_creds"], id="chk-creds")
-                yield Checkbox(
-                    "↳ Thorough — test all credentials",
-                    value=self.config["full_creds"],
-                    id="chk-full-creds",
-                    classes="dependent-option",
-                )
-                yield Checkbox(
-                    "Known vulnerabilities (CVEs)", value=self.config["run_cves"], id="chk-cves"
-                )
-                yield Checkbox(
-                    "SQL services (MySQL, Redis, …)", value=self.config["run_sql"], id="chk-sql"
-                )
-                yield Checkbox(
-                    "Web services (headers, TLS, …)", value=self.config["run_web"], id="chk-web"
-                )
+            yield Static("TARGET", classes="wizard-section")
+            yield Input(
+                value=self.config["target"],
+                placeholder="e.g. 192.168.1.0/24",
+                id="wizard-target-input",
+            )
 
-                with Horizontal(classes="modal-buttons"):
-                    yield Button("Cancel", id="btn-cancel")
-                    yield Button("Start scan", variant="success", id="btn-start")
+            yield Static("ADDITIONAL TESTS", classes="wizard-section")
+            yield Checkbox("Default passwords", value=self.config["run_creds"], id="chk-creds")
+            yield Checkbox(
+                "↳ Thorough — test all credentials",
+                value=self.config["full_creds"],
+                id="chk-full-creds",
+                classes="dependent-option",
+            )
+            yield Checkbox(
+                "Known vulnerabilities (CVEs)", value=self.config["run_cves"], id="chk-cves"
+            )
+            yield Checkbox(
+                "SQL services (MySQL, Redis, …)", value=self.config["run_sql"], id="chk-sql"
+            )
+            yield Checkbox(
+                "Web services (headers, TLS, …)", value=self.config["run_web"], id="chk-web"
+            )
+
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Cancel", id="btn-cancel")
+                yield Button("Start scan", variant="success", id="btn-start")
 
     def on_mount(self) -> None:
         """Focus the primary action and sync the dependent option state."""

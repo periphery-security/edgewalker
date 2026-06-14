@@ -229,16 +229,12 @@ StatusBadge {
 
 /* ── Scan configuration (modal over the dimmed dashboard) ── */
 
-/* Translucent background so the persistent dashboard stays visible behind. */
+/* Translucent background so the persistent dashboard stays visible behind.
+   The box is the screen's only child (no full-size wrapper) — otherwise the
+   compositor treats the screen as opaque and nothing shows through. */
 GuidedAssessmentScreen {
     align: center middle;
-    background: $background 70%;
-}
-
-#wizard-outer {
-    width: 100%;
-    height: 100%;
-    align: center middle;
+    background: $background 60%;
 }
 
 #scan-config {
@@ -247,9 +243,12 @@ GuidedAssessmentScreen {
     max-height: 90%;
 }
 
+/* Section labels with a hairline rule above for quiet grouping. */
 .wizard-section {
+    width: 100%;
     text-style: bold;
     color: $primary;
+    border-top: solid $ew-hairline;
     margin: 1 0 0 0;
 }
 
