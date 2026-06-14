@@ -54,6 +54,7 @@ class DashboardScreen(Screen):
         Binding("f", "findings", "Findings", show=True),
         Binding("l", "live_log", "Live Log", show=True),
         Binding("ctrl+c", "copy_report", "Copy Report", show=True),
+        Binding("question_mark", "help", "Help", show=True, key_display="?"),
         Binding("escape", "go_home", "Back", show=True),
         # Hidden numeric aliases for existing muscle memory / tests.
         Binding("1", "show_report", "Risk Report", show=False),
@@ -991,6 +992,35 @@ class DashboardScreen(Screen):
 
         # Hint how to step back to the device list.
         self.notify("Press esc to return to Devices", timeout=3)
+
+    def action_help(self) -> None:
+        """Show the `?` keybinding cheat-sheet for this screen."""
+        # First Party
+        from edgewalker.tui.modals.help import HelpModal  # noqa: PLC0415
+
+        sections = [
+            ("SCAN", [("s", "Quick scan"), ("S", "Full scan"), ("r", "Re-run all")]),
+            (
+                "VIEW",
+                [
+                    ("o", "Overview"),
+                    ("d", "Devices"),
+                    ("f", "Findings"),
+                    ("l", "Live log"),
+                ],
+            ),
+            (
+                "GENERAL",
+                [
+                    ("Enter", "Drill in / continue"),
+                    ("esc", "Back / cancel"),
+                    ("ctrl+c", "Copy report"),
+                    ("?", "This help"),
+                    ("q", "Quit"),
+                ],
+            ),
+        ]
+        self.app.push_screen(HelpModal(sections))
 
     def action_view_raw(self) -> None:
         """Show raw JSON results."""

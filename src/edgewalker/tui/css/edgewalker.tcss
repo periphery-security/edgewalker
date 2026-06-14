@@ -303,6 +303,27 @@ RadioButton.-on > .toggle {
     margin: 0 1;
 }
 
+/* ── Help overlay ── */
+
+#help-container {
+    width: 56;
+}
+
+#help-body {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#help-hint {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#help-close {
+    width: 100%;
+}
+
 /* ── Common ── */
 
 Header {
