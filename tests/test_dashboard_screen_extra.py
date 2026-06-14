@@ -488,9 +488,10 @@ async def test_dashboard_on_scan_error_retry():
 
 
 @pytest.mark.asyncio
-async def test_dashboard_view_raw():
-    """Test action_view_raw."""
+async def test_dashboard_view_raw_empty(tmp_path):
+    """action_view_raw warns when there are no saved results."""
     app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
     with (
         patch("textual.widgets.Header", return_value=MagicMock()),
         patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
@@ -503,6 +504,33 @@ async def test_dashboard_view_raw():
             with patch.object(screen, "notify") as mock_notify:
                 screen.action_view_raw()
                 assert mock_notify.called
+
+
+@pytest.mark.asyncio
+async def test_dashboard_view_raw_lists_files(tmp_path):
+    """action_view_raw renders the saved-results table from ResultManager."""
+    app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
+    (tmp_path / "port_scan.json").write_text(json.dumps({"hosts": []}))
+
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            # Third Party
+            from textual.widgets import ContentSwitcher
+
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            screen.action_view_raw()
+            await pilot.pause()
+
+            assert screen.query_one("#view-switcher", ContentSwitcher).current == "overview"
+            assert "SAVED SCAN RESULTS" in screen._current_report_text
+            assert "port_scan.json" in screen._current_report_text
 
 
 @pytest.mark.asyncio

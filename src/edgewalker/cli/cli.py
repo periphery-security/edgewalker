@@ -300,6 +300,18 @@ def report() -> None:
 
 
 @app.command()
+def findings() -> None:
+    """List prioritised findings from the latest assessment."""
+    # First Party
+    from edgewalker.core.findings import build_summary  # noqa: PLC0415
+    from edgewalker.tui.widgets.overview import build_findings_view  # noqa: PLC0415
+
+    print_logo()
+    summary = build_summary(Engine.load_report_inputs())
+    console.print(build_findings_view(summary))
+
+
+@app.command()
 def results() -> None:
     """Browse raw JSON scan results."""
     print_logo()

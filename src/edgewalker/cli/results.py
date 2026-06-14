@@ -109,8 +109,8 @@ class ResultManager:
                 logger.error("Please enter a number.")
                 utils.get_input("Press Enter to continue", "")
 
-    def _print_results_table(self, files: list) -> None:
-        """Print a table of available result files."""
+    def build_results_table(self, files: list) -> Panel:
+        """Build the saved-results table as a renderable (shared CLI/TUI)."""
         table = Table(box=box.SIMPLE, header_style=f"bold {theme.HEADER}")
         table.add_column("#", style=theme.MUTED_STYLE, width=3)
         table.add_column("File", style=theme.PRIMARY)
@@ -129,15 +129,17 @@ class ResultManager:
             mtime = datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
             table.add_row(str(i + 1), f.name, size_str, mtime)
 
-        utils.console.print(
-            Panel(
-                table,
-                title=f"[{theme.HEADER}]SAVED SCAN RESULTS[/{theme.HEADER}]",
-                border_style=theme.ACCENT,
-                box=theme.BOX_STYLE,
-                width=theme.get_ui_width(),
-            )
+        return Panel(
+            table,
+            title=f"[{theme.HEADER}]SAVED SCAN RESULTS[/{theme.HEADER}]",
+            border_style=theme.ACCENT,
+            box=theme.BOX_STYLE,
+            width=theme.get_ui_width(),
         )
+
+    def _print_results_table(self, files: list) -> None:
+        """Print a table of available result files."""
+        utils.console.print(self.build_results_table(files))
 
     def _view_file(self, path: object) -> None:
         """Print raw JSON content of a file."""

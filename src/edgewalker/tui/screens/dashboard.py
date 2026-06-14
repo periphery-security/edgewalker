@@ -1025,8 +1025,24 @@ class DashboardScreen(Screen):
         self.app.push_screen(HelpModal(sections))
 
     def action_view_raw(self) -> None:
-        """Show raw JSON results."""
-        self.notify("Raw results view not yet implemented in TUI.", severity="info")
+        """Show the saved raw JSON result files (shared with the CLI)."""
+        # First Party
+        from edgewalker.cli.results import ResultManager  # noqa: PLC0415
+
+        if not settings.output_dir.exists():
+            self.notify("No results found. Run a scan first.", severity="warning")
+            return
+        files = sorted(
+            settings.output_dir.glob("*.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if not files:
+            self.notify("No results found. Run a scan first.", severity="warning")
+            return
+
+        self._from_topology = False
+        self._update_report_view(ResultManager().build_results_table(files))
 
     def action_clear_results(self) -> None:
         """Clear all saved results."""
