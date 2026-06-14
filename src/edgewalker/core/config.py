@@ -603,12 +603,27 @@ def get_active_overrides() -> dict[str, str]:
     return overrides
 
 
+def _secure_dir(path: Path) -> None:
+    """Create ``path`` (if needed) and restrict it to owner-only access.
+
+    A failed ``chmod`` (e.g. the directory is owned by root after a previous
+    ``sudo`` run) is downgraded to a warning rather than crashing startup.
+    """
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        os.chmod(path, 0o700)
+    except (PermissionError, OSError) as e:
+        logger.warning(
+            f"Could not set secure permissions on '{path}': {e}. "
+            "If you previously ran EdgeWalker with sudo, fix ownership with: "
+            f'sudo chown -R "$(whoami)" "{path}"'
+        )
+
+
 def init_config() -> None:
     """Initialize the config file with default settings if it does not exist."""
-    get_config_dir().mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(get_config_dir(), 0o700)
-    settings.output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(settings.output_dir, 0o700)
+    _secure_dir(get_config_dir())
+    _secure_dir(settings.output_dir)
     config_file = settings.config_file
 
     if overrides := get_active_overrides():
@@ -687,8 +702,7 @@ def save_settings(settings_obj: Settings) -> None:
     Only saves settings that differ from their default values,
     ensuring portability across different machines and project locations.
     """
-    get_config_dir().mkdir(parents=True, exist_ok=True, mode=0o700)
-    os.chmod(get_config_dir(), 0o700)
+    _secure_dir(get_config_dir())
     config_file = settings_obj.config_file
 
     # Use exclude_defaults=True to keep config.yaml clean and portable.

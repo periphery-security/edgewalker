@@ -15,6 +15,14 @@ def test_init_config(tmp_path):
         assert (tmp_path / "config.yaml").exists()
 
 
+def test_init_config_survives_unchmodable_dir(tmp_path):
+    """A root-owned dir (chmod fails) must warn, not crash startup."""
+    with patch.dict(os.environ, {"EW_CONFIG_DIR": str(tmp_path)}):
+        with patch("edgewalker.core.config.os.chmod", side_effect=PermissionError("not permitted")):
+            # Should not raise despite chmod failing on every directory.
+            config.init_config()
+
+
 def test_update_setting(tmp_path):
     with patch.dict(os.environ, {"EW_CONFIG_DIR": str(tmp_path)}):
         # Test int conversion
