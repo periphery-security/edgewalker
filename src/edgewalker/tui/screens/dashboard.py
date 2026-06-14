@@ -110,6 +110,7 @@ class DashboardScreen(Screen):
         self._current_report_text = ""
         self._from_topology = False
         self._filter_query = ""
+        self._narrow = False
 
     def compose(self) -> ComposeResult:
         """Compose the dashboard layout.
@@ -180,6 +181,30 @@ class DashboardScreen(Screen):
         """Activate a named view and sync the sidebar cursor highlight."""
         self.query_one("#view-switcher", ContentSwitcher).current = view
         self.query_one("#nav-panel", NavigationPanel).set_active_view(view)
+
+    # ------------------------------------------------------------- responsiveness
+
+    #: Below this terminal width the sidebar collapses and cards stack.
+    _NARROW_BREAKPOINT = 90
+
+    def on_resize(self, event: events.Resize) -> None:
+        """Collapse the layout on narrow terminals (down to 80x24)."""
+        self._apply_responsive(event.size.width)
+
+    def _apply_responsive(self, width: int) -> None:
+        """Toggle the compact sidebar + stacked overview at the breakpoint."""
+        if width <= 0:
+            return
+        narrow = width < self._NARROW_BREAKPOINT
+        if narrow == self._narrow:
+            return
+        self._narrow = narrow
+        self.query_one("#nav-panel", NavigationPanel).set_compact(narrow)
+        # Re-flow the overview in place if it is the active view.
+        switcher = self.query_one("#view-switcher", ContentSwitcher)
+        if switcher.current == "overview" and not self._from_topology:
+            summary = build_summary(Engine.load_report_inputs())
+            self.query_one("#report-content", Static).update(build_overview(summary, narrow=narrow))
 
     # ----------------------------------------------------- live scan state machine
 
@@ -953,7 +978,7 @@ class DashboardScreen(Screen):
         """Show the at-a-glance multi-panel assessment overview."""
         self._from_topology = False
         summary = build_summary(Engine.load_report_inputs())
-        self._update_report_view(build_overview(summary))
+        self._update_report_view(build_overview(summary, narrow=self._narrow))
 
     def _render_findings(self) -> None:
         """(Re)render the findings list, honouring the active filter."""

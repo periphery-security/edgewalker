@@ -78,6 +78,17 @@ def test_build_overview_empty_when_none():
     assert "quick scan" in text
 
 
+def test_build_overview_narrow_stacks_cards():
+    summary = _summary()
+    # Narrow still shows every card; render at a small width without error.
+    console = Console(width=46, file=None, record=True)
+    console.print(overview.build_overview(summary, narrow=True))
+    text = console.export_text()
+    assert "SECURITY GRADE" in text
+    assert "NETWORK" in text
+    assert "DEVICES" in text
+
+
 def test_findings_view_lists_all_findings():
     summary = _summary()
     summary.findings = [Finding("LOW", f"finding-{i}", "1.2.3.4", "") for i in range(10)]

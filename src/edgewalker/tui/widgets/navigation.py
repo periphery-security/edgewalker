@@ -36,9 +36,34 @@ class StatusBadge(Static):
         self.active = False
         self.detail = ""
         self.phase_state = ""
+        self.compact = False
+
+    def set_compact(self, compact: bool) -> None:
+        """Toggle the icon-only rendering used in the narrow sidebar."""
+        self.compact = compact
+        self.refresh()
+
+    def _icon_color(self) -> tuple[str, str]:
+        """Return (icon, color) for the current state — used by compact mode."""
+        if self.phase_state in self._PHASE:
+            icon, style_key, _word = self._PHASE[self.phase_state]
+            color = {"muted": theme.MUTED, "accent": theme.ACCENT, "success": theme.SUCCESS}[
+                style_key
+            ]
+            return icon, color
+        if not self.active:
+            return theme.ICON_CIRCLE, theme.MUTED
+        color = theme.SUCCESS
+        if self.detail == "vulnerable" or (self.detail and "c" in self.detail):
+            color = theme.RISK_CRITICAL
+        return theme.ICON_CIRCLE_FILLED, color
 
     def render(self) -> str:
         """Render the badge (live phase state takes precedence while scanning)."""
+        if self.compact:
+            icon, color = self._icon_color()
+            return f"[{color}]{icon}[/{color}]"
+
         if self.phase_state in self._PHASE:
             icon, style_key, word = self._PHASE[self.phase_state]
             color = {
@@ -88,7 +113,13 @@ class NavItem(Static):
         self.label = label
         self.view = view
         self.active = False
+        self.compact = False
         self.add_class("nav-link")
+
+    def set_compact(self, compact: bool) -> None:
+        """Toggle the key-only rendering used in the narrow sidebar."""
+        self.compact = compact
+        self.refresh()
 
     def render(self) -> Text:
         """Render the navigation item.
@@ -99,7 +130,8 @@ class NavItem(Static):
         """
         text = Text()
         text.append(f"[{self.key}]", style="bold")
-        text.append(f" {self.label}")
+        if not self.compact:
+            text.append(f" {self.label}")
         return text
 
     def set_active(self, active: bool) -> None:
@@ -241,6 +273,14 @@ class NavPanel(Vertical):
         for item in self.query(NavItem):
             if item.view is not None:
                 item.set_active(item.view == view)
+
+    def set_compact(self, compact: bool) -> None:
+        """Collapse the sidebar to an icon/key rail (narrow terminals)."""
+        self.set_class(compact, "-compact")
+        for badge in self.query(StatusBadge):
+            badge.set_compact(compact)
+        for item in self.query(NavItem):
+            item.set_compact(compact)
 
     def update_status(self) -> None:
         """Update all status badges."""

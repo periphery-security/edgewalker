@@ -212,15 +212,25 @@ def build_device_table(summary: AssessmentSummary) -> Panel:
     )
 
 
-def build_overview(summary: Optional[AssessmentSummary]) -> RenderableType:
-    """Compose the full overview, or an empty-state call to action."""
+def build_overview(summary: Optional[AssessmentSummary], narrow: bool = False) -> RenderableType:
+    """Compose the full overview, or an empty-state call to action.
+
+    When ``narrow`` is set (small terminals) the grade and network cards stack
+    vertically instead of sitting side by side.
+    """
     if summary is None:
         return build_overview_empty()
 
-    top = Table.grid(expand=True, padding=(0, 1))
-    top.add_column(ratio=1)
-    top.add_column(ratio=1)
-    top.add_row(build_grade_panel(summary), build_network_panel(summary))
+    grade = build_grade_panel(summary)
+    network = build_network_panel(summary)
+    if narrow:
+        top: RenderableType = Group(grade, network)
+    else:
+        row = Table.grid(expand=True, padding=(0, 1))
+        row.add_column(ratio=1)
+        row.add_column(ratio=1)
+        row.add_row(grade, network)
+        top = row
 
     return Group(
         top,

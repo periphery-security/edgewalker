@@ -53,6 +53,49 @@ async def test_status_badge_phase_states():
 
 
 @pytest.mark.asyncio
+async def test_nav_item_compact_render():
+    item = NavItem("o", "Overview", view="overview")
+    assert "Overview" in str(item.render())
+    item.set_compact(True)
+    rendered = str(item.render())
+    assert "[o]" in rendered
+    assert "Overview" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_status_badge_compact_render():
+    badge = StatusBadge("Network")
+    badge.set_compact(True)
+    # Icon only, no label, in the narrow rail.
+    assert "Network" not in badge.render()
+    assert "○" in badge.render()
+    badge.set_phase("running")
+    assert "◐" in badge.render()
+
+
+@pytest.mark.asyncio
+async def test_navigation_panel_set_compact():
+    app = EdgeWalkerApp()
+    async with app.run_test() as pilot:
+        panel = NavigationPanel()
+        screen = Screen()
+        await app.push_screen(screen)
+        await screen.mount(panel)
+        await pilot.pause()
+
+        panel.set_compact(True)
+        await pilot.pause()
+        assert panel.has_class("-compact")
+        assert panel.query_one("#nav-overview", NavItem).compact is True
+        assert panel.query_one("#status-port", StatusBadge).compact is True
+
+        panel.set_compact(False)
+        await pilot.pause()
+        assert not panel.has_class("-compact")
+        assert panel.query_one("#nav-overview", NavItem).compact is False
+
+
+@pytest.mark.asyncio
 async def test_scan_progress_render():
     sp = ScanProgress()
     # Nothing before a scan.

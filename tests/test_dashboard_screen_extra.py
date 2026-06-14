@@ -302,6 +302,39 @@ async def test_dashboard_run_all_reuses_saved_target(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_dashboard_responsive_breakpoint():
+    """Crossing the width breakpoint collapses / restores the sidebar."""
+    app = EdgeWalkerApp()
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+            nav = screen.query_one("#nav-panel")
+
+            # Wide: full sidebar.
+            screen._apply_responsive(120)
+            await pilot.pause()
+            assert screen._narrow is False
+            assert not nav.has_class("-compact")
+
+            # Narrow (e.g. 80x24): collapse to the icon rail.
+            screen._apply_responsive(80)
+            await pilot.pause()
+            assert screen._narrow is True
+            assert nav.has_class("-compact")
+
+            # Back to wide restores it.
+            screen._apply_responsive(120)
+            await pilot.pause()
+            assert screen._narrow is False
+            assert not nav.has_class("-compact")
+
+
+@pytest.mark.asyncio
 async def test_dashboard_filter_findings_and_devices(tmp_path):
     """`/` reveals the filter box and live-filters findings and devices."""
     app = EdgeWalkerApp()

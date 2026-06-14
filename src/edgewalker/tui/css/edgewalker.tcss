@@ -228,6 +228,25 @@ StatusBadge {
     margin: 0 0;
 }
 
+/* Narrow terminals: collapse the sidebar to an icon/key rail. */
+#nav-panel.-compact {
+    width: 6;
+    padding: 1 0;
+    content-align: center top;
+}
+
+#nav-panel.-compact #nav-title,
+#nav-panel.-compact .nav-group,
+#nav-panel.-compact NavSeparator,
+#nav-panel.-compact #telemetry-status {
+    display: none;
+}
+
+#nav-panel.-compact .nav-link {
+    border-left: none;
+    padding: 0 1;
+}
+
 #nav-bottom-spacer {
     height: 1fr;
 }
