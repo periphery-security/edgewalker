@@ -3,7 +3,10 @@
 A single, focused configuration panel (depth, target, optional tests) rather
 than a multi-step wizard — per the TUI design system: keep related options
 visible together, let the user tab through and start, no needless paging.
-It returns its config to the dashboard, which runs the assessment in place.
+
+It is a modal overlay: the persistent dashboard stays visible (dimmed) behind
+it, so configuring a scan never loses the spatial context. It returns its
+config to the dashboard, which runs the assessment in place.
 """
 
 from __future__ import annotations
@@ -15,12 +18,10 @@ from typing import Any
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.screen import Screen
+from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
     Checkbox,
-    Footer,
-    Header,
     Input,
     RadioButton,
     RadioSet,
@@ -31,7 +32,7 @@ from textual.widgets import (
 from edgewalker.modules import port_scan
 
 
-class GuidedAssessmentScreen(Screen):
+class GuidedAssessmentScreen(ModalScreen):
     """Single-panel scan configuration that returns its config on start."""
 
     BINDINGS = [
@@ -57,8 +58,7 @@ class GuidedAssessmentScreen(Screen):
         }
 
     def compose(self) -> ComposeResult:
-        """Compose the single configuration panel."""
-        yield Header()
+        """Compose the single configuration panel (overlaid on the dashboard)."""
         with Vertical(id="wizard-outer"):
             with Vertical(id="scan-config", classes="modal-container"):
                 yield Static("CONFIGURE SCAN", classes="modal-title")
@@ -79,14 +79,19 @@ class GuidedAssessmentScreen(Screen):
                 )
 
                 yield Static("TARGET", classes="wizard-section")
-                yield Input(value=self.config["target"], id="wizard-target-input")
+                yield Input(
+                    value=self.config["target"],
+                    placeholder="e.g. 192.168.1.0/24",
+                    id="wizard-target-input",
+                )
 
                 yield Static("ADDITIONAL TESTS", classes="wizard-section")
                 yield Checkbox("Default passwords", value=self.config["run_creds"], id="chk-creds")
                 yield Checkbox(
-                    "Thorough password scan (all credentials)",
+                    "↳ Thorough — test all credentials",
                     value=self.config["full_creds"],
                     id="chk-full-creds",
+                    classes="dependent-option",
                 )
                 yield Checkbox(
                     "Known vulnerabilities (CVEs)", value=self.config["run_cves"], id="chk-cves"
@@ -101,18 +106,33 @@ class GuidedAssessmentScreen(Screen):
                 with Horizontal(classes="modal-buttons"):
                     yield Button("Cancel", id="btn-cancel")
                     yield Button("Start scan", variant="success", id="btn-start")
-        yield Footer()
 
     def on_mount(self) -> None:
-        """Focus the primary action."""
+        """Focus the primary action and sync the dependent option state."""
+        self._sync_dependent(self.config["run_creds"])
         self.query_one("#btn-start", Button).focus()
+
+    def _sync_dependent(self, creds_on: bool) -> None:
+        """Enable the thorough-creds option only while credential testing is on."""
+        dependent = self.query_one("#chk-full-creds", Checkbox)
+        dependent.disabled = not creds_on
+        if not creds_on:
+            dependent.value = False
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        """Keep the thorough-creds option gated on the parent credentials toggle."""
+        if event.checkbox.id == "chk-creds":
+            self._sync_dependent(event.value)
 
     def _collect(self) -> dict[str, Any]:
         """Read every control into the config dict and return it."""
         self.config["full_scan"] = self.query_one("#radio-full", RadioButton).value
         self.config["target"] = self.query_one("#wizard-target-input", Input).value
         self.config["run_creds"] = self.query_one("#chk-creds", Checkbox).value
-        self.config["full_creds"] = self.query_one("#chk-full-creds", Checkbox).value
+        # Thorough creds is meaningless without the credential scan itself.
+        self.config["full_creds"] = (
+            self.config["run_creds"] and self.query_one("#chk-full-creds", Checkbox).value
+        )
         self.config["run_cves"] = self.query_one("#chk-cves", Checkbox).value
         self.config["run_sql"] = self.query_one("#chk-sql", Checkbox).value
         self.config["run_web"] = self.query_one("#chk-web", Checkbox).value

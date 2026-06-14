@@ -24,7 +24,7 @@ Screen {
     background: $background;
 }
 
-SplashScreen, GuidedAssessmentScreen, ModalScreen {
+SplashScreen, ModalScreen {
     align: center middle;
 }
 
@@ -227,17 +227,18 @@ StatusBadge {
     text-style: italic;
 }
 
-/* ── Wizard / Guided Assessment ── */
+/* ── Scan configuration (modal over the dimmed dashboard) ── */
+
+/* Translucent background so the persistent dashboard stays visible behind. */
+GuidedAssessmentScreen {
+    align: center middle;
+    background: $background 70%;
+}
 
 #wizard-outer {
     width: 100%;
     height: 100%;
     align: center middle;
-}
-
-.wizard-text {
-    color: $foreground;
-    margin-bottom: 1;
 }
 
 #scan-config {
@@ -252,15 +253,13 @@ StatusBadge {
     margin: 1 0 0 0;
 }
 
-.wizard-options {
-    height: 3;
-    width: 100%;
-    align: center middle;
-    margin-top: 1;
+/* A dependent option, indented under and gated on its parent toggle. */
+.dependent-option {
+    margin-left: 3;
 }
 
-.wizard-options Button {
-    margin: 0 1;
+.dependent-option:disabled {
+    color: $ew-muted;
 }
 
 Checkbox {

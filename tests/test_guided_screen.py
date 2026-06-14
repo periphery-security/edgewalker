@@ -50,6 +50,33 @@ async def test_guided_screen_full_scan_preselected():
 
 
 @pytest.mark.asyncio
+async def test_guided_screen_thorough_creds_gated_on_creds():
+    """Thorough-creds is disabled and forced off when default-passwords is off."""
+    app = EdgeWalkerApp()
+    with patch("textual.widgets.Header", return_value=MagicMock()):
+        async with app.run_test() as pilot:
+            screen = GuidedAssessmentScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            creds = screen.query_one("#chk-creds", Checkbox)
+            thorough = screen.query_one("#chk-full-creds", Checkbox)
+
+            # Enabled while credential testing is on (the default).
+            assert thorough.disabled is False
+
+            # Turn off default passwords → thorough is disabled and cleared.
+            thorough.value = True
+            creds.value = False
+            await pilot.pause()
+            assert thorough.disabled is True
+            assert thorough.value is False
+
+            # And it never leaks into the collected config.
+            assert screen._collect()["full_creds"] is False
+
+
+@pytest.mark.asyncio
 async def test_guided_screen_cancel_returns_none():
     """Cancel/escape dismisses with no config (no scan runs)."""
     app = EdgeWalkerApp()
