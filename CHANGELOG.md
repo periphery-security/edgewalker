@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.7](https://github.com/periphery-security/edgewalker/compare/edgewalker-v0.1.6...edgewalker-v0.1.7) (2026-04-22)
+
+
+### New Features
+
+* add correlation id to telemetry. ([de9c7e4](https://github.com/periphery-security/edgewalker/commit/de9c7e4d7302bd27fcece4698e8c38ea853ee02b))
+* add web & sql modules ([83533fc](https://github.com/periphery-security/edgewalker/commit/83533fc9ee42b9935f678a612bc33064897b0313))
+* **modules:** add web and sql scanning modules ([9c3e31a](https://github.com/periphery-security/edgewalker/commit/9c3e31ad9a24ba19db3974fc6d8c5989f3cd46b1))
+
+
+### Bug Fixes
+
+* **modules:** resolve CI issues and improve test coverage ([9db640a](https://github.com/periphery-security/edgewalker/commit/9db640aadc20b6e9e2ff9ec52d4ed69334fa6dce))
+
 ## [0.1.6](https://github.com/periphery-security/edgewalker/compare/edgewalker-v0.1.5...edgewalker-v0.1.6) (2026-04-04)
 
 
