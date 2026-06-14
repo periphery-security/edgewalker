@@ -337,15 +337,12 @@ async def test_dashboard_screen_run_scans():
 @pytest.mark.asyncio
 async def test_dashboard_screen_go_home():
     app = EdgeWalkerApp()
-    # First Party
-    from edgewalker.tui.screens.home import HomeScreen
 
     with (
         patch("textual.widgets.Header", return_value=MagicMock()),
         patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
     ):
         async with app.run_test() as pilot:
-            # HomeScreen is already there by default
             screen = DashboardScreen()
             await app.push_screen(screen)
             await pilot.pause()
@@ -353,4 +350,7 @@ async def test_dashboard_screen_go_home():
             assert app.screen == screen
             await screen.action_go_home()
             await pilot.pause()
-            assert isinstance(app.screen, HomeScreen)
+            # The dashboard is the root surface; "home" is the overview, shown
+            # in place rather than navigating to a separate screen.
+            assert app.screen == screen
+            assert screen.query_one("#report-container").display is True

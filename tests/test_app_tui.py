@@ -10,7 +10,6 @@ from edgewalker.tui.app import EdgeWalkerApp, SettingsProvider, ThemeProvider
 from edgewalker.tui.modals.dialogs import TelemetryModal
 from edgewalker.tui.screens.config import ConfigScreen
 from edgewalker.tui.screens.dashboard import DashboardScreen
-from edgewalker.tui.screens.home import HomeScreen
 
 
 @pytest.mark.asyncio
@@ -37,7 +36,7 @@ async def test_app_mount_no_telemetry_prompt():
         with patch.object(app, "_check_previous_results") as mock_check:
             async with app.run_test() as pilot:
                 await pilot.pause()
-                assert isinstance(app.screen, HomeScreen)
+                assert isinstance(app.screen, DashboardScreen)
                 assert mock_check.called
 
 
@@ -160,8 +159,8 @@ async def test_app_telemetry_callback():
                 modal.dismiss(True)
                 await pilot.pause()
                 mock_set.assert_called_with(True)
-                # Should push HomeScreen
-                assert isinstance(app.screen, HomeScreen)
+                # Should push DashboardScreen
+                assert isinstance(app.screen, DashboardScreen)
 
 
 @pytest.mark.asyncio

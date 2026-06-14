@@ -339,19 +339,15 @@ class DashboardScreen(Screen):
             on_confirm()
 
     def action_quick_scan(self) -> None:
-        """Start a guided quick scan."""
-        if self.app.is_scanning:
-            return
-        self._from_topology = False
-        self.query_one("#topology-container").display = False
-
-        # First Party
-        from edgewalker.tui.screens.guided import GuidedAssessmentScreen  # noqa: PLC0415
-
-        self.app.push_screen(GuidedAssessmentScreen(full_scan=False))
+        """Open the scan wizard pre-set for a quick scan, run on this screen."""
+        self._open_scan_wizard(full_scan=False)
 
     def action_full_scan(self) -> None:
-        """Start a guided full scan."""
+        """Open the scan wizard pre-set for a full scan, run on this screen."""
+        self._open_scan_wizard(full_scan=True)
+
+    def _open_scan_wizard(self, full_scan: bool) -> None:
+        """Push the config wizard; it returns its config to _begin_assessment."""
         if self.app.is_scanning:
             return
         self._from_topology = False
@@ -360,7 +356,26 @@ class DashboardScreen(Screen):
         # First Party
         from edgewalker.tui.screens.guided import GuidedAssessmentScreen  # noqa: PLC0415
 
-        self.app.push_screen(GuidedAssessmentScreen(full_scan=True))
+        self.app.push_screen(GuidedAssessmentScreen(full_scan=full_scan), self._begin_assessment)
+
+    def _begin_assessment(self, config: dict | None) -> None:
+        """Run an assessment in place from wizard config (None = cancelled)."""
+        if not config:
+            return
+        self._auto_target = config["target"]
+        self._full_scan = config["full_scan"]
+        self._run_creds = config["run_creds"]
+        self._run_cves = config["run_cves"]
+        self._run_sql = config["run_sql"]
+        self._run_web = config["run_web"]
+        self._full_creds = config["full_creds"]
+        self._auto_run = True
+
+        def proceed() -> None:
+            self._auto_step = 1
+            self._next_guided_step()
+
+        self._check_security_warnings(proceed)
 
     @work(exclusive=True, group="scan")
     async def _run_guided_port_scan(self) -> None:
@@ -973,13 +988,12 @@ class DashboardScreen(Screen):
         self._do_go_home()
 
     def _do_go_home(self) -> None:
-        """Pop screens until HomeScreen is the active screen."""
-        # First Party
-        from edgewalker.tui.screens.home import HomeScreen  # noqa: PLC0415
+        """Return to the dashboard's home view (the overview).
 
-        # Pop screens until HomeScreen is the active screen
-        while len(self.app.screen_stack) > 0 and not isinstance(self.app.screen, HomeScreen):
-            self.app.pop_screen()
+        The dashboard is the root surface, so "home" is the at-a-glance
+        overview rather than a separate screen.
+        """
+        self.action_overview()
 
     def action_quit_app(self) -> None:
         """Exit the application."""

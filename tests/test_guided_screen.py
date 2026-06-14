@@ -7,7 +7,6 @@ from textual.widgets import Button, Input, RadioSet, Static
 
 # First Party
 from edgewalker.tui.app import EdgeWalkerApp
-from edgewalker.tui.screens.dashboard import DashboardScreen
 from edgewalker.tui.screens.guided import GuidedAssessmentScreen
 
 
@@ -46,14 +45,14 @@ async def test_guided_screen_flow():
             assert screen.step == 4
             assert "READY TO RUN" in str(title.content)
 
-            # Step 4 -> Dashboard
-            with patch.object(app, "push_screen") as mock_push:
+            # Step 4 -> dismiss with the collected config (dashboard runs it).
+            with patch.object(screen, "dismiss") as mock_dismiss:
                 btn_next.post_message(Button.Pressed(btn_next))
                 await pilot.pause()
-                assert mock_push.called
-                # Check if DashboardScreen was pushed
-                args, kwargs = mock_push.call_args
-                assert isinstance(args[0], DashboardScreen)
+                assert mock_dismiss.called
+                args, kwargs = mock_dismiss.call_args
+                assert args[0]["target"] == "192.168.1.0/24"
+                assert args[0]["full_scan"] is False
 
 
 @pytest.mark.asyncio

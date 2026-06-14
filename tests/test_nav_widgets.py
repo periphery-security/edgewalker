@@ -3,10 +3,10 @@ from unittest.mock import patch
 
 # Third Party
 import pytest
+from textual.screen import Screen
 
 # First Party
 from edgewalker.tui.app import EdgeWalkerApp
-from edgewalker.tui.screens.home import HomeScreen
 from edgewalker.tui.widgets.navigation import NavigationPanel, NavItem, StatusBadge, TelemetryStatus
 
 
@@ -35,7 +35,7 @@ async def test_telemetry_status():
     app = EdgeWalkerApp()
     async with app.run_test() as pilot:
         status = TelemetryStatus()
-        screen = HomeScreen()
+        screen = Screen()
         await app.push_screen(screen)
         await screen.mount(status)
         await pilot.pause()
@@ -69,7 +69,7 @@ async def test_navigation_panel_update():
     ):
         async with app.run_test() as pilot:
             panel = NavigationPanel()
-            screen = HomeScreen()
+            screen = Screen()
             await app.push_screen(screen)
             await screen.mount(panel)
             await pilot.pause()

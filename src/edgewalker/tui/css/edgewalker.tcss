@@ -4,19 +4,19 @@ Screen {
     background: $background;
 }
 
-HomeScreen, GuidedAssessmentScreen, ModalScreen {
+SplashScreen, GuidedAssessmentScreen, ModalScreen {
     align: center middle;
 }
 
-/* ── Home Screen ── */
+/* ── Splash Screen ── */
 
-#home-container {
+#splash-container {
     width: 80;
     height: auto;
     align: center middle;
 }
 
-#home-logo {
+#splash-logo {
     height: auto;
     max-height: 12;
     width: 100%;
@@ -24,11 +24,51 @@ HomeScreen, GuidedAssessmentScreen, ModalScreen {
     background: transparent;
 }
 
-#home-tagline {
+#splash-tagline {
     width: 100%;
     text-align: center;
     color: $accent;
     text-style: italic;
+    margin-bottom: 1;
+}
+
+#splash-spinner {
+    width: 100%;
+    text-align: center;
+    margin-top: 1;
+}
+
+/* ── About Modal ── */
+
+#about-container {
+    width: 72;
+}
+
+#about-logo {
+    width: 100%;
+    content-align: center middle;
+    height: auto;
+    max-height: 10;
+}
+
+#about-tagline {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#about-blurb {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#about-meta {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#about-close {
+    margin-top: 1;
 }
 
 #home-desc {

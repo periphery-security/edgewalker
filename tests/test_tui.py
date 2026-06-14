@@ -7,29 +7,28 @@ import pytest
 # First Party
 from edgewalker.tui.app import EdgeWalkerApp
 from edgewalker.tui.screens.dashboard import DashboardScreen
-from edgewalker.tui.screens.home import HomeScreen
 
 
 @pytest.mark.asyncio
 @patch("edgewalker.core.telemetry.TelemetryManager.has_seen_telemetry_prompt", return_value=True)
 async def test_app_startup(mock_telemetry_enabled):
-    """Test that the app starts and shows the home screen."""
+    """Test that the app starts and shows the dashboard."""
     app = EdgeWalkerApp()
     with patch("edgewalker.tui.app.check_nmap_permissions", return_value=True):
         async with app.run_test() as pilot:
-            assert isinstance(app.screen, HomeScreen)
+            assert isinstance(app.screen, DashboardScreen)
 
 
 @pytest.mark.asyncio
 @patch("edgewalker.core.telemetry.TelemetryManager.has_seen_telemetry_prompt", return_value=True)
 async def test_home_screen_scan_button(mock_telemetry_enabled):
-    """Test clicking scan button on home screen."""
+    """Test the dashboard quick-scan opens the config wizard."""
     app = EdgeWalkerApp()
     with patch("edgewalker.tui.app.check_nmap_permissions", return_value=True):
         async with app.run_test() as pilot:
             await pilot.pause()
-            # Click scan button
-            await pilot.click("#btn-scan")
+            # Trigger quick scan from the dashboard
+            await pilot.press("3")
             await pilot.pause()
             # Should show GuidedAssessmentScreen
             # First Party

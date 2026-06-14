@@ -15,7 +15,6 @@ from textual.widgets import Button, Checkbox, Footer, Header, Input, RadioButton
 # First Party
 from edgewalker import theme
 from edgewalker.modules import port_scan
-from edgewalker.tui.screens.dashboard import DashboardScreen
 
 
 class GuidedAssessmentScreen(Screen):
@@ -201,19 +200,8 @@ class GuidedAssessmentScreen(Screen):
                 self._start_assessment()
 
     def _start_assessment(self) -> None:
-        """Transition to the dashboard and start the scan."""
-        self.app.push_screen(
-            DashboardScreen(
-                full_scan=self.config["full_scan"],
-                auto_target=self.config["target"],
-                run_creds=self.config["run_creds"],
-                run_cves=self.config["run_cves"],
-                run_sql=self.config["run_sql"],
-                run_web=self.config["run_web"],
-                auto_run=True,
-                full_creds=self.config["full_creds"],
-            )
-        )
+        """Return the collected config to the dashboard, which runs the scan."""
+        self.dismiss(self.config)
 
     def action_quit_app(self) -> None:
         """Exit the application."""
