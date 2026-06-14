@@ -251,6 +251,57 @@ async def test_dashboard_overview_empty_state(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_dashboard_run_all_without_target(tmp_path):
+    """action_run_all warns when there is no prior scan to repeat."""
+    app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
+
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            with patch.object(screen, "notify") as mock_notify:
+                screen.action_run_all()
+                assert mock_notify.called
+                assert screen._auto_run is False
+
+
+@pytest.mark.asyncio
+async def test_dashboard_run_all_reuses_saved_target(tmp_path):
+    """action_run_all reuses the saved target and enables every module."""
+    app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
+    (tmp_path / "port_scan.json").write_text(
+        json.dumps({"target": "10.0.0.0/24", "hosts": [], "summary": {}})
+    )
+
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            with patch.object(screen, "_check_security_warnings") as mock_check:
+                screen.action_run_all()
+
+            assert screen._auto_target == "10.0.0.0/24"
+            assert screen._run_creds is True
+            assert screen._run_cves is True
+            assert screen._run_sql is True
+            assert screen._run_web is True
+            assert screen._auto_run is True
+            assert mock_check.called
+
+
+@pytest.mark.asyncio
 async def test_dashboard_view_switching(tmp_path):
     """The o/d/f/l actions drive the ContentSwitcher and the sidebar cursor."""
     app = EdgeWalkerApp()

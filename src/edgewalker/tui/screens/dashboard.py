@@ -47,6 +47,7 @@ class DashboardScreen(Screen):
         # SCAN group.
         Binding("s", "quick_scan", "Quick Scan", show=True),
         Binding("S", "full_scan", "Full Scan", show=True),
+        Binding("r", "run_all", "Re-run All", show=True),
         # VIEW group.
         Binding("o", "overview", "Overview", show=True),
         Binding("d", "devices", "Devices", show=True),
@@ -368,6 +369,38 @@ class DashboardScreen(Screen):
     def action_full_scan(self) -> None:
         """Open the scan wizard pre-set for a full scan, run on this screen."""
         self._open_scan_wizard(full_scan=True)
+
+    def action_run_all(self) -> None:
+        """Re-run a full assessment against the most recent target.
+
+        Reuses the last scanned target (from the prior run or the saved port
+        scan) and enables every module, so it is a one-key "do it all again".
+        """
+        if self.app.is_scanning:
+            return
+
+        target = self._auto_target
+        if not target:
+            port_file = settings.output_dir / "port_scan.json"
+            if port_file.exists():
+                with open(port_file) as f:
+                    target = json.load(f).get("target", "")
+        if not target:
+            self.notify("No previous scan to re-run. Press s to start one.", severity="warning")
+            return
+
+        self._auto_target = target
+        self._run_creds = True
+        self._run_cves = True
+        self._run_sql = True
+        self._run_web = True
+        self._auto_run = True
+
+        def proceed() -> None:
+            self._auto_step = 1
+            self._next_guided_step()
+
+        self._check_security_warnings(proceed)
 
     def _open_scan_wizard(self, full_scan: bool) -> None:
         """Push the config wizard; it returns its config to _begin_assessment."""
