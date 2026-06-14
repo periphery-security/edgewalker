@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en" class="pf-dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EdgeWalker — TUI Redesign &amp; CLI-First Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400;75..125,600;75..125,700;75..125,800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Brand */
+    --violet:#5A00FF; --deep:#28006E; --peri:#8F88FF; --cyan:#00FFFF;
+    --red:#DC0000; --wine:#640A3C; --amber:#FFB900; --green:#00C48C;
+    /* Page (dark) */
+    --bg:#0A001A; --surface:#15082E; --surface2:#1d0d3d; --border:#402C70;
+    --head:#F0F0FF; --body:#C0B8FF; --muted:#7d72b0;
+    /* Terminal palette (mirrors periphery.yaml skin) */
+    --t-bg:#0f0f1a; --t-surface:#1a1a2e; --t-panel:#16213e; --t-boost:#1e1e3a;
+    --t-fg:#c0c0c0; --t-muted:#6a6a85; --t-accent:#00FFFF; --t-primary:#7a4dff;
+    --t-success:#00ff7a; --t-warn:#ffb800; --t-err:#ff4d4d;
+    --grade-a:#00ff7a; --grade-b:#9be000; --grade-c:#ffb800; --grade-d:#ff8c00; --grade-f:#ff3b3b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(90,0,255,.22), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(143,136,255,.12), transparent 55%),
+      var(--bg);
+    color:var(--body);
+    font-family:"Archivo",Arial,sans-serif;
+    font-variation-settings:"wght" 400,"wdth" 100;
+    line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:56px 28px 96px}
+  h1,h2,h3,.kicker{font-variation-settings:"wght" 800,"wdth" 78;text-transform:uppercase;letter-spacing:-.02em;color:var(--head);line-height:1.02;margin:0}
+  h1{font-size:3.2rem}
+  h2{font-size:1.9rem;margin:0 0 6px}
+  h3{font-size:1.15rem;font-variation-settings:"wght" 700,"wdth" 85}
+  .kicker{font-size:.72rem;letter-spacing:.22em;color:var(--cyan);font-variation-settings:"wght" 700,"wdth" 100;text-transform:uppercase}
+  p{margin:0 0 14px;max-width:72ch}
+  a{color:var(--peri)}
+  .lede{font-size:1.12rem;color:var(--body);max-width:80ch}
+  .muted{color:var(--muted)}
+  code{font-family:"JetBrains Mono",monospace;background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:.08em .4em;font-size:.86em;color:var(--peri)}
+
+  /* Hero card with brand corner brackets */
+  .hero{position:relative;background:linear-gradient(180deg,#0c0020,#13002e);border:1px solid var(--border);border-radius:4px;padding:46px 44px;margin:22px 0 40px;overflow:hidden}
+  .hero .corner{position:absolute;width:34px;height:34px;fill:var(--violet)}
+  .hero .corner.tl{top:0;left:0}
+  .hero .corner.br{bottom:0;right:0;transform:rotate(180deg)}
+  .hero .tag{display:inline-block;margin-top:14px;font-family:"JetBrains Mono",monospace;font-size:.8rem;color:var(--cyan);border:1px solid var(--border);border-radius:3px;padding:4px 10px}
+
+  section{margin:54px 0}
+  .rule{height:1px;background:linear-gradient(90deg,var(--violet),transparent);border:0;margin:0 0 22px}
+
+  /* Verdict cards */
+  .grid{display:grid;gap:16px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:1.1fr .9fr}
+  @media(max-width:860px){.g3,.g2{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:18px 20px}
+  .card.good{border-left:3px solid var(--green)}
+  .card.warn{border-left:3px solid var(--amber)}
+  .card.no{border-left:3px solid var(--red)}
+  .card h3{margin-bottom:6px}
+  .verdict-flag{font-family:"JetBrains Mono",monospace;font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:3px;display:inline-block;margin-bottom:8px}
+  .vf-yes{background:rgba(0,196,140,.14);color:var(--green);border:1px solid rgba(0,196,140,.4)}
+  .vf-maybe{background:rgba(255,185,0,.12);color:var(--amber);border:1px solid rgba(255,185,0,.4)}
+  .vf-no{background:rgba(220,0,0,.12);color:#ff6b6b;border:1px solid rgba(220,0,0,.4)}
+  .card p{font-size:.92rem;margin:0}
+
+  /* Architecture diagram */
+  .arch{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:26px;font-family:"JetBrains Mono",monospace;font-size:.82rem;color:var(--body);overflow-x:auto}
+  .arch .layer{display:flex;align-items:center;gap:14px;margin:0 0 10px}
+  .arch .box{border:1px solid var(--border);border-radius:3px;padding:8px 14px;background:var(--surface2);white-space:nowrap}
+  .arch .box.adapter{border-color:var(--peri);color:var(--peri)}
+  .arch .box.core{border-color:var(--violet);color:#cdb8ff;background:rgba(90,0,255,.14)}
+  .arch .box.contract{border-color:var(--cyan);color:var(--cyan)}
+  .arch .lbl{width:120px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:.66rem}
+  .arch .arrow{color:var(--muted)}
+  .arch .col{display:flex;flex-direction:column;gap:8px}
+
+  /* ── Terminal mock ── */
+  .term-frame{margin:18px 0 8px;border-radius:8px;overflow:hidden;border:1px solid #2a2a44;box-shadow:0 1px 3px rgba(0,0,0,.5),0 24px 60px -30px rgba(90,0,255,.5)}
+  .term-bar{background:#11111c;display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid #2a2a44}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .dot.r{background:#ff5f56}.dot.y{background:#ffbd2e}.dot.g{background:#27c93f}
+  .term-bar .ttl{margin-left:10px;font-family:"JetBrains Mono",monospace;font-size:.74rem;color:#8a8aa5}
+  .term{background:var(--t-bg);font-family:"JetBrains Mono",monospace;font-size:12.5px;line-height:1.5;color:var(--t-fg);padding:0}
+  .term .topbar{display:flex;justify-content:space-between;align-items:center;background:var(--t-surface);color:var(--t-accent);font-weight:700;padding:6px 12px;border-bottom:1px solid #2a2a44}
+  .term .topbar .r{color:var(--t-muted);font-weight:400}
+  .term .topbar .r b{color:var(--t-success);font-weight:700}
+  .term-body{display:grid;grid-template-columns:210px 1fr;min-height:430px}
+  .sidebar{background:var(--t-surface);border-right:1px solid #2a2a44;padding:12px 12px}
+  .main{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+  .sb-title{color:var(--t-accent);font-weight:700;letter-spacing:.12em;font-size:10.5px;margin:0 0 8px}
+  .sb-sub{color:var(--t-primary);font-weight:700;letter-spacing:.1em;font-size:10px;margin:14px 0 6px;border-top:1px solid #2a2a44;padding-top:10px}
+  .mod{display:flex;align-items:center;gap:7px;padding:2px 0;color:var(--t-fg)}
+  .mod .ico{font-size:11px}
+  .mod .det{margin-left:auto;font-size:10.5px}
+  .on{color:var(--t-success)} .off{color:var(--t-muted)} .crit{color:var(--t-err)} .warnc{color:var(--t-warn)}
+  .key{color:var(--t-accent);font-weight:700}
+  .navline{padding:1px 0;color:var(--t-fg)}
+  .navline.sel{background:rgba(122,77,255,.28);border-left:2px solid var(--t-accent);padding-left:5px;margin-left:-7px}
+
+  .cards-row{display:grid;grid-template-columns:1fr 1.25fr;gap:12px}
+  .panel{border:1px solid #2a2a44;border-radius:4px;background:var(--t-panel);padding:9px 12px}
+  .panel .pt{color:var(--t-accent);font-weight:700;letter-spacing:.1em;font-size:10px;margin:0 0 8px;text-transform:uppercase}
+  .grade-wrap{display:flex;align-items:center;gap:14px}
+  .grade{font-size:46px;font-weight:700;line-height:1}
+  .gC{color:var(--grade-c)} .gF{color:var(--grade-f)} .gB{color:var(--grade-b)} .gD{color:var(--grade-d)} .gA{color:var(--grade-a)}
+  .gbar{height:9px;border-radius:2px;background:#2a2a44;overflow:hidden;margin:5px 0}
+  .gbar > i{display:block;height:100%}
+  .kv{display:flex;justify-content:space-between;color:var(--t-fg);padding:1px 0}
+  .kv span:first-child{color:var(--t-muted)}
+  .kv b{color:var(--t-fg);font-weight:500}
+
+  .finding{display:flex;align-items:center;gap:9px;padding:2.5px 0}
+  .sev{font-family:"JetBrains Mono",monospace;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:2px;letter-spacing:.04em;min-width:62px;text-align:center}
+  .s-crit{background:rgba(255,77,77,.16);color:var(--t-err);border:1px solid rgba(255,77,77,.5)}
+  .s-high{background:rgba(255,140,0,.14);color:#ff9a3c;border:1px solid rgba(255,140,0,.5)}
+  .s-med{background:rgba(255,184,0,.12);color:var(--t-warn);border:1px solid rgba(255,184,0,.45)}
+  .s-low{background:rgba(0,196,140,.1);color:var(--t-success);border:1px solid rgba(0,196,140,.4)}
+  .finding .txt{color:var(--t-fg)}
+  .finding .txt .dim{color:var(--t-muted)}
+
+  table.dev{width:100%;border-collapse:collapse;font-size:11.5px}
+  table.dev th{text-align:left;color:var(--t-muted);font-weight:500;border-bottom:1px solid #2a2a44;padding:3px 6px;letter-spacing:.04em}
+  table.dev td{padding:3px 6px;color:var(--t-fg);border-bottom:1px solid #1f1f33}
+  table.dev tr:last-child td{border-bottom:0}
+  .pill{font-weight:700;padding:0 6px;border-radius:2px;font-size:10.5px}
+
+  .footer-bar{background:var(--t-surface);border-top:1px solid #2a2a44;padding:5px 14px;color:var(--t-muted);display:flex;gap:18px;flex-wrap:wrap}
+  .footer-bar b{color:var(--t-accent)}
+
+  /* live log view */
+  .logview{background:var(--t-bg);padding:14px 18px;min-height:430px;font-size:12.5px}
+  .logview .ph{color:var(--t-accent);font-weight:700;margin:10px 0 4px}
+  .logview .ln{padding:1px 0}
+  .logview .ln .ok{color:var(--t-success)}
+  .logview .ln .pt{color:var(--t-warn)}
+  .logview .ln .mut{color:var(--t-muted)}
+  .logview .ln .al{color:var(--t-err);font-weight:700}
+  .spinner{color:var(--t-accent)}
+  .progress{height:8px;background:#2a2a44;border-radius:2px;overflow:hidden;width:280px;margin:6px 0}
+  .progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--t-primary),var(--t-accent))}
+
+  .caption{font-family:"JetBrains Mono",monospace;font-size:.76rem;color:var(--muted);margin:6px 2px 0}
+  .anno{display:grid;grid-template-columns:repeat(2,1fr);gap:12px 26px;margin-top:18px}
+  @media(max-width:760px){.anno{grid-template-columns:1fr}}
+  .anno .a{padding-left:14px;border-left:2px solid var(--violet)}
+  .anno .a b{color:var(--head);font-variation-settings:"wght" 700,"wdth" 90;text-transform:uppercase;letter-spacing:.02em;font-size:.82rem;display:block}
+  .anno .a span{font-size:.9rem}
+  .tabs{display:flex;gap:6px;margin:0 0 -1px}
+  .tab{font-family:"JetBrains Mono",monospace;font-size:11px;padding:5px 12px;border:1px solid #2a2a44;border-bottom:0;border-radius:4px 4px 0 0;background:var(--t-surface);color:var(--t-muted)}
+  .tab.active{background:var(--t-panel);color:var(--t-accent);font-weight:700}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-family:"JetBrains Mono",monospace;font-size:.74rem;color:var(--muted);margin-top:10px}
+  .legend i{font-style:normal}
+  ul.tight{margin:0 0 14px;padding-left:20px}
+  ul.tight li{margin:4px 0;max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ───────────────────────── HERO ───────────────────────── -->
+  <div class="hero">
+    <svg class="corner tl" viewBox="0 0 100 100" aria-hidden="true"><polygon points="0,0 100,0 100,28 28,28 28,100 0,100"/></svg>
+    <svg class="corner br" viewBox="0 0 100 100" aria-hidden="true"><polygon points="0,0 100,0 100,28 28,28 28,100 0,100"/></svg>
+    <div class="kicker">EdgeWalker · Design Proposal</div>
+    <h1>TUI Redesign<br>&amp; CLI-First Architecture</h1>
+    <p class="lede" style="margin-top:14px">A professional terminal-dashboard redesign of EdgeWalker, plus an honest review of the
+    “CLI-first, TUI calls the CLI” proposal — what's right about the instinct, and the one part worth changing.</p>
+    <span class="tag">mockup · not yet implemented · for review</span>
+  </div>
+
+  <!-- ───────────────────────── ARCHITECTURE VERDICT ───────────────────────── -->
+  <section>
+    <div class="kicker">Part 1 — The Architecture Question</div>
+    <h2>Is “CLI-first, TUI calls the CLI” a good model?</h2>
+    <hr class="rule">
+    <p class="lede" style="margin-bottom:22px">Short answer: <b style="color:var(--head)">the instinct is right, one mechanism is wrong.</b>
+    Adopt CLI-first as a <i>contract</i>. Don't make the TUI shell out to the CLI <i>binary</i>.</p>
+
+    <div class="grid g3">
+      <div class="card good">
+        <span class="verdict-flag vf-yes">Keep — Good idea</span>
+        <h3>CLI-first as a principle</h3>
+        <p>Every capability headless, scriptable, and testable first. The TUI adds <em>presentation only</em>, never logic. This is the lazygit / k9s philosophy and it's the right north star.</p>
+      </div>
+      <div class="card good">
+        <span class="verdict-flag vf-yes">Keep — Good idea</span>
+        <h3>“Two products, one package”</h3>
+        <p>That's already the shape: a UI-agnostic <code>ScannerService</code> with two front-ends. Lean into it — give both equal feature parity and ship them as peers.</p>
+      </div>
+      <div class="card no">
+        <span class="verdict-flag vf-no">Change — Don't do this</span>
+        <h3>TUI spawning the CLI binary</h3>
+        <p>Shelling out to <code>edgewalker scan</code> as a subprocess throws away the live typed progress stream, async cancellation, and the sudo/permission flow — and adds a JSON-parsing protocol you'd have to maintain.</p>
+      </div>
+    </div>
+
+    <h3 style="margin:34px 0 4px">Why not subprocess the CLI? (the honest trade-off)</h3>
+    <p>The appeal of “TUI calls CLI” is guaranteed parity — they can't drift if one literally drives the other. But in <em>this</em> codebase the cost is real:</p>
+    <ul class="tight">
+      <li><b style="color:var(--head)">Live progress is in-process today.</b> The TUI renders <code>host_found</code> / <code>port_found</code> / <code>cred_found</code> events as they happen via a typed <code>progress_callback</code>. A subprocess can only emit text — you'd have to invent and parse an NDJSON event protocol on stdout.</li>
+      <li><b style="color:var(--head)">Cancellation &amp; privilege flows.</b> The TUI awaits a coroutine it can cancel, and can <code>suspend()</code> to forward a sudo prompt for nmap. Killing/signalling a child process and proxying its sudo prompt is far messier.</li>
+      <li><b style="color:var(--head)">Cost &amp; fragility.</b> Spawning a fresh Python interpreter (textual, typer, pydantic, impacket…) per command is slow, and you'd serialize models → JSON → models on every call.</li>
+    </ul>
+
+    <div class="g2 grid" style="margin-top:24px;align-items:start">
+      <div>
+        <h3 style="margin-bottom:10px">Recommended: CLI-first <i>by contract</i></h3>
+        <p>Introduce one thin <b style="color:var(--head)">use-case layer</b> (e.g. <code>engine.run_assessment(opts)</code>) that the Typer CLI maps to <em>1:1</em>. The TUI calls the same use-case functions in-process. Parity is guaranteed by construction because both adapters call the identical entry point — no subprocess required.</p>
+        <p class="muted" style="font-size:.92rem">Concretely, this means moving the duplicated <code>security-warning / override gating</code> (currently in <code>cli.py</code> <em>and</em> <code>dashboard.py</code>) down into that shared layer, and letting the CLI's <code>ScanController</code> + the TUI screens become pure rendering.</p>
+      </div>
+      <div class="arch">
+        <div class="layer"><span class="lbl">Front-ends</span>
+          <div class="box adapter">Typer CLI</div><span class="arrow">│</span>
+          <div class="box adapter">Textual TUI</div>
+        </div>
+        <div class="layer"><span class="lbl"></span><span class="arrow" style="padding-left:40px">└──────┬───────┘</span></div>
+        <div class="layer"><span class="lbl">Contract</span>
+          <div class="box contract">engine.run_*(opts) &nbsp;— single source of truth</div>
+        </div>
+        <div class="layer"><span class="lbl"></span><span class="arrow" style="padding-left:60px">│</span></div>
+        <div class="layer"><span class="lbl">Core</span>
+          <div class="box core">ScannerService · models · typed events</div>
+        </div>
+        <div class="layer"><span class="lbl">Modules</span>
+          <div class="box">port · creds · cve · sql · web</div>
+        </div>
+        <p class="muted" style="margin:14px 0 0;font-size:.7rem">Both front-ends are thin. Neither imports the other. Parity is structural.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── TUI REDESIGN ───────────────────────── -->
+  <section>
+    <div class="kicker">Part 2 — The Visual Redesign</div>
+    <h2>From single-log wizard → persistent dashboard</h2>
+    <hr class="rule">
+    <p class="lede">Today the main area is one <code>RichLog</code> that swaps between log / report / topology. The redesign adopts the
+    <b style="color:var(--head)">persistent multi-panel</b> paradigm (lazygit / k9s / btop): the risk grade, network summary, top findings, and
+    device table are all visible at once, with the sidebar as a stable spatial anchor.</p>
+
+    <div class="tabs">
+      <span class="tab active">overview</span>
+      <span class="tab">live scan</span>
+    </div>
+
+    <!-- MOCK 1 : DASHBOARD OVERVIEW -->
+    <div class="term-frame">
+      <div class="term-bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="ttl">edgewalker tui — 120×34</span>
+      </div>
+      <div class="term">
+        <div class="topbar">
+          <span>◢ EDGEWALKER · IoT Security Scanner</span>
+          <span class="r">192.168.1.0/24 &nbsp;·&nbsp; <b>● Telemetry: Ready</b> &nbsp;·&nbsp; v2.0</span>
+        </div>
+        <div class="term-body">
+          <!-- sidebar -->
+          <div class="sidebar">
+            <div class="sb-title">SCAN STATUS</div>
+            <div class="mod"><span class="ico on">●</span> Network <span class="det off">quick</span></div>
+            <div class="mod"><span class="ico crit">●</span> Passwords <span class="det crit">2 vuln</span></div>
+            <div class="mod"><span class="ico warnc">●</span> Vulns <span class="det warnc">3 CVE</span></div>
+            <div class="mod"><span class="ico off">○</span> SQL Audit <span class="det off">—</span></div>
+            <div class="mod"><span class="ico off">○</span> Web Audit <span class="det off">—</span></div>
+
+            <div class="sb-sub">SCAN</div>
+            <div class="navline"><span class="key">s</span> &nbsp;Quick scan</div>
+            <div class="navline"><span class="key">S</span> &nbsp;Full scan</div>
+            <div class="navline"><span class="key">r</span> &nbsp;Re-run all</div>
+
+            <div class="sb-sub">VIEW</div>
+            <div class="navline sel"><span class="key">o</span> &nbsp;Overview</div>
+            <div class="navline"><span class="key">d</span> &nbsp;Devices</div>
+            <div class="navline"><span class="key">f</span> &nbsp;Findings</div>
+            <div class="navline"><span class="key">l</span> &nbsp;Live log</div>
+          </div>
+
+          <!-- main -->
+          <div class="main">
+            <div class="cards-row">
+              <div class="panel">
+                <div class="pt">Security Grade</div>
+                <div class="grade-wrap">
+                  <div class="grade gC">C</div>
+                  <div style="flex:1">
+                    <div class="gbar"><i style="width:62%;background:var(--grade-c)"></i></div>
+                    <div class="kv"><span>score</span><b>62 / 100</b></div>
+                    <div style="color:var(--t-warn);font-size:10.5px;margin-top:2px">⚠ Needs attention</div>
+                  </div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="pt">Network</div>
+                <div class="kv"><span>Target</span><b>192.168.1.0/24</b></div>
+                <div class="kv"><span>Devices found</span><b>8</b></div>
+                <div class="kv"><span>Open ports</span><b>17</b></div>
+                <div class="kv"><span>Gateway</span><b>192.168.1.1</b></div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="pt">Top Findings</div>
+              <div class="finding"><span class="sev s-crit">CRITICAL</span><span class="txt">Default credentials on <b>192.168.1.42</b> <span class="dim">(admin / admin · SSH)</span></span></div>
+              <div class="finding"><span class="sev s-high">HIGH</span><span class="txt">CVE-2023-38408 <span class="dim">· OpenSSH 7.4 · 192.168.1.10</span></span></div>
+              <div class="finding"><span class="sev s-med">MEDIUM</span><span class="txt">Telnet exposed <span class="dim">· 192.168.1.55:23 · cleartext</span></span></div>
+              <div class="finding"><span class="sev s-low">LOW</span><span class="txt">Missing security headers <span class="dim">· 192.168.1.50:80</span></span></div>
+            </div>
+
+            <div class="panel">
+              <div class="pt">Devices</div>
+              <table class="dev">
+                <tr><th>HOST</th><th>VENDOR</th><th>PORTS</th><th>TOP SERVICE</th><th style="text-align:right">RISK</th></tr>
+                <tr><td>192.168.1.1</td><td>Netgear</td><td>3</td><td>https</td><td style="text-align:right"><span class="pill" style="color:var(--grade-b)">B · 78</span></td></tr>
+                <tr><td>192.168.1.42</td><td>Hikvision</td><td>5</td><td>ssh</td><td style="text-align:right"><span class="pill" style="color:var(--grade-f)">F · 21</span></td></tr>
+                <tr><td>192.168.1.10</td><td>Raspberry Pi</td><td>4</td><td>ssh</td><td style="text-align:right"><span class="pill" style="color:var(--grade-d)">D · 44</span></td></tr>
+                <tr><td>192.168.1.55</td><td>TP-Link</td><td>2</td><td>telnet</td><td style="text-align:right"><span class="pill" style="color:var(--grade-c)">C · 60</span></td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="footer-bar">
+          <span><b>↑↓</b> move</span><span><b>Enter</b> drill-in</span><span><b>Tab</b> focus</span>
+          <span><b>s</b>can</span><span><b>/</b> search</span><span><b>?</b> help</span><span><b>q</b>uit</span>
+        </div>
+      </div>
+    </div>
+    <p class="caption">MOCK 1 — Overview. Everything load-bearing is visible at a glance; the grade is the hero metric.</p>
+
+    <!-- MOCK 2 : LIVE SCAN -->
+    <div class="term-frame" style="margin-top:38px">
+      <div class="term-bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="ttl">edgewalker tui — scanning</span>
+      </div>
+      <div class="term">
+        <div class="topbar">
+          <span>◢ EDGEWALKER · Quick Assessment</span>
+          <span class="r">192.168.1.0/24 &nbsp;·&nbsp; <b style="color:var(--t-accent)">⠹ scanning…</b> &nbsp;·&nbsp; step 2 / 4</span>
+        </div>
+        <div class="term-body">
+          <div class="sidebar">
+            <div class="sb-title">SCAN STATUS</div>
+            <div class="mod"><span class="ico on">●</span> Network <span class="det on">done</span></div>
+            <div class="mod"><span class="ico warnc">◐</span> Passwords <span class="det warnc">running</span></div>
+            <div class="mod"><span class="ico off">○</span> Vulns <span class="det off">queued</span></div>
+            <div class="mod"><span class="ico off">○</span> SQL Audit <span class="det off">queued</span></div>
+            <div class="mod"><span class="ico off">○</span> Web Audit <span class="det off">queued</span></div>
+            <div class="sb-sub">PROGRESS</div>
+            <div style="color:var(--t-muted);font-size:10.5px">Step 2 of 4</div>
+            <div class="progress"><i style="width:50%"></i></div>
+            <div style="color:var(--t-muted);font-size:10.5px">Testing credentials…</div>
+            <div class="sb-sub">CONTROL</div>
+            <div class="navline"><span class="key">esc</span> &nbsp;Cancel scan</div>
+          </div>
+          <div class="logview">
+            <div class="ph">━━ STEP 1 / 4 · NETWORK DISCOVERY</div>
+            <div class="ln"><span class="ok">[+]</span> Found host: 192.168.1.1 <span class="mut">(Netgear)</span></div>
+            <div class="ln"><span class="ok">[+]</span> Found host: 192.168.1.42 <span class="mut">(Hikvision)</span></div>
+            <div class="ln"><span class="mut">&nbsp;&nbsp;&nbsp;&nbsp;↳</span> <span class="pt">Open port: 22/tcp ssh</span> <span class="mut">· 192.168.1.42</span></div>
+            <div class="ln"><span class="mut">&nbsp;&nbsp;&nbsp;&nbsp;↳</span> <span class="pt">Open port: 80/tcp http</span> <span class="mut">· 192.168.1.42</span></div>
+            <div class="ln"><span class="ok">[+]</span> 8 hosts · 17 open ports</div>
+            <div class="ph" style="margin-top:14px">━━ STEP 2 / 4 · CREDENTIAL CHECK <span class="spinner">⠹</span></div>
+            <div class="ln"><span class="mut">[*]</span> SSH 192.168.1.42 — testing top 10 default credentials</div>
+            <div class="ln"><span class="mut">&nbsp;&nbsp;&nbsp;&nbsp;↳ root:toor … admin:admin …</span></div>
+            <div class="ln"><span class="al">[!] VULNERABLE: 192.168.1.42 — admin / admin (SSH)</span></div>
+            <div class="progress" style="width:360px;margin-top:10px"><i style="width:50%"></i></div>
+            <div class="ln mut">testing service 2 of 4 · press <span class="key">esc</span> to cancel</div>
+          </div>
+        </div>
+        <div class="footer-bar">
+          <span><b>esc</b> cancel</span><span><b>l</b> live log</span><span><b>?</b> help</span><span><b>q</b>uit</span>
+          <span style="margin-left:auto;color:var(--t-success)">● results stream in real time</span>
+        </div>
+      </div>
+    </div>
+    <p class="caption">MOCK 2 — Live scan. The typed progress stream (kept in-process) drives the log + sidebar state machine.</p>
+
+    <div class="legend">
+      <i><span style="color:var(--grade-a)">A</span> <span style="color:var(--grade-b)">B</span> <span style="color:var(--grade-c)">C</span> <span style="color:var(--grade-d)">D</span> <span style="color:var(--grade-f)">F</span> — risk gradient</i>
+      <i><span style="color:var(--t-err)">CRITICAL</span> / <span style="color:#ff9a3c">HIGH</span> / <span style="color:var(--t-warn)">MED</span> / <span style="color:var(--t-success)">LOW</span> — severity, never colour-only (label + colour)</i>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── DESIGN DECISIONS ───────────────────────── -->
+  <section>
+    <div class="kicker">What changed &amp; why</div>
+    <h2>Design decisions</h2>
+    <hr class="rule">
+    <div class="anno">
+      <div class="a"><b>Persistent multi-panel</b><span>Grade, network, findings, and devices are simultaneously visible. Builds spatial memory instead of hiding data behind view toggles.</span></div>
+      <div class="a"><b>Grade as hero</b><span>The A–F score is the product's whole value prop — it now gets a dedicated gauge with score bar, not a buried line of text.</span></div>
+      <div class="a"><b>Mnemonic keys, not arbitrary numbers</b><span><code>s</code>can, <code>d</code>evices, <code>f</code>indings replace <code>[1]…[6]</code>. Plus <code>↑↓ / Tab / / / ?</code> — the TUI lingua franca.</span></div>
+      <div class="a"><b>Context footer + <code>?</code> overlay</b><span>Footer shows only what's actionable now; full keymap behind <code>?</code>. Three-tier progressive disclosure.</span></div>
+      <div class="a"><b>Severity = label + colour</b><span>Never colour alone. Each finding carries a text chip, so it survives <code>NO_COLOR</code> and colour-blind use (brand ships an Okabe-Ito skin already).</span></div>
+      <div class="a"><b>Quieter chrome</b><span>Dropped the <code>blink</code> “press ENTER” prompt and ASCII <code>------</code> dividers for hairline borders and background layering — depth without noise.</span></div>
+      <div class="a"><b>Brand-aligned palette</b><span>Electric Violet primary, Cyan strictly for accents/active state, Signal-Red reserved for critical. Mirrors the existing <code>periphery</code> skin.</span></div>
+      <div class="a"><b>Resilient at 80×24</b><span>Sidebar collapses to icons first; panels stack below breakpoint. Constraint-based, never absolute positioning.</span></div>
+    </div>
+  </section>
+
+  <p class="muted" style="font-size:.82rem;border-top:1px solid var(--border);padding-top:18px;margin-top:50px">
+    Mockup only — no application code changed. Open this file in a browser to review.
+    Built against the <code>tui-design</code> system &amp; Periphery brand guidelines.
+  </p>
+
+</div>
+</body>
+</html>
