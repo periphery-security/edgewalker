@@ -34,6 +34,7 @@ from edgewalker.core.config import (
     settings,
     update_setting,
 )
+from edgewalker.core.engine import AssessmentOptions, Engine
 from edgewalker.core.logger_config import setup_logging
 from edgewalker.tui.app import EdgeWalkerApp
 from edgewalker.utils import (
@@ -198,11 +199,22 @@ def run_guided_scan(
     """
     print_logo()
 
-    # Check for security warnings and overrides
-    security_warnings = settings.get_security_warnings()
-    overrides = get_active_overrides()
+    # Check for security warnings and overrides via the shared engine preflight,
+    # so the CLI and TUI gate on identical logic.
+    preflight = Engine.preflight(
+        AssessmentOptions(
+            full_scan=full,
+            full_creds=full_creds,
+            target=target,
+            unprivileged=unprivileged,
+            verbose=verbose,
+            allow_override=allow_override,
+        )
+    )
+    security_warnings = preflight.warnings
+    overrides = preflight.overrides
 
-    if (security_warnings or overrides) and not allow_override:
+    if preflight.has_blockers:
         if security_warnings and not settings.suppress_warnings:
             console.print(
                 f"\n[bold {theme.RISK_CRITICAL}]SECURITY WARNING: "

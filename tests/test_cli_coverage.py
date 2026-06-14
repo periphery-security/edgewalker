@@ -56,7 +56,7 @@ def test_run_guided_scan_with_warnings_confirm_yes():
     """Test run guided scan with warnings and user confirms yes."""
     with (
         patch.object(Settings, "get_security_warnings", return_value=["Insecure API"]),
-        patch("edgewalker.cli.cli.get_active_overrides", return_value={"EW_THEME": "env"}),
+        patch("edgewalker.core.engine.get_active_overrides", return_value={"EW_THEME": "env"}),
         patch("typer.confirm", return_value=True),
         patch("edgewalker.cli.cli.GuidedScanner") as mock_guided,
     ):

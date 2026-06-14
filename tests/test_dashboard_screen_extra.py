@@ -63,9 +63,7 @@ async def test_dashboard_security_warnings_confirm(tmp_path):
         patch("textual.widgets.Header", return_value=MagicMock()),
         patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
         patch.object(Settings, "get_security_warnings", return_value=["Warning 1"]),
-        patch(
-            "edgewalker.tui.screens.dashboard.get_active_overrides", return_value={"key": "source"}
-        ),
+        patch("edgewalker.core.engine.get_active_overrides", return_value={"key": "source"}),
     ):
         async with app.run_test() as pilot:
             screen = DashboardScreen()

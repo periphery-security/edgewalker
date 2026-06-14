@@ -20,7 +20,8 @@ from textual.widgets import Button, Footer, Header, RichLog, Static, Tree
 
 # First Party
 from edgewalker import theme
-from edgewalker.core.config import get_active_overrides, settings, update_setting
+from edgewalker.core.config import settings, update_setting
+from edgewalker.core.engine import AssessmentOptions, Engine
 from edgewalker.display import (
     build_credential_display,
     build_device_report,
@@ -303,10 +304,11 @@ class DashboardScreen(Screen):
         Args:
             on_confirm: Callback to execute if the user confirms.
         """
-        warnings = settings.get_security_warnings()
-        overrides = get_active_overrides()
+        preflight = Engine.preflight(AssessmentOptions())
+        warnings = preflight.warnings
+        overrides = preflight.overrides
 
-        if warnings or overrides:
+        if preflight.has_blockers:
             msg_parts = []
             if warnings:
                 msg_parts.append("[bold red]SECURITY WARNINGS:[/bold red]")
