@@ -302,6 +302,54 @@ async def test_dashboard_run_all_reuses_saved_target(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_dashboard_live_scan_state_machine():
+    """Entering a phase flips the sidebar badges and the live-scan header."""
+    app = EdgeWalkerApp()
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            # First Party
+            from edgewalker.tui.widgets.navigation import ScanProgress, StatusBadge
+
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            # A creds-only assessment: plan is port -> cred (2 steps).
+            screen._auto_target = "10.0.0.0/24"
+            screen._run_creds = True
+            screen._run_cves = False
+            screen._run_sql = False
+            screen._run_web = False
+
+            screen._init_scan_phases()
+            await pilot.pause()
+            nav = screen.query_one("#nav-panel")
+            assert nav.query_one("#status-port", StatusBadge).phase_state == "queued"
+            assert nav.query_one("#status-pwd", StatusBadge).phase_state == "queued"
+            # Disabled modules carry no phase state.
+            assert nav.query_one("#status-cve", StatusBadge).phase_state == ""
+
+            # Enter the credential phase: port is done, creds running.
+            screen._enter_phase("cred")
+            await pilot.pause()
+            assert nav.query_one("#status-port", StatusBadge).phase_state == "done"
+            assert nav.query_one("#status-pwd", StatusBadge).phase_state == "running"
+
+            header = screen.query_one("#scan-header", ScanProgress)
+            assert header.active is True
+            assert header.total == 2
+            assert header.step == 2
+
+            # Finishing stops the spinner.
+            screen._finish_scan_phases()
+            await pilot.pause()
+            assert header.active is False
+
+
+@pytest.mark.asyncio
 async def test_dashboard_view_switching(tmp_path):
     """The o/d/f/l actions drive the ContentSwitcher and the sidebar cursor."""
     app = EdgeWalkerApp()

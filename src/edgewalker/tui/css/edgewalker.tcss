@@ -156,6 +156,12 @@ SplashScreen, ModalScreen {
     height: 100%;
 }
 
+#scan-header {
+    width: 100%;
+    height: auto;
+    padding: 0 2;
+}
+
 #report-content, #findings-content {
     width: 100%;
     height: auto;

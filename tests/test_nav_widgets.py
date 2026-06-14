@@ -7,7 +7,13 @@ from textual.screen import Screen
 
 # First Party
 from edgewalker.tui.app import EdgeWalkerApp
-from edgewalker.tui.widgets.navigation import NavigationPanel, NavItem, StatusBadge, TelemetryStatus
+from edgewalker.tui.widgets.navigation import (
+    NavigationPanel,
+    NavItem,
+    ScanProgress,
+    StatusBadge,
+    TelemetryStatus,
+)
 
 
 @pytest.mark.asyncio
@@ -28,6 +34,38 @@ async def test_status_badge():
 async def test_nav_item():
     item = NavItem("1", "Test")
     assert "[1] Test" in str(item.render())
+
+
+@pytest.mark.asyncio
+async def test_status_badge_phase_states():
+    badge = StatusBadge("Network")
+    badge.set_phase("queued")
+    assert "queued" in badge.render() and "○" in badge.render()
+    badge.set_phase("running")
+    assert "running" in badge.render() and "◐" in badge.render()
+    badge.set_phase("done")
+    assert "done" in badge.render() and "●" in badge.render()
+
+    # Setting a post-scan result clears the live phase state.
+    badge.set_status(True, "quick")
+    assert badge.phase_state == ""
+    assert "quick" in badge.render()
+
+
+@pytest.mark.asyncio
+async def test_scan_progress_render():
+    sp = ScanProgress()
+    # Nothing before a scan.
+    assert str(sp.render()) == ""
+
+    sp.set_progress("192.168.1.0/24", "Credential check", 2, 4, True)
+    text = str(sp.render())
+    assert "192.168.1.0/24" in text
+    assert "Credential check" in text
+    assert "step 2/4" in text
+
+    sp.set_progress("192.168.1.0/24", "", 0, 0, False)
+    assert "complete" in str(sp.render())
 
 
 @pytest.mark.asyncio

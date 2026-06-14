@@ -15,7 +15,19 @@ from edgewalker.utils import get_scan_status
 
 
 class StatusBadge(Static):
-    """A small badge showing scan status."""
+    """A small badge showing scan status.
+
+    Two modes: a *live phase* state (queued / running / done) driven by an
+    active scan's state machine, and the post-scan *result* view (active +
+    detail) derived from the saved files. Setting one clears the other.
+    """
+
+    #: Live-phase rendering: state -> (icon, style, label).
+    _PHASE = {
+        "queued": ("○", "muted", "queued"),
+        "running": ("◐", "accent", "running"),
+        "done": ("●", "success", "done"),
+    }
 
     def __init__(self, label: str, **kwargs: object) -> None:
         """Initialize the status badge."""
@@ -23,9 +35,19 @@ class StatusBadge(Static):
         self.label = label
         self.active = False
         self.detail = ""
+        self.phase_state = ""
 
     def render(self) -> str:
-        """Render the badge."""
+        """Render the badge (live phase state takes precedence while scanning)."""
+        if self.phase_state in self._PHASE:
+            icon, style_key, word = self._PHASE[self.phase_state]
+            color = {
+                "muted": theme.MUTED,
+                "accent": theme.ACCENT,
+                "success": theme.SUCCESS,
+            }[style_key]
+            return f"[{color}]{icon} {self.label}[/{color}] [{theme.MUTED}]({word})[/{theme.MUTED}]"
+
         if not self.active:
             return f"[{theme.MUTED}]{theme.ICON_CIRCLE} {self.label}[/{theme.MUTED}]"
 
@@ -39,9 +61,15 @@ class StatusBadge(Static):
         return res
 
     def set_status(self, active: bool, detail: str = "") -> None:
-        """Update the badge status."""
+        """Update the post-scan result status (clears any live phase state)."""
         self.active = active
         self.detail = detail
+        self.phase_state = ""
+        self.refresh()
+
+    def set_phase(self, state: str) -> None:
+        """Set the live phase state ("queued" / "running" / "done" / "")."""
+        self.phase_state = state
         self.refresh()
 
 
@@ -90,6 +118,59 @@ class NavSeparator(Static):
     def render(self) -> Text:
         """Render a thin box-drawing hairline instead of an ASCII rule."""
         return Text(theme.ICON_LINE * 20)
+
+
+class ScanProgress(Static):
+    """Live-scan header: target · spinner phase · step N/total (MOCK 2)."""
+
+    _FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+    def __init__(self, **kwargs: object) -> None:
+        """Initialize the scan progress header."""
+        super().__init__(**kwargs)
+        self.target = ""
+        self.phase = ""
+        self.step = 0
+        self.total = 0
+        self.active = False
+        self._frame = 0
+
+    def on_mount(self) -> None:
+        """Animate the spinner while a scan is active."""
+        self.set_interval(0.12, self._tick)
+
+    def _tick(self) -> None:
+        if self.active:
+            self._frame = (self._frame + 1) % len(self._FRAMES)
+            self.refresh()
+
+    def set_progress(self, target: str, phase: str, step: int, total: int, active: bool) -> None:
+        """Update the header from the scan state machine."""
+        self.target = target
+        self.phase = phase
+        self.step = step
+        self.total = total
+        self.active = active
+        self.refresh()
+
+    def render(self) -> Text:
+        """Render the header, or nothing before any scan has run."""
+        if not self.target and not self.phase:
+            return Text("")
+
+        text = Text()
+        text.append(self.target or "—", style=theme.TEXT)
+        text.append("  ·  ", style=theme.MUTED)
+        if self.active:
+            spinner = self._FRAMES[self._frame % len(self._FRAMES)]
+            text.append(f"{spinner} ", style=f"bold {theme.ACCENT}")
+            text.append(self.phase or "scanning…", style=f"bold {theme.ACCENT}")
+        else:
+            text.append("complete", style=f"bold {theme.SUCCESS}")
+        if self.total:
+            text.append("  ·  ", style=theme.MUTED)
+            text.append(f"step {self.step}/{self.total}", style=theme.MUTED)
+        return text
 
 
 class TelemetryStatus(Static):

@@ -34,7 +34,7 @@ from edgewalker.tui.modals.dialogs import (
     ConfirmModal,
     PermissionModal,
 )
-from edgewalker.tui.widgets.navigation import NavigationPanel
+from edgewalker.tui.widgets.navigation import NavigationPanel, ScanProgress, StatusBadge
 from edgewalker.tui.widgets.overview import build_findings_view, build_overview
 from edgewalker.tui.widgets.topology import TopologyWidget
 from edgewalker.utils import save_results
@@ -131,6 +131,7 @@ class DashboardScreen(Screen):
                         id="findings",
                     )
                     with Vertical(id="live-log"):
+                        yield ScanProgress(id="scan-header")
                         yield RichLog(highlight=True, markup=True, id="wizard-log")
                         with Horizontal(id="button-bar"):
                             yield Button("Continue", variant="primary", id="continue-btn")
@@ -169,6 +170,63 @@ class DashboardScreen(Screen):
         """Activate a named view and sync the sidebar cursor highlight."""
         self.query_one("#view-switcher", ContentSwitcher).current = view
         self.query_one("#nav-panel", NavigationPanel).set_active_view(view)
+
+    # ----------------------------------------------------- live scan state machine
+
+    #: Phase key -> (human label, sidebar badge id).
+    _PHASES = {
+        "port": ("Network discovery", "#status-port"),
+        "cred": ("Credential check", "#status-pwd"),
+        "cve": ("Vulnerability scan", "#status-cve"),
+        "sql": ("SQL audit", "#status-sql"),
+        "web": ("Web audit", "#status-web"),
+    }
+
+    def _build_phase_plan(self) -> list[str]:
+        """The ordered phases this assessment will run, given the toggles."""
+        plan = ["port"]
+        if self._run_creds:
+            plan.append("cred")
+        if self._run_cves:
+            plan.append("cve")
+        if self._run_sql:
+            plan.append("sql")
+        if self._run_web:
+            plan.append("web")
+        return plan
+
+    def _init_scan_phases(self) -> None:
+        """Mark the planned phases queued and prime the live-scan header."""
+        self._phase_plan = self._build_phase_plan()
+        nav = self.query_one("#nav-panel", NavigationPanel)
+        for key, (_label, badge_id) in self._PHASES.items():
+            nav.query_one(badge_id, StatusBadge).set_phase(
+                "queued" if key in self._phase_plan else ""
+            )
+        self.query_one("#scan-header", ScanProgress).set_progress(
+            self._auto_target, "starting…", 0, len(self._phase_plan), True
+        )
+
+    def _enter_phase(self, key: str) -> None:
+        """Flip the sidebar state machine and header to the running phase."""
+        plan = getattr(self, "_phase_plan", None) or self._build_phase_plan()
+        nav = self.query_one("#nav-panel", NavigationPanel)
+        idx = plan.index(key) if key in plan else len(plan) - 1
+        for i, phase_key in enumerate(plan):
+            _label, badge_id = self._PHASES[phase_key]
+            state = "done" if i < idx else "running" if i == idx else "queued"
+            nav.query_one(badge_id, StatusBadge).set_phase(state)
+        label, _badge = self._PHASES[key]
+        self.query_one("#scan-header", ScanProgress).set_progress(
+            self._auto_target, label, idx + 1, len(plan), True
+        )
+
+    def _finish_scan_phases(self) -> None:
+        """Stop the spinner and let the sidebar reflect the saved results."""
+        self.query_one("#scan-header", ScanProgress).set_progress(
+            self._auto_target, "", 0, 0, False
+        )
+        self.query_one("#nav-panel", NavigationPanel).update_status()
 
     def _update_permissions(self) -> None:
         """Update UI based on nmap permissions."""
@@ -254,6 +312,7 @@ class DashboardScreen(Screen):
             if label == "Done":
                 # Final step, just reset auto_run and return
                 self._auto_run = False
+                self._finish_scan_phases()
                 return
 
             # Intermediate step, auto-proceed
@@ -284,6 +343,9 @@ class DashboardScreen(Screen):
 
     def _next_guided_step(self) -> None:
         """Progress to the next step of the guided assessment."""
+        if self._auto_step == 1:
+            # Kicking off: lay out the sidebar state machine + header.
+            self._init_scan_phases()
         self.query_one("#continue-btn").display = False
         self._auto_step += 1
         if self._auto_step == 2:
@@ -315,6 +377,9 @@ class DashboardScreen(Screen):
     def _on_scan_error(self, error: str) -> None:
         self.app.is_scanning = False
         self._auto_run = False  # Stop auto-run on error
+        self.query_one("#scan-header", ScanProgress).set_progress(
+            self._auto_target, "", 0, 0, False
+        )
         self.notify(error, severity="error")
         log = self._get_log()
         log.write(Text(f"\n  ERROR: {error}", style=theme.RISK_CRITICAL))
@@ -445,6 +510,7 @@ class DashboardScreen(Screen):
         target = self._auto_target
         scan_label = "full" if self._full_scan else "quick IoT"
         self._show_loading(f"Running {scan_label} scan on {target}...")
+        self._enter_phase("port")
         try:
             results = await self.app.scanner.perform_port_scan(
                 target=target, full=self._full_scan, unprivileged=settings.unprivileged
@@ -573,6 +639,7 @@ class DashboardScreen(Screen):
 
         depth_label = "thorough" if self._full_creds else "quick"
         self._show_loading(f"Testing for default passwords ({depth_label})...")
+        self._enter_phase("cred")
 
         top_n = None if self._full_creds else 10
         try:
@@ -662,6 +729,7 @@ class DashboardScreen(Screen):
         self.app.is_scanning = True
         self.app.scanner.progress_callback = self.app.notify_progress
         self._show_loading("Checking for known vulnerabilities...")
+        self._enter_phase("cve")
         try:
             results = await self.app.scanner.perform_cve_scan()
             self.app.is_scanning = False
@@ -709,6 +777,7 @@ class DashboardScreen(Screen):
         self.app.is_scanning = True
         self.app.scanner.progress_callback = self.app.notify_progress
         self._show_loading("Auditing SQL services...")
+        self._enter_phase("sql")
         try:
             results = await self.app.scanner.perform_sql_scan()
             self._on_guided_sql_done(results)
@@ -782,6 +851,7 @@ class DashboardScreen(Screen):
         self.app.is_scanning = True
         self.app.scanner.progress_callback = self.app.notify_progress
         self._show_loading("Auditing web services...")
+        self._enter_phase("web")
         try:
             results = await self.app.scanner.perform_web_scan()
             self.app.is_scanning = False
@@ -836,7 +906,7 @@ class DashboardScreen(Screen):
         self._update_report_view(Group(header, build_overview(summary)))
 
         self._auto_step = 0
-        self.query_one("#nav-panel").update_status()
+        self._finish_scan_phases()
         self._show_continue("Done")
 
     def _update_report_view(self, renderable: object) -> None:
