@@ -189,6 +189,64 @@ async def test_dashboard_copy_report():
 
 
 @pytest.mark.asyncio
+async def test_dashboard_overview_action(tmp_path):
+    """action_overview renders the multi-panel overview from saved results."""
+    app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
+    (tmp_path / "port_scan.json").write_text(
+        json.dumps({
+            "target": "192.168.1.0/24",
+            "hosts": [
+                {
+                    "ip": "192.168.1.5",
+                    "mac": "00:00:00:00:00:00",
+                    "vendor": "Acme",
+                    "state": "up",
+                    "tcp": [{"port": 23, "name": "telnet"}],
+                }
+            ],
+        })
+    )
+
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            screen.action_overview()
+            await pilot.pause()
+
+            assert screen.query_one("#report-container").display is True
+            assert "SECURITY GRADE" in screen._current_report_text
+            assert "DEVICES" in screen._current_report_text
+
+
+@pytest.mark.asyncio
+async def test_dashboard_overview_empty_state(tmp_path):
+    """action_overview shows the call-to-action when no scan exists."""
+    app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
+
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            screen.action_overview()
+            await pilot.pause()
+
+            assert "No assessment yet" in screen._current_report_text
+
+
+@pytest.mark.asyncio
 async def test_dashboard_topology_action(tmp_path):
     """Test action_topology with existing results."""
     app = EdgeWalkerApp()

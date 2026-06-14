@@ -22,6 +22,7 @@ from textual.widgets import Button, Footer, Header, RichLog, Static, Tree
 from edgewalker import theme
 from edgewalker.core.config import settings, update_setting
 from edgewalker.core.engine import AssessmentOptions, Engine
+from edgewalker.core.findings import build_summary
 from edgewalker.display import (
     build_credential_display,
     build_device_report,
@@ -34,6 +35,7 @@ from edgewalker.tui.modals.dialogs import (
     PermissionModal,
 )
 from edgewalker.tui.widgets.navigation import NavigationPanel
+from edgewalker.tui.widgets.overview import build_overview
 from edgewalker.tui.widgets.topology import TopologyWidget
 from edgewalker.utils import save_results
 
@@ -42,6 +44,7 @@ class DashboardScreen(Screen):
     """Main dashboard for running scans and viewing results."""
 
     BINDINGS = [
+        Binding("o", "overview", "Overview", show=True),
         Binding("1", "show_report", "Risk Report", show=True),
         Binding("2", "topology", "Topology", show=True),
         Binding("3", "quick_scan", "Quick Scan", show=True),
@@ -124,7 +127,7 @@ class DashboardScreen(Screen):
                 self._on_progress(event, data)
 
         if self._initial_report:
-            self.action_show_report()
+            self.action_overview()
         elif self._initial_topology:
             self.action_topology()
         elif self._auto_target and not self.app.is_scanning:
@@ -751,18 +754,13 @@ class DashboardScreen(Screen):
         """Handle completion of the guided web scan."""
         self.app.is_scanning = False
 
-        # Build a Group of renderables for the Static widget
+        # Land on the at-a-glance overview; the detailed report stays on [1].
         header = Text()
-        header.append("\n  STEP 6/6: SECURITY ASSESSMENT\n", style=f"bold {theme.HEADER}")
-        header.append("  " + theme.ICON_LINE_BOLD * 40 + "\n", style=theme.MUTED_STYLE)
+        header.append("  Assessment complete. ", style=theme.SUCCESS)
+        header.append("[1] full report  ·  [2] topology\n", style=theme.MUTED_STYLE)
 
-        footer = Text(
-            "\n  Assessment complete. Use [1] to view the full report.\n", style=theme.SUCCESS
-        )
-
-        # Combine all into a Group
-        all_renderables = [header] + report_renderables + [footer]
-        self._update_report_view(Group(*all_renderables))
+        summary = build_summary(Engine.load_report_inputs())
+        self._update_report_view(Group(header, build_overview(summary)))
 
         self._auto_step = 0
         self.query_one("#nav-panel").update_status()
@@ -800,8 +798,15 @@ class DashboardScreen(Screen):
         self.query_one("#nav-panel").update_status()
         self._show_continue()
 
+    def action_overview(self) -> None:
+        """Show the at-a-glance multi-panel assessment overview."""
+        self._from_topology = False
+        self.query_one("#topology-container").display = False
+        summary = build_summary(Engine.load_report_inputs())
+        self._update_report_view(build_overview(summary))
+
     def action_show_report(self) -> None:
-        """Load and display the last security report."""
+        """Load and display the last (detailed) security report."""
         self._from_topology = False
         self.query_one("#topology-container").display = False
         port_file = settings.output_dir / "port_scan.json"
