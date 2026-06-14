@@ -225,10 +225,12 @@ class Engine:
     def load_report_inputs() -> dict[str, dict]:
         """Load the latest persisted ``*_scan.json`` bundle for report assembly.
 
-        Returns a dict with keys ``port``, ``cred``, ``cve``, ``sql``, ``web``;
-        missing files yield an empty dict for that key. Centralizes the loading
-        that both front-ends previously open-coded for every report and topology
-        view.
+        Returns a dict with keys ``port``, ``cred``, ``cve``, ``sql``, ``web``.
+        A file that is missing, unreadable (e.g. a root-owned leftover from a
+        prior sudo run), or corrupt yields an empty dict for that key rather
+        than raising — so a single bad file never takes down a report view.
+        Centralizes the loading that both front-ends previously open-coded for
+        every report and topology view.
         """
         files = {
             "port": "port_scan.json",
@@ -240,9 +242,10 @@ class Engine:
         inputs: dict[str, dict] = {}
         for key, filename in files.items():
             path = settings.output_dir / filename
-            if path.exists():
+            try:
                 with open(path) as f:
                     inputs[key] = json.load(f)
-            else:
+            except (OSError, ValueError):
+                # Missing, unreadable, or invalid JSON — degrade to empty.
                 inputs[key] = {}
         return inputs

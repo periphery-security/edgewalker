@@ -181,6 +181,36 @@ def test_load_report_inputs(tmp_path, monkeypatch):
     assert inputs["web"] == {}
 
 
+def test_load_report_inputs_tolerates_corrupt_json(tmp_path, monkeypatch):
+    """A corrupt result file degrades to empty rather than raising."""
+    monkeypatch.setattr("edgewalker.core.engine.settings.output_dir", tmp_path)
+    (tmp_path / "port_scan.json").write_text(json.dumps({"hosts": [1]}))
+    (tmp_path / "cve_scan.json").write_text("{ not valid json ")
+
+    inputs = Engine.load_report_inputs()
+    assert inputs["port"] == {"hosts": [1]}
+    assert inputs["cve"] == {}
+
+
+def test_load_report_inputs_tolerates_unreadable_file(tmp_path, monkeypatch):
+    """An unreadable file (e.g. root-owned leftover) does not crash loading."""
+    monkeypatch.setattr("edgewalker.core.engine.settings.output_dir", tmp_path)
+    (tmp_path / "port_scan.json").write_text(json.dumps({"hosts": [1]}))
+
+    real_open = open
+
+    def fake_open(file, *args, **kwargs):
+        if str(file).endswith("port_scan.json"):
+            raise PermissionError(13, "Permission denied")
+        return real_open(file, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", fake_open)
+    inputs = Engine.load_report_inputs()
+    # The unreadable file is skipped; the rest still load (here, all empty).
+    assert inputs["port"] == {}
+    assert inputs["cred"] == {}
+
+
 def test_phase_result_defaults():
     pr = PhaseResult("port")
     assert pr.module == "port"
