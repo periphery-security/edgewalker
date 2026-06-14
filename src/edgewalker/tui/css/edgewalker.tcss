@@ -191,6 +191,18 @@ StatusBadge {
     margin-bottom: 1;
 }
 
+#scan-config {
+    width: 64;
+    height: auto;
+    max-height: 90%;
+}
+
+.wizard-section {
+    text-style: bold;
+    color: $primary;
+    margin: 1 0 0 0;
+}
+
 .wizard-options {
     height: 3;
     width: 100%;

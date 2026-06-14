@@ -44,15 +44,18 @@ class DashboardScreen(Screen):
     """Main dashboard for running scans and viewing results."""
 
     BINDINGS = [
+        Binding("s", "quick_scan", "Quick Scan", show=True),
+        Binding("S", "full_scan", "Full Scan", show=True),
         Binding("o", "overview", "Overview", show=True),
         Binding("1", "show_report", "Risk Report", show=True),
         Binding("2", "topology", "Topology", show=True),
-        Binding("3", "quick_scan", "Quick Scan", show=True),
-        Binding("4", "full_scan", "Full Scan", show=True),
         Binding("5", "clear_results", "Clear All", show=True),
         Binding("6", "view_raw", "Raw Results", show=True),
         Binding("ctrl+c", "copy_report", "Copy Report", show=True),
         Binding("escape", "go_home", "Back", show=True),
+        # Hidden numeric aliases for existing muscle memory / tests.
+        Binding("3", "quick_scan", "Quick Scan", show=False),
+        Binding("4", "full_scan", "Full Scan", show=False),
     ]
 
     def __init__(
