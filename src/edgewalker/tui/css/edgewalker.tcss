@@ -151,15 +151,30 @@ SplashScreen, GuidedAssessmentScreen, ModalScreen {
     margin-bottom: 1;
 }
 
-#nav-subtitle {
+.nav-group {
     text-style: bold;
     color: $primary;
+    margin: 1 0 0 0;
+}
+
+NavSeparator {
+    width: 100%;
+    height: 1;
     margin: 1 0;
 }
 
 .nav-link {
     color: $foreground;
-    padding-left: 1;
+    /* Reserve the left cursor bar on every item so active/inactive align. */
+    border-left: tall $surface;
+    padding: 0 1;
+}
+
+/* Cursor highlight on the active dashboard view (mockup: .navline.sel). */
+.nav-link.-active {
+    background: $primary 28%;
+    border-left: tall $accent;
+    text-style: bold;
 }
 
 StatusBadge {

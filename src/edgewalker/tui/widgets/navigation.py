@@ -46,26 +46,46 @@ class StatusBadge(Static):
 
 
 class NavItem(Static):
-    """A single navigation item."""
+    """A single navigation item.
 
-    def __init__(self, key: str, label: str, **kwargs: object) -> None:
+    Renders ``[key] label`` with the mnemonic key emphasised. When the item
+    represents a dashboard view it carries the ContentSwitcher ``view`` name so
+    the panel can paint a cursor highlight on the active view.
+    """
+
+    def __init__(self, key: str, label: str, view: str | None = None, **kwargs: object) -> None:
         """Initialize the navigation item."""
         super().__init__(**kwargs)
         self.key = key
         self.label = label
+        self.view = view
+        self.active = False
+        self.add_class("nav-link")
 
-    def render(self) -> str:
-        """Render the navigation item."""
-        # The test expects "[1] Test" literally in the output
-        return f"[{self.key}] {self.label}"
+    def render(self) -> Text:
+        """Render the navigation item.
+
+        Returns a Rich ``Text`` so the literal ``[key]`` is never parsed as
+        console markup (``[s]`` would otherwise toggle strikethrough). The
+        rendered plain text stays ``[key] label`` for muscle memory and tests.
+        """
+        text = Text()
+        text.append(f"[{self.key}]", style="bold")
+        text.append(f" {self.label}")
+        return text
+
+    def set_active(self, active: bool) -> None:
+        """Toggle the active-view cursor highlight (driven by CSS)."""
+        self.active = active
+        self.set_class(active, "-active")
 
 
 class NavSeparator(Static):
-    """A separator in the navigation panel."""
+    """A hairline divider in the navigation panel."""
 
-    def render(self) -> str:
-        """Render the separator."""
-        return f"[{theme.MUTED}]------------------[/{theme.MUTED}]"
+    def render(self) -> Text:
+        """Render a thin box-drawing hairline instead of an ASCII rule."""
+        return Text(theme.ICON_LINE * 20, style=theme.MUTED)
 
 
 class TelemetryStatus(Static):
@@ -110,12 +130,17 @@ class NavPanel(Vertical):
         yield StatusBadge("SQL Audit", id="status-sql")
         yield StatusBadge("Web Audit", id="status-web")
         yield NavSeparator()
-        yield Static("SHORTCUTS", id="nav-subtitle")
-        yield NavItem("1", "Risk Report")
-        yield NavItem("2", "Topology")
-        yield NavItem("3", "Quick Scan")
-        yield NavItem("4", "Full Scan")
-        yield NavItem("5", "Clear All")
+
+        yield Static("SCAN", classes="nav-group")
+        yield NavItem("s", "Quick scan", id="nav-quick")
+        yield NavItem("S", "Full scan", id="nav-full")
+        yield NavItem("r", "Re-run all", id="nav-rerun")
+
+        yield Static("VIEW", classes="nav-group")
+        yield NavItem("o", "Overview", view="overview", id="nav-overview")
+        yield NavItem("d", "Devices", view="devices", id="nav-devices")
+        yield NavItem("f", "Findings", view="findings", id="nav-findings")
+        yield NavItem("l", "Live log", view="live-log", id="nav-live-log")
 
         # Add telemetry status at the bottom
         yield Vertical(id="nav-bottom-spacer")
@@ -124,6 +149,13 @@ class NavPanel(Vertical):
     def on_mount(self) -> None:
         """Update status on mount."""
         self.update_status()
+        self.set_active_view("overview")
+
+    def set_active_view(self, view: str) -> None:
+        """Highlight the nav item for the active dashboard view."""
+        for item in self.query(NavItem):
+            if item.view is not None:
+                item.set_active(item.view == view)
 
     def update_status(self) -> None:
         """Update all status badges."""
