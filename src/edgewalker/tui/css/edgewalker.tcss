@@ -243,12 +243,24 @@ StatusBadge {
 #nav-panel.-compact #nav-title,
 #nav-panel.-compact .nav-group,
 #nav-panel.-compact NavSeparator,
+#nav-panel.-compact #nav-progress-step,
+#nav-panel.-compact #nav-progress-activity,
 #nav-panel.-compact #telemetry-status {
     display: none;
 }
 
 #nav-panel.-compact .nav-link {
     border-left: none;
+    padding: 0 1;
+}
+
+#nav-progress {
+    height: auto;
+    width: 100%;
+}
+
+#nav-progress-step, #nav-progress-bar, #nav-progress-activity {
+    width: 100%;
     padding: 0 1;
 }
 

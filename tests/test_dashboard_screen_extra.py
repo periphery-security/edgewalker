@@ -496,10 +496,14 @@ async def test_dashboard_live_scan_state_machine():
             assert header.total == 2
             assert header.step == 2
 
-            # Finishing stops the spinner.
+            # The sidebar PROGRESS section is visible during the scan.
+            assert nav.query_one("#nav-progress").display is True
+
+            # Finishing stops the spinner and hides the progress section.
             screen._finish_scan_phases()
             await pilot.pause()
             assert header.active is False
+            assert nav.query_one("#nav-progress").display is False
 
 
 @pytest.mark.asyncio

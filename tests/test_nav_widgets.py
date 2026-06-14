@@ -74,6 +74,36 @@ async def test_status_badge_compact_render():
 
 
 @pytest.mark.asyncio
+async def test_navigation_panel_scan_progress_section():
+    app = EdgeWalkerApp()
+    async with app.run_test() as pilot:
+        # Third Party
+        from textual.widgets import Static
+
+        panel = NavigationPanel()
+        screen = Screen()
+        await app.push_screen(screen)
+        await screen.mount(panel)
+        await pilot.pause()
+
+        progress = panel.query_one("#nav-progress")
+        # Hidden while idle.
+        assert progress.display is False
+
+        panel.show_scan_progress(2, 4, "Credential check…")
+        await pilot.pause()
+        assert progress.display is True
+        assert "Step 2 of 4" in str(panel.query_one("#nav-progress-step", Static).render())
+        assert "Credential check" in str(panel.query_one("#nav-progress-activity", Static).render())
+        # The cancel control is available.
+        assert panel.query_one("#nav-cancel", NavItem).action == "go_home"
+
+        panel.hide_scan_progress()
+        await pilot.pause()
+        assert progress.display is False
+
+
+@pytest.mark.asyncio
 async def test_navigation_panel_set_compact():
     app = EdgeWalkerApp()
     async with app.run_test() as pilot:
@@ -193,9 +223,10 @@ async def test_navigation_panel_groups_and_active_view():
         await screen.mount(panel)
         await pilot.pause()
 
-        # SCAN group mnemonics and VIEW group mnemonics are present.
+        # SCAN, VIEW, and the CONTROL (cancel) mnemonics are present.
         items = {item.key: item for item in panel.query(NavItem)}
-        assert set(items) == {"s", "S", "r", "o", "d", "f", "l"}
+        assert set(items) == {"s", "S", "r", "o", "d", "f", "l", "esc"}
+        assert items["esc"].action == "go_home"
 
         # View items carry their ContentSwitcher name; scan items do not.
         assert items["o"].view == "overview"

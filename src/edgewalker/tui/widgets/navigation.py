@@ -285,14 +285,47 @@ class NavPanel(Vertical):
         yield NavItem("f", "Findings", view="findings", action="findings", id="nav-findings")
         yield NavItem("l", "Live log", view="live-log", action="live_log", id="nav-live-log")
 
+        # Live-scan only: progress + cancel control (hidden while idle).
+        with Vertical(id="nav-progress"):
+            yield Static("PROGRESS", classes="nav-group")
+            yield Static(id="nav-progress-step")
+            yield Static(id="nav-progress-bar")
+            yield Static(id="nav-progress-activity")
+            yield Static("CONTROL", classes="nav-group")
+            yield NavItem("esc", "Cancel scan", action="go_home", id="nav-cancel")
+
         # Add telemetry status at the bottom
         yield Vertical(id="nav-bottom-spacer")
         yield TelemetryStatus(id="telemetry-status")
 
     def on_mount(self) -> None:
         """Update status on mount."""
+        self.query_one("#nav-progress").display = False
         self.update_status()
         self.set_active_view("overview")
+
+    _PROGRESS_BAR_WIDTH = 18
+
+    def show_scan_progress(self, step: int, total: int, activity: str) -> None:
+        """Reveal and update the live-scan PROGRESS section."""
+        self.query_one("#nav-progress").display = True
+        total = max(total, 1)
+        step = max(0, min(step, total))
+        self.query_one("#nav-progress-step", Static).update(
+            f"[{theme.MUTED}]Step {step} of {total}[/{theme.MUTED}]"
+        )
+        filled = round(step / total * self._PROGRESS_BAR_WIDTH)
+        bar = Text()
+        bar.append("█" * filled, style=theme.ACCENT)
+        bar.append("░" * (self._PROGRESS_BAR_WIDTH - filled), style=theme.MUTED)
+        self.query_one("#nav-progress-bar", Static).update(bar)
+        self.query_one("#nav-progress-activity", Static).update(
+            f"[{theme.MUTED}]{activity}[/{theme.MUTED}]"
+        )
+
+    def hide_scan_progress(self) -> None:
+        """Hide the live-scan PROGRESS section once the scan ends."""
+        self.query_one("#nav-progress").display = False
 
     def set_active_view(self, view: str) -> None:
         """Highlight the nav item for the active dashboard view."""

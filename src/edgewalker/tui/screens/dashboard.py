@@ -250,6 +250,7 @@ class DashboardScreen(Screen):
         self.query_one("#scan-header", ScanProgress).set_progress(
             self._auto_target, "starting…", 0, len(self._phase_plan), True
         )
+        nav.show_scan_progress(0, len(self._phase_plan), "Starting…")
 
     def _enter_phase(self, key: str) -> None:
         """Flip the sidebar state machine and header to the running phase."""
@@ -264,13 +265,16 @@ class DashboardScreen(Screen):
         self.query_one("#scan-header", ScanProgress).set_progress(
             self._auto_target, label, idx + 1, len(plan), True
         )
+        nav.show_scan_progress(idx + 1, len(plan), f"{label}…")
 
     def _finish_scan_phases(self) -> None:
         """Stop the spinner and let the sidebar reflect the saved results."""
         self.query_one("#scan-header", ScanProgress).set_progress(
             self._auto_target, "", 0, 0, False
         )
-        self.query_one("#nav-panel", NavigationPanel).update_status()
+        nav = self.query_one("#nav-panel", NavigationPanel)
+        nav.hide_scan_progress()
+        nav.update_status()
 
     def _update_permissions(self) -> None:
         """Update UI based on nmap permissions."""
@@ -424,6 +428,7 @@ class DashboardScreen(Screen):
         self.query_one("#scan-header", ScanProgress).set_progress(
             self._auto_target, "", 0, 0, False
         )
+        self.query_one("#nav-panel", NavigationPanel).hide_scan_progress()
         self.notify(error, severity="error")
         log = self._get_log()
         log.write(Text(f"\n  ERROR: {error}", style=theme.RISK_CRITICAL))
