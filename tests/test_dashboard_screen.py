@@ -24,6 +24,11 @@ async def test_dashboard_screen_mount_welcome():
             await app.push_screen(screen)
             await pilot.pause()
 
+            # The welcome text lives on the live-log view; make it current so
+            # the RichLog computes its rendered lines.
+            screen.action_live_log()
+            await pilot.pause()
+
             log = screen.query_one("#wizard-log", RichLog)
             # Welcome message should be there somewhere
             all_text = "\n".join(line.text for line in log.lines)
@@ -67,6 +72,9 @@ async def test_dashboard_screen_progress_updates():
         async with app.run_test() as pilot:
             screen = DashboardScreen()
             await app.push_screen(screen)
+            await pilot.pause()
+
+            screen.action_live_log()
             await pilot.pause()
 
             log = screen.query_one("#wizard-log", RichLog)
@@ -194,6 +202,8 @@ async def test_dashboard_screen_scan_error():
             await pilot.pause()
 
             screen._on_scan_error("Fatal Error")
+            screen.action_live_log()
+            await pilot.pause()
             log = screen.query_one("#wizard-log", RichLog)
             assert any("Fatal Error" in line.text for line in log.lines)
 
@@ -353,4 +363,7 @@ async def test_dashboard_screen_go_home():
             # The dashboard is the root surface; "home" is the overview, shown
             # in place rather than navigating to a separate screen.
             assert app.screen == screen
-            assert screen.query_one("#report-container").display is True
+            # Third Party
+            from textual.widgets import ContentSwitcher
+
+            assert screen.query_one("#view-switcher", ContentSwitcher).current == "overview"

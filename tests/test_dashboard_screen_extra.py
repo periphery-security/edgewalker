@@ -178,7 +178,8 @@ async def test_dashboard_copy_report():
             await app.push_screen(screen)
             await pilot.pause()
 
-            # No report yet
+            # No report yet (boot populates the overview, so clear it first).
+            screen._current_report_text = ""
             screen.action_copy_report()
             assert not app.copy_to_clipboard.called
 
@@ -220,7 +221,10 @@ async def test_dashboard_overview_action(tmp_path):
             screen.action_overview()
             await pilot.pause()
 
-            assert screen.query_one("#report-container").display is True
+            # Third Party
+            from textual.widgets import ContentSwitcher
+
+            assert screen.query_one("#view-switcher", ContentSwitcher).current == "overview"
             assert "SECURITY GRADE" in screen._current_report_text
             assert "DEVICES" in screen._current_report_text
 
@@ -244,6 +248,107 @@ async def test_dashboard_overview_empty_state(tmp_path):
             await pilot.pause()
 
             assert "No assessment yet" in screen._current_report_text
+
+
+@pytest.mark.asyncio
+async def test_dashboard_view_switching(tmp_path):
+    """The o/d/f/l actions drive the ContentSwitcher and the sidebar cursor."""
+    app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
+    (tmp_path / "port_scan.json").write_text(
+        json.dumps({
+            "target": "192.168.1.0/24",
+            "hosts": [{"ip": "192.168.1.5", "vendor": "Acme", "state": "up", "tcp": []}],
+        })
+    )
+
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            # Third Party
+            from textual.widgets import ContentSwitcher
+
+            # First Party
+            from edgewalker.tui.widgets.navigation import NavigationPanel
+
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            switcher = screen.query_one("#view-switcher", ContentSwitcher)
+            nav = screen.query_one("#nav-panel", NavigationPanel)
+
+            def active_view():
+                return next(
+                    item.view
+                    for item in nav.query("NavItem")
+                    if item.view is not None and item.active
+                )
+
+            screen.action_findings()
+            await pilot.pause()
+            assert switcher.current == "findings"
+            assert active_view() == "findings"
+
+            screen.action_live_log()
+            await pilot.pause()
+            assert switcher.current == "live-log"
+            assert active_view() == "live-log"
+
+            await screen.action_devices()
+            await pilot.pause()
+            assert switcher.current == "devices"
+            assert active_view() == "devices"
+
+            screen.action_overview()
+            await pilot.pause()
+            assert switcher.current == "overview"
+            assert active_view() == "overview"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_findings_view_content(tmp_path):
+    """The findings view renders the prioritised findings panel."""
+    app = EdgeWalkerApp()
+    settings.output_dir = tmp_path
+    (tmp_path / "port_scan.json").write_text(
+        json.dumps({
+            "target": "192.168.1.0/24",
+            "hosts": [
+                {
+                    "ip": "192.168.1.5",
+                    "vendor": "Acme",
+                    "state": "up",
+                    "tcp": [{"port": 23, "name": "telnet"}],
+                }
+            ],
+        })
+    )
+
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            # Third Party
+            from textual.widgets import ContentSwitcher, Static
+
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            with patch(
+                "edgewalker.tui.screens.dashboard.build_findings_view",
+                return_value="FINDINGS-RENDER",
+            ) as mock_view:
+                screen.action_findings()
+                await pilot.pause()
+
+            assert mock_view.called
+            assert screen.query_one("#view-switcher", ContentSwitcher).current == "findings"
+            assert screen.query_one("#findings-content", Static) is not None
 
 
 @pytest.mark.asyncio
@@ -271,7 +376,10 @@ async def test_dashboard_topology_action(tmp_path):
             await screen.action_topology()
             await pilot.pause()
 
-            assert screen.query_one("#topology-container").display is True
+            # Third Party
+            from textual.widgets import ContentSwitcher
+
+            assert screen.query_one("#view-switcher", ContentSwitcher).current == "devices"
             assert screen.query_one("#topology-tree") is not None
 
 
@@ -300,7 +408,10 @@ async def test_dashboard_on_tree_node_selected(tmp_path):
                 screen.on_tree_node_selected(event)
                 assert mock_build.called
                 assert screen._from_topology is True
-                assert screen.query_one("#report-container").display is True
+                # Third Party
+                from textual.widgets import ContentSwitcher
+
+                assert screen.query_one("#view-switcher", ContentSwitcher).current == "overview"
 
 
 @pytest.mark.asyncio
@@ -361,6 +472,8 @@ async def test_dashboard_on_guided_sql_done(tmp_path):
 
             results = {"summary": {"vulnerable_services": 1}}
             screen._on_guided_sql_done(results)
+            screen.action_live_log()
+            await pilot.pause()
 
             log = screen.query_one("#wizard-log", RichLog)
             all_text = "\n".join(line.text for line in log.lines)

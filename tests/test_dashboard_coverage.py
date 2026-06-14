@@ -39,6 +39,8 @@ async def test_dashboard_screen_on_guided_sql_done(tmp_path):
             }
 
             screen._on_guided_sql_done(results)
+            screen.action_live_log()
+            await pilot.pause()
             log = screen.query_one("#wizard-log", RichLog)
             all_text = "\n".join(line.text for line in log.lines)
             assert "SQL SECURITY AUDIT" in all_text
@@ -75,8 +77,10 @@ async def test_dashboard_screen_on_guided_web_done(tmp_path):
 
             screen._on_guided_web_done(results_dict, report_renderables)
 
-            assert screen.query_one("#report-container").display is True
-            assert screen.query_one("#wizard-log").display is False
+            # Third Party
+            from textual.widgets import ContentSwitcher
+
+            assert screen.query_one("#view-switcher", ContentSwitcher).current == "overview"
 
 
 @pytest.mark.asyncio
@@ -90,6 +94,9 @@ async def test_dashboard_screen_progress_events():
         async with app.run_test() as pilot:
             screen = DashboardScreen()
             await app.push_screen(screen)
+            await pilot.pause()
+
+            screen.action_live_log()
             await pilot.pause()
 
             # Trigger various progress events

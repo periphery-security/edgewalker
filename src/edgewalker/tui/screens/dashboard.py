@@ -14,9 +14,9 @@ from rich.text import Text
 from textual import events, work
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, ScrollableContainer, Vertical
+from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, RichLog, Static, Tree
+from textual.widgets import Button, ContentSwitcher, Footer, Header, RichLog, Static, Tree
 
 # First Party
 from edgewalker import theme
@@ -35,7 +35,7 @@ from edgewalker.tui.modals.dialogs import (
     PermissionModal,
 )
 from edgewalker.tui.widgets.navigation import NavigationPanel
-from edgewalker.tui.widgets.overview import build_overview
+from edgewalker.tui.widgets.overview import build_findings_view, build_overview
 from edgewalker.tui.widgets.topology import TopologyWidget
 from edgewalker.utils import save_results
 
@@ -44,18 +44,23 @@ class DashboardScreen(Screen):
     """Main dashboard for running scans and viewing results."""
 
     BINDINGS = [
+        # SCAN group.
         Binding("s", "quick_scan", "Quick Scan", show=True),
         Binding("S", "full_scan", "Full Scan", show=True),
+        # VIEW group.
         Binding("o", "overview", "Overview", show=True),
-        Binding("1", "show_report", "Risk Report", show=True),
-        Binding("2", "topology", "Topology", show=True),
-        Binding("5", "clear_results", "Clear All", show=True),
-        Binding("6", "view_raw", "Raw Results", show=True),
+        Binding("d", "devices", "Devices", show=True),
+        Binding("f", "findings", "Findings", show=True),
+        Binding("l", "live_log", "Live Log", show=True),
         Binding("ctrl+c", "copy_report", "Copy Report", show=True),
         Binding("escape", "go_home", "Back", show=True),
         # Hidden numeric aliases for existing muscle memory / tests.
+        Binding("1", "show_report", "Risk Report", show=False),
+        Binding("2", "devices", "Devices", show=False),
         Binding("3", "quick_scan", "Quick Scan", show=False),
         Binding("4", "full_scan", "Full Scan", show=False),
+        Binding("5", "clear_results", "Clear All", show=False),
+        Binding("6", "view_raw", "Raw Results", show=False),
     ]
 
     def __init__(
@@ -101,30 +106,38 @@ class DashboardScreen(Screen):
         self._from_topology = False
 
     def compose(self) -> ComposeResult:
-        """Compose the dashboard layout."""
+        """Compose the dashboard layout.
+
+        A persistent sidebar plus a ``ContentSwitcher`` holding the four named
+        views (overview, devices, findings, live-log). Only one view is mounted
+        at a time; the sidebar paints a cursor highlight on the active one.
+        """
         yield Header()
         with Horizontal():
             yield NavigationPanel(id="nav-panel")
             with Vertical(id="main-content"):
-                with Container(id="log-container"):
-                    yield RichLog(highlight=True, markup=True, id="wizard-log")
+                with ContentSwitcher(initial="overview", id="view-switcher"):
                     yield ScrollableContainer(
                         Static(id="report-content", expand=True),
-                        id="report-container",
+                        id="overview",
                     )
-                    yield ScrollableContainer(id="topology-container")
-                with Horizontal(id="button-bar"):
-                    yield Button("Continue", variant="primary", id="continue-btn")
+                    yield ScrollableContainer(id="devices")
+                    yield ScrollableContainer(
+                        Static(id="findings-content", expand=True),
+                        id="findings",
+                    )
+                    with Vertical(id="live-log"):
+                        yield RichLog(highlight=True, markup=True, id="wizard-log")
+                        with Horizontal(id="button-bar"):
+                            yield Button("Continue", variant="primary", id="continue-btn")
         yield Footer()
 
     def on_mount(self) -> None:
         """Handle screen mount."""
         self.query_one("#continue-btn").display = False
-        self.query_one("#report-container").display = False
-        self.query_one("#topology-container").display = False
         self._update_permissions()
 
-        # Replay progress log if a scan is active or was recently active
+        # Replay progress log if a scan is active or was recently active.
         if self.app.scan_progress_log:
             for event, data in self.app.scan_progress_log:
                 self._on_progress(event, data)
@@ -140,8 +153,18 @@ class DashboardScreen(Screen):
                 self._next_guided_step()
 
             self._check_security_warnings(proceed_with_scan)
-        elif not self.app.is_scanning and not self.app.scan_progress_log:
+        elif self.app.scan_progress_log:
+            # A scan was active when we (re)mounted — land on the live log.
+            self.action_live_log()
+        else:
+            # Fresh start: prime the live-log idle text, land on the overview.
             self._show_welcome()
+            self.action_overview()
+
+    def _switch_view(self, view: str) -> None:
+        """Activate a named view and sync the sidebar cursor highlight."""
+        self.query_one("#view-switcher", ContentSwitcher).current = view
+        self.query_one("#nav-panel", NavigationPanel).set_active_view(view)
 
     def _update_permissions(self) -> None:
         """Update UI based on nmap permissions."""
@@ -197,25 +220,22 @@ class DashboardScreen(Screen):
         )
 
     def _show_welcome(self) -> None:
-        self.query_one("#wizard-log").display = True
-        self.query_one("#report-container").display = False
         self._current_report_text = ""
         log = self._get_log()
         log.clear()
         log.write(theme.gradient_text(theme.LOGO))
         log.write(f"\n  [{theme.TEXT}]Select a scan type from the menu to begin.[/]")
         log.write(
-            f"\n  [{theme.MUTED_STYLE}]Quick Scan (3) is recommended for first-time users.[/]"
+            f"\n  [{theme.MUTED_STYLE}]Quick Scan (s) is recommended for first-time users.[/]"
         )
 
     def _show_loading(self, message: str) -> None:
-        self.query_one("#wizard-log").display = True
-        self.query_one("#report-container").display = False
         self._current_report_text = ""
         log = self._get_log()
         log.clear()
         self._write_step_header(1, 4, "INITIALIZING")
         log.write(Text(f"\n  {message}\n", style=theme.TEXT))
+        self.action_live_log()
 
     def _write_step_header(self, step: int, total: int, title: str) -> None:
         log = self._get_log()
@@ -354,7 +374,6 @@ class DashboardScreen(Screen):
         if self.app.is_scanning:
             return
         self._from_topology = False
-        self.query_one("#topology-container").display = False
 
         # First Party
         from edgewalker.tui.screens.guided import GuidedAssessmentScreen  # noqa: PLC0415
@@ -772,10 +791,10 @@ class DashboardScreen(Screen):
         """Handle completion of the guided web scan."""
         self.app.is_scanning = False
 
-        # Land on the at-a-glance overview; the detailed report stays on [1].
+        # Land on the at-a-glance overview; deeper views are a keypress away.
         header = Text()
         header.append("  Assessment complete. ", style=theme.SUCCESS)
-        header.append("[1] full report  ·  [2] topology\n", style=theme.MUTED_STYLE)
+        header.append("d devices  ·  f findings  ·  l live log\n", style=theme.MUTED_STYLE)
 
         summary = build_summary(Engine.load_report_inputs())
         self._update_report_view(Group(header, build_overview(summary)))
@@ -785,12 +804,10 @@ class DashboardScreen(Screen):
         self._show_continue("Done")
 
     def _update_report_view(self, renderable: object) -> None:
-        """Update the selectable report view and capture plain text for clipboard."""
-        self.query_one("#wizard-log").display = False
-        self.query_one("#report-container").display = True
-
+        """Render into the overview pane and capture plain text for clipboard."""
         report_content = self.query_one("#report-content", Static)
         report_content.update(renderable)
+        self._switch_view("overview")
 
         # Capture plain text for clipboard
         # Use a high width to avoid wrapping issues in the copy
@@ -819,14 +836,23 @@ class DashboardScreen(Screen):
     def action_overview(self) -> None:
         """Show the at-a-glance multi-panel assessment overview."""
         self._from_topology = False
-        self.query_one("#topology-container").display = False
         summary = build_summary(Engine.load_report_inputs())
         self._update_report_view(build_overview(summary))
+
+    def action_findings(self) -> None:
+        """Show the full prioritised findings list."""
+        self._from_topology = False
+        summary = build_summary(Engine.load_report_inputs())
+        self.query_one("#findings-content", Static).update(build_findings_view(summary))
+        self._switch_view("findings")
+
+    def action_live_log(self) -> None:
+        """Show the live scan log view."""
+        self._switch_view("live-log")
 
     def action_show_report(self) -> None:
         """Load and display the last (detailed) security report."""
         self._from_topology = False
-        self.query_one("#topology-container").display = False
         port_file = settings.output_dir / "port_scan.json"
         if not port_file.exists():
             self.notify("Port scan required first.", severity="warning")
@@ -863,7 +889,11 @@ class DashboardScreen(Screen):
         self._update_report_view(Group(*renderables))
 
     async def action_topology(self) -> None:
-        """Show the network topology map in the dashboard."""
+        """Backward-compatible alias for the devices view."""
+        await self.action_devices()
+
+    async def action_devices(self) -> None:
+        """Show the network topology / device table in the dashboard."""
         self._from_topology = False
         port_file = settings.output_dir / "port_scan.json"
         if not port_file.exists():
@@ -905,17 +935,14 @@ class DashboardScreen(Screen):
         for host in port_data.get("hosts", []):
             host["risk"] = engine.calculate_device_risk(host.get("ip"))
 
-        self.query_one("#wizard-log").display = False
-        self.query_one("#report-container").display = False
-
-        container = self.query_one("#topology-container")
-        container.display = True
+        container = self.query_one("#devices", ScrollableContainer)
 
         # Check if tree already exists to avoid DuplicateIds error
         with contextlib.suppress(Exception):
             existing_tree = self.query_one("#topology-tree")
             await existing_tree.remove()
         await container.mount(TopologyWidget(port_data, id="topology-tree"))
+        self._switch_view("devices")
         self.query_one("#topology-tree").focus()
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
@@ -924,14 +951,13 @@ class DashboardScreen(Screen):
         if not device_data or device_data.get("type") == "scanner":
             return
 
-        # Build and show the device report
+        # Build and show the device report (drilled in from the devices view).
         report = build_device_report(device_data)
         self._from_topology = True
-        self.query_one("#topology-container").display = False
         self._update_report_view(report)
 
-        # Add a temporary binding to go back to topology
-        self.notify("Press [6] to return to Topology", timeout=3)
+        # Hint how to step back to the device list.
+        self.notify("Press esc to return to Devices", timeout=3)
 
     def action_view_raw(self) -> None:
         """Show raw JSON results."""
@@ -939,7 +965,6 @@ class DashboardScreen(Screen):
 
     def action_clear_results(self) -> None:
         """Clear all saved results."""
-        self.query_one("#topology-container").display = False
         if settings.output_dir.exists():
             for f in settings.output_dir.glob("*.json"):
                 f.unlink()
@@ -947,23 +972,20 @@ class DashboardScreen(Screen):
         self.notify("All results cleared.")
         self.query_one("#nav-panel").update_status()
         self._show_welcome()
+        self.action_overview()
 
     async def action_go_home(self) -> None:
         """Go back to the previous view or home."""
-        # 1. If showing a device report from topology, go back to topology
-        if self.query_one("#report-container").display and self._from_topology:
-            await self.action_topology()
+        switcher = self.query_one("#view-switcher", ContentSwitcher)
+
+        # 1. A device report drilled in from the devices view → back to devices.
+        if switcher.current == "overview" and self._from_topology:
+            await self.action_devices()
             return
 
-        # 2. If showing topology, go back to main report or welcome
-        if self.query_one("#topology-container").display:
-            # First Party
-            from edgewalker.utils import has_port_scan  # noqa: PLC0415
-
-            if has_port_scan():
-                self.action_show_report()
-            else:
-                self._show_welcome()
+        # 2. Any non-overview view → back to the overview home.
+        if switcher.current != "overview":
+            self._do_go_home()
             return
 
         # 3. Otherwise, go home (with scan confirmation if needed)

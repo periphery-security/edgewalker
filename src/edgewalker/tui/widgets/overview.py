@@ -149,6 +149,25 @@ def build_findings_panel(summary: AssessmentSummary, limit: int = 6) -> Panel:
     )
 
 
+def build_findings_view(summary: Optional[AssessmentSummary]) -> RenderableType:
+    """The dedicated findings view: every finding, most severe first."""
+    if summary is None:
+        body: RenderableType = Text("No assessment yet — press s to run a scan.", style=theme.MUTED)
+    elif not summary.findings:
+        body = Text("No findings — nothing actionable detected.", style=theme.SUCCESS)
+    else:
+        lines = Table.grid()
+        for finding in summary.findings:
+            lines.add_row(_finding_line(finding))
+        body = lines
+    return Panel(
+        body,
+        title=f"[{theme.HEADER}]FINDINGS[/]",
+        border_style=theme.ACCENT,
+        box=theme.BOX_STYLE,
+    )
+
+
 def build_device_table(summary: AssessmentSummary) -> Panel:
     """Device table sorted by risk score, with coloured risk levels."""
     table = Table(box=None, expand=True, pad_edge=False)

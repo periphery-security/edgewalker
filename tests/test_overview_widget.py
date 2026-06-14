@@ -76,3 +76,20 @@ def test_build_overview_empty_when_none():
     text = _render(overview.build_overview(None))
     assert "No assessment yet" in text
     assert "quick scan" in text
+
+
+def test_findings_view_lists_all_findings():
+    summary = _summary()
+    summary.findings = [Finding("LOW", f"finding-{i}", "1.2.3.4", "") for i in range(10)]
+    text = _render(overview.build_findings_view(summary))
+    # Unlike the overview panel, the dedicated view is not truncated.
+    assert "finding-0" in text
+    assert "finding-9" in text
+    assert "more" not in text
+
+
+def test_findings_view_none_and_empty_states():
+    assert "No assessment yet" in _render(overview.build_findings_view(None))
+    summary = _summary()
+    summary.findings = []
+    assert "No findings" in _render(overview.build_findings_view(summary))
