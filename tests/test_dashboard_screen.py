@@ -13,6 +13,33 @@ from edgewalker.tui.screens.dashboard import DashboardScreen
 
 
 @pytest.mark.asyncio
+async def test_run_all_terminus_records_assessment_snapshot():
+    """The TUI run-all terminus drives a score-trend snapshot (Issue 1 regression).
+
+    Before the fix the dashboard ran perform_*() directly and never recorded
+    an assessment, so the score trend stayed empty on the path users use most.
+    """
+    app = EdgeWalkerApp()
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            screen._auto_target = "192.168.1.0/24"
+            with patch("edgewalker.tui.screens.dashboard.Engine") as mock_engine:
+                screen._record_assessment_snapshot()
+
+            mock_engine.assert_called_once_with(app.scanner)
+            mock_engine.return_value.record_assessment_snapshot.assert_called_once_with(
+                "192.168.1.0/24"
+            )
+
+
+@pytest.mark.asyncio
 async def test_dashboard_screen_mount_welcome():
     app = EdgeWalkerApp()
     with (
