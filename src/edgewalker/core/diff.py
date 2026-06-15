@@ -75,6 +75,38 @@ def diff_credentials(old_services: set[str], new_services: set[str]) -> list[Cha
     return events
 
 
+def diff_sql(old_services: set[str], new_services: dict[str, str]) -> list[ChangeEvent]:
+    """Emit ``sql_vuln_appeared`` / ``sql_vuln_resolved`` events per service.
+
+    ``new_services`` maps a vulnerable SQL service (one with default credentials
+    or anonymous access) to its severity label; resolutions are informational.
+    """
+    events = []
+    for svc in sorted(set(new_services) - old_services):
+        events.append(
+            ChangeEvent("sql_vuln_appeared", new_services[svc] or "UNKNOWN", {"service": svc})
+        )
+    for svc in sorted(old_services - set(new_services)):
+        events.append(ChangeEvent("sql_vuln_resolved", "INFO", {"service": svc}))
+    return events
+
+
+def diff_web(old_issues: set[str], new_issues: dict[str, str]) -> list[ChangeEvent]:
+    """Emit ``web_issue_appeared`` / ``web_issue_resolved`` events per web issue.
+
+    ``new_issues`` maps a web issue kind (``sensitive_file``, ``expired_tls`` or
+    ``insecure_header``) to its severity label; resolutions are informational.
+    """
+    events = []
+    for issue in sorted(set(new_issues) - old_issues):
+        events.append(
+            ChangeEvent("web_issue_appeared", new_issues[issue] or "UNKNOWN", {"issue": issue})
+        )
+    for issue in sorted(old_issues - set(new_issues)):
+        events.append(ChangeEvent("web_issue_resolved", "INFO", {"issue": issue}))
+    return events
+
+
 def diff_devices(old_keys: set[str], new_keys: set[str]) -> list[ChangeEvent]:
     """Emit ``device_appeared`` / ``device_disappeared`` events.
 

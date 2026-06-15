@@ -5,6 +5,8 @@ from edgewalker.core.diff import (
     diff_devices,
     diff_grade,
     diff_ports,
+    diff_sql,
+    diff_web,
 )
 
 
@@ -56,6 +58,49 @@ def test_credential_exposed_and_secured():
     exposed = next(e for e in events if e.event_type == "credential_exposed")
     assert exposed.severity == "HIGH"
     assert exposed.detail == {"service": "ssh"}
+
+
+# --- sql --------------------------------------------------------------------
+
+
+def test_sql_vuln_appeared_carries_severity():
+    events = diff_sql(set(), {"mysql": "CRITICAL"})
+    assert _types(events) == ["sql_vuln_appeared"]
+    assert events[0].severity == "CRITICAL"
+    assert events[0].detail == {"service": "mysql"}
+
+
+def test_sql_vuln_resolved_is_informational():
+    events = diff_sql({"redis"}, {})
+    assert _types(events) == ["sql_vuln_resolved"]
+    assert events[0].severity == "INFO"
+    assert events[0].detail == {"service": "redis"}
+
+
+def test_sql_no_change_no_events():
+    assert diff_sql({"mysql"}, {"mysql": "HIGH"}) == []
+
+
+# --- web --------------------------------------------------------------------
+
+
+def test_web_issue_appeared_carries_severity():
+    events = diff_web(set(), {"sensitive_file": "CRITICAL"})
+    assert _types(events) == ["web_issue_appeared"]
+    assert events[0].severity == "CRITICAL"
+    assert events[0].detail == {"issue": "sensitive_file"}
+
+
+def test_web_issue_appeared_and_resolved_both_directions():
+    events = diff_web({"expired_tls"}, {"insecure_header": "MEDIUM"})
+    assert _types(events) == ["web_issue_appeared", "web_issue_resolved"]
+    resolved = next(e for e in events if e.event_type == "web_issue_resolved")
+    assert resolved.severity == "INFO"
+    assert resolved.detail == {"issue": "expired_tls"}
+
+
+def test_web_no_change_no_events():
+    assert diff_web({"insecure_header"}, {"insecure_header": "MEDIUM"}) == []
 
 
 # --- devices ---------------------------------------------------------------
