@@ -1,22 +1,23 @@
-"""Local cache for NVD CVE lookups.
+"""Local cache for NVD CVE lookups, backed by the scan-history database.
 
 NVD queries are slow (rate-limited to one request every few seconds) and return
-identical data for the same product/version between scans. This module provides a
-small disk-backed cache with a TTL so repeated and scheduled scans avoid
-re-hitting the API -- and keep working when NVD is unreachable, serving the last
-known result instead of failing.
+identical data for the same product/version between scans. This cache stores
+results in the ``cve_cache`` table of the shared SQLite database with a TTL, so
+repeated and scheduled scans avoid re-hitting the API -- and keep working when
+NVD is unreachable, serving the last known result instead of failing.
 
-The cache is opt-in: it is inert until ``init_cache()`` wires it to a directory
-(done from ``main.py``). Code paths that never initialise it -- such as unit
-tests calling ``search_cves_async`` directly -- behave exactly as before.
+The cache is opt-in: it is inert until ``init_cache()`` wires it to a database
+path (done from ``main.py``). Code paths that never initialise it -- such as
+unit tests calling ``search_cves_async`` directly -- behave exactly as before.
 """
 
 from __future__ import annotations
 
 # Standard Library
 import json
-import os
+import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 
 # Third Party
@@ -27,19 +28,18 @@ from edgewalker.core.config import settings
 
 
 class CveCache:
-    """Disk-backed, TTL-bounded cache of NVD lookups keyed by product/version."""
+    """TTL-bounded cache of NVD lookups in the ``cve_cache`` table."""
 
-    def __init__(self, cache_dir: Path, ttl: int | None = None) -> None:
-        """Initialise the cache.
+    def __init__(self, db_path: Path | str, ttl: int | None = None) -> None:
+        """Open the cache against ``db_path``; ensure the ``cve_cache`` table exists.
 
         Args:
-            cache_dir: Directory the cache file lives in.
+            db_path: Path to the shared SQLite database.
             ttl: Seconds an entry stays fresh. Defaults to ``settings.nvd_cache_ttl``.
         """
-        self.path = Path(cache_dir) / "cve_cache.json"
+        self.db_path = Path(db_path)
         self._ttl = ttl
-        self._entries: dict[str, dict] = {}
-        self._load()
+        self._ensure_table()
 
     @property
     def ttl(self) -> int:
@@ -51,48 +51,38 @@ class CveCache:
         """Build a normalised cache key from a product and version."""
         return f"{(product or '').lower().strip()}:{(version or '').lower().strip()}"
 
-    def _load(self) -> None:
-        """Load the cache file into memory, tolerating a missing/corrupt file."""
-        if not self.path.exists():
-            return
-        try:
-            with open(self.path) as f:
-                data = json.load(f)
-            if isinstance(data, dict):
-                self._entries = data
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"Could not read CVE cache at {self.path}: {e}")
-            self._entries = {}
+    def _ensure_table(self) -> None:
+        """Create the cve_cache table if absent (mirrors the sqlite_store schema)."""
+        self.db_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS cve_cache "
+                "(cache_key TEXT PRIMARY KEY, data TEXT NOT NULL, fetched_at REAL NOT NULL)"
+            )
 
     def get(self, product: str, version: str | None = None) -> list | None:
         """Return cached CVEs for a product/version, or None if absent/expired."""
-        entry = self._entries.get(self._key(product, version))
-        if not entry:
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            row = conn.execute(
+                "SELECT data, fetched_at FROM cve_cache WHERE cache_key = ?",
+                (self._key(product, version),),
+            ).fetchone()
+        if row is None:
             return None
-        age = time.time() - entry.get("fetched_at", 0)
-        if age > self.ttl:
-            logger.debug(f"CVE cache expired for {product} {version} (age {int(age)}s)")
+        data, fetched_at = row
+        if time.time() - fetched_at > self.ttl:
+            logger.debug(f"CVE cache expired for {product} {version}")
             return None
         logger.debug(f"CVE cache hit for {product} {version}")
-        return entry.get("cves", [])
+        return json.loads(data)
 
     def set(self, product: str, version: str | None, cves: list) -> None:
-        """Store CVEs for a product/version and persist the cache to disk."""
-        self._entries[self._key(product, version)] = {
-            "cves": cves,
-            "fetched_at": time.time(),
-        }
-        self._persist()
-
-    def _persist(self) -> None:
-        """Write the in-memory cache to disk with restricted permissions."""
-        try:
-            self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-            fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w") as f:
-                json.dump(self._entries, f)
-        except OSError as e:
-            logger.warning(f"Could not write CVE cache at {self.path}: {e}")
+        """Store CVEs for a product/version in the cache."""
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO cve_cache (cache_key, data, fetched_at) VALUES (?, ?, ?)",
+                (self._key(product, version), json.dumps(cves), time.time()),
+            )
 
 
 # Module-level cache instance -- set by init_cache() from main.py. Stays None
@@ -100,10 +90,10 @@ class CveCache:
 _cache: CveCache | None = None
 
 
-def init_cache(cache_dir: Path) -> None:
-    """Enable the CVE cache, backing it with a file in ``cache_dir``."""
+def init_cache(db_path: Path) -> None:
+    """Enable the CVE cache, backing it with the ``cve_cache`` table at ``db_path``."""
     global _cache
-    _cache = CveCache(cache_dir)
+    _cache = CveCache(db_path)
 
 
 def get_cache() -> CveCache | None:

@@ -33,10 +33,11 @@ def main() -> None:
     settings.cache_dir.mkdir(parents=True, exist_ok=True)
     mac_lookup.init_cache(settings.cache_dir)
     password_scan.init_cache(settings.cache_dir)
-    cve_scan.init_cache(settings.cache_dir)
 
-    # Initialize the scan-history database (creates schema if absent)
+    # Initialize the scan-history database (creates schema if absent), then
+    # point the CVE cache at its cve_cache table.
     SqliteResultStore(settings.db_path)
+    cve_scan.init_cache(settings.db_path)
 
     # If no arguments, launch TUI
     if len(sys.argv) == 1:
