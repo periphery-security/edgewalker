@@ -452,3 +452,78 @@ def test_history_views_empty_by_default(store):
     assert store.recent_change_events() == []
     assert store.score_trend() == []
     assert store.host_timeline("mac:00:11:22:33:44:55") == []
+
+
+# --- report list + compare -------------------------------------------------
+
+
+@pytest.fixture
+def monotonic_now(monkeypatch):
+    """Patch the store clock with strictly increasing ISO timestamps.
+
+    Makes report-comparison window boundaries deterministic (real wall-clock
+    calls microseconds apart could otherwise collide).
+    """
+    # Standard Library
+    import itertools
+
+    # First Party
+    from edgewalker.core import sqlite_store as ss
+
+    counter = itertools.count(1)
+    monkeypatch.setattr(ss, "_now", lambda: f"2026-06-15T00:00:00.{next(counter):06d}+00:00")
+
+
+def test_list_assessments_numbers_chronologically_newest_first(store, monotonic_now):
+    store.record_assessment("net", 80, "B")
+    store.record_assessment("net", 70, "C")
+    store.record_assessment("net", 60, "D")
+    items = store.list_assessments()
+    assert [a["ordinal"] for a in items] == [3, 2, 1]  # stable ordinals, newest first
+    assert [a["grade"] for a in items] == ["D", "C", "B"]
+    assert store.list_assessments(limit=2) == items[:2]
+
+
+def test_list_assessments_empty(store):
+    assert store.list_assessments() == []
+
+
+def test_compare_assessments_windows_changes(store, monotonic_now):
+    store.save_scan("port_scan", _port_scan())  # baseline: device_appeared (before #1)
+    store.record_assessment("net", 80, "B")  # report #1
+    changed = _port_scan()
+    changed.hosts[0].tcp.append(TcpPort(port=23, name="telnet"))
+    store.save_scan("port_scan", changed)  # port_opened (between #1 and #2)
+    store.record_assessment("net", 58, "D")  # report #2 (grade B->D at #2's instant)
+
+    comp = store.compare_assessments(1, 2)
+    assert comp["from"]["ordinal"] == 1 and comp["to"]["ordinal"] == 2
+    assert comp["to"]["grade"] == "D"
+    types = [c["event_type"] for c in comp["changes"]]
+    assert "port_opened" in types
+    assert "grade_changed" in types  # the to-report's own grade event is included
+    assert "device_appeared" not in types  # baseline belongs before report #1
+
+
+def test_compare_excludes_from_report_grade_event(store, monotonic_now):
+    store.record_assessment("net", 80, "B")  # #1 (no grade event: first ever)
+    store.record_assessment("net", 58, "D")  # #2 grade B->D
+    store.record_assessment("net", 40, "F")  # #3 grade D->F
+
+    comp = store.compare_assessments(2, 3)
+    grade_events = [c for c in comp["changes"] if c["event_type"] == "grade_changed"]
+    assert len(grade_events) == 1  # only #3's, not #2's (the from-boundary)
+    assert grade_events[0]["detail"]["to"] == "F"
+
+
+def test_compare_assessments_invalid_ordinal_raises(store, monotonic_now):
+    store.record_assessment("net", 80, "B")
+    with pytest.raises(ValueError):
+        store.compare_assessments(1, 5)
+
+
+def test_compare_assessments_requires_from_before_to(store, monotonic_now):
+    store.record_assessment("net", 80, "B")
+    store.record_assessment("net", 58, "D")
+    with pytest.raises(ValueError):
+        store.compare_assessments(2, 1)

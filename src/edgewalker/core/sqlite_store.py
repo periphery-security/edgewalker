@@ -203,14 +203,17 @@ class SqliteResultStore:
             ).fetchone()
             if prior is not None and prior["grade"] == grade and prior["overall_score"] == score:
                 return  # collapse consecutive identical points
+            now = _now()
             cur = conn.execute(
                 "INSERT INTO scans (started_at, finished_at, scan_type, target, "
                 "overall_score, grade) VALUES (?, ?, 'assessment', ?, ?, ?)",
-                (_now(), _now(), target, score, grade),
+                (now, now, target, score, grade),
             )
             scan_id = int(cur.lastrowid)
+            # Stamp the grade event at the assessment's own instant so report
+            # comparisons can window cleanly on assessment timestamps.
             for ev in diff_grade(prior["grade"] if prior else None, grade):
-                self._record_event(conn, scan_id, None, ev)
+                self._record_event(conn, scan_id, None, ev, created_at=now)
 
     # ------------------------------------------------------------- history views
 
@@ -265,6 +268,75 @@ class SqliteResultStore:
                 "event_type": r["event_type"],
                 "severity": r["severity"],
                 "detail": json.loads(r["detail"]) if r["detail"] else {},
+            }
+            for r in rows
+        ]
+
+    def list_assessments(self, limit: Optional[int] = None) -> list[dict]:
+        """Return recorded assessments newest-first, each with a chronological ordinal.
+
+        The ordinal is 1-based and stable (``#1`` is the first-ever assessment),
+        so it can be used to refer to a report in :meth:`compare_assessments`.
+        ``limit`` caps how many of the most recent reports are returned.
+        """
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT id, started_at, overall_score, grade, target FROM scans "
+                "WHERE scan_type = 'assessment' AND overall_score IS NOT NULL ORDER BY id ASC"
+            ).fetchall()
+        items = [
+            {
+                "ordinal": i + 1,
+                "id": r["id"],
+                "at": r["started_at"],
+                "score": r["overall_score"],
+                "grade": r["grade"],
+                "target": r["target"],
+            }
+            for i, r in enumerate(rows)
+        ]
+        items.reverse()  # newest first for display
+        return items[:limit] if limit is not None else items
+
+    def compare_assessments(self, from_ordinal: int, to_ordinal: int) -> dict:
+        """Compare two recorded assessments by their chronological ordinal.
+
+        Returns ``{"from": meta, "to": meta, "changes": [...]}`` where ``changes``
+        are the material change events recorded after the ``from`` assessment up
+        to and including the ``to`` assessment (newest first). Raises
+        ``ValueError`` if an ordinal is out of range or ``from`` is not older
+        than ``to``.
+        """
+        by_ordinal = {a["ordinal"]: a for a in self.list_assessments()}
+        if from_ordinal not in by_ordinal or to_ordinal not in by_ordinal:
+            raise ValueError(f"report numbers must be in 1..{len(by_ordinal)}")
+        if from_ordinal >= to_ordinal:
+            raise ValueError("the 'from' report must be older than the 'to' report")
+        a_from, a_to = by_ordinal[from_ordinal], by_ordinal[to_ordinal]
+        return {
+            "from": a_from,
+            "to": a_to,
+            "changes": self._changes_between(a_from["at"], a_to["at"]),
+        }
+
+    def _changes_between(self, start_at: str, end_at: str) -> list[dict]:
+        """Return change events with created_at in ``(start_at, end_at]``, newest first."""
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT ce.created_at, ce.event_type, ce.severity, ce.detail, "
+                "h.stable_key, h.label FROM change_events ce "
+                "LEFT JOIN hosts h ON h.id = ce.host_id "
+                "WHERE ce.created_at > ? AND ce.created_at <= ? ORDER BY ce.id DESC",
+                (start_at, end_at),
+            ).fetchall()
+        return [
+            {
+                "created_at": r["created_at"],
+                "event_type": r["event_type"],
+                "severity": r["severity"],
+                "detail": json.loads(r["detail"]) if r["detail"] else {},
+                "stable_key": r["stable_key"],
+                "label": r["label"],
             }
             for r in rows
         ]
@@ -349,14 +421,31 @@ class SqliteResultStore:
         return result
 
     def _record_event(
-        self, conn: sqlite3.Connection, scan_id: int, host_id: Optional[int], event: ChangeEvent
+        self,
+        conn: sqlite3.Connection,
+        scan_id: int,
+        host_id: Optional[int],
+        event: ChangeEvent,
+        created_at: Optional[str] = None,
     ) -> None:
-        """Persist a single change event (flushed_at stays NULL until Phase 4)."""
+        """Persist a single change event (flushed_at stays NULL until Phase 4).
+
+        ``created_at`` defaults to now; callers pass an explicit timestamp when
+        an event must share an instant with its scan row (e.g. an assessment's
+        ``grade_changed``, so report-comparison windows are unambiguous).
+        """
         conn.execute(
             "INSERT INTO change_events "
             "(host_id, scan_id, event_type, severity, detail, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            (host_id, scan_id, event.event_type, event.severity, json.dumps(event.detail), _now()),
+            (
+                host_id,
+                scan_id,
+                event.event_type,
+                event.severity,
+                json.dumps(event.detail),
+                created_at or _now(),
+            ),
         )
 
     @staticmethod
