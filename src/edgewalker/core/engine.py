@@ -219,6 +219,25 @@ class Engine:
             result = await runners[module](opts, port_results)
             yield PhaseResult(module, result)
 
+        self._finalize_assessment(opts)
+
+    def _finalize_assessment(self, opts: AssessmentOptions) -> None:
+        """Record the assessment's network score/grade once all phases are done.
+
+        Computes the grade from the just-persisted bundle (reusing the report
+        summary logic) and hands it to the store, which drives the score trend
+        and emits any ``grade_changed`` event. No-ops on stores that don't
+        track history (the one-off JSON store).
+        """
+        # First Party
+        from edgewalker.core.findings import build_summary  # noqa: PLC0415
+
+        summary = build_summary(self.load_report_inputs())
+        if summary is not None:
+            self.scanner.store.record_assessment(
+                opts.target or "", float(summary.score), summary.grade
+            )
+
     # ------------------------------------------------------------- report inputs
 
     @staticmethod

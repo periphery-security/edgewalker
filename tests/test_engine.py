@@ -216,3 +216,39 @@ def test_phase_result_defaults():
     assert pr.module == "port"
     assert pr.result is None
     assert pr.skipped is False
+
+
+# --- assessment finalize -> record_assessment ------------------------------
+
+
+def test_finalize_assessment_records_score_and_grade():
+    """The engine hands the computed grade to the store after an assessment."""
+    # Standard Library
+    from unittest.mock import patch
+
+    scanner = MagicMock()
+    engine = Engine(scanner=scanner)
+
+    summary = MagicMock(score=72, grade="C")
+    with (
+        patch.object(Engine, "load_report_inputs", return_value={"port": {}}),
+        patch("edgewalker.core.findings.build_summary", return_value=summary),
+    ):
+        engine._finalize_assessment(AssessmentOptions(target="192.168.1.0/24"))
+
+    scanner.store.record_assessment.assert_called_once_with("192.168.1.0/24", 72.0, "C")
+
+
+def test_finalize_assessment_noop_when_no_summary():
+    scanner = MagicMock()
+    engine = Engine(scanner=scanner)
+    # Standard Library
+    from unittest.mock import patch
+
+    with (
+        patch.object(Engine, "load_report_inputs", return_value={}),
+        patch("edgewalker.core.findings.build_summary", return_value=None),
+    ):
+        engine._finalize_assessment(AssessmentOptions(target="t"))
+
+    scanner.store.record_assessment.assert_not_called()
