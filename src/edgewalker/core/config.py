@@ -396,6 +396,15 @@ class Settings(BaseSettings):
         ),
         description="Output directory for scan results (~/.edgewalker/scans by default)",
     )
+    db_path: Path = Field(
+        default_factory=lambda: (
+            get_data_dir() / "demo.db"
+            if os.environ.get("EW_DEMO_MODE") == "1"
+            else get_data_dir() / "edgewalker.db"
+        ),
+        description="SQLite database for scan history (~/.edgewalker/edgewalker.db by default)",
+        alias="EW_DB_PATH",
+    )
     creds_file: Path = Field(
         default=Path(__file__).parent.parent / "data" / "creds.csv",
         description="Path to the bundled credential database",
