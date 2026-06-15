@@ -242,3 +242,53 @@ def test_grade_changed_event(store):
     detail = json.loads(events[0]["detail"])
     assert detail["from"] == "A" and detail["to"] == "D"
     assert events[0]["host_id"] is None  # network-level event
+
+
+# --- history views ---------------------------------------------------------
+
+
+def test_recent_change_events_newest_first_with_host_context(store):
+    store.save_scan("port_scan", _port_scan())
+    changed = _port_scan()
+    changed.hosts[0].tcp.append(TcpPort(port=23, name="telnet"))
+    store.save_scan("port_scan", changed)
+
+    events = store.recent_change_events()
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["event_type"] == "port_opened"
+    assert ev["detail"]["port"] == 23
+    assert ev["stable_key"] == "mac:00:11:22:33:44:55"
+
+
+def test_recent_change_events_respects_limit(store):
+    store.save_scan("port_scan", _port_scan())
+    more = _port_scan()
+    more.hosts[0].tcp.extend([TcpPort(port=p, name="x") for p in (23, 21, 8080)])
+    store.save_scan("port_scan", more)
+    assert len(store.recent_change_events(limit=2)) == 2
+
+
+def test_score_trend_is_chronological(store):
+    store.record_assessment("net", 90, "A")
+    store.record_assessment("net", 70, "C")
+    store.record_assessment("net", 50, "D")
+    trend = store.score_trend()
+    assert [t["score"] for t in trend] == [90, 70, 50]  # oldest -> newest
+    assert [t["grade"] for t in trend] == ["A", "C", "D"]
+
+
+def test_host_timeline_for_specific_host(store):
+    store.save_scan("port_scan", _port_scan())
+    changed = _port_scan()
+    changed.hosts[0].tcp.append(TcpPort(port=23, name="telnet"))
+    store.save_scan("port_scan", changed)
+    timeline = store.host_timeline("mac:00:11:22:33:44:55")
+    assert len(timeline) == 1
+    assert timeline[0]["event_type"] == "port_opened"
+
+
+def test_history_views_empty_by_default(store):
+    assert store.recent_change_events() == []
+    assert store.score_trend() == []
+    assert store.host_timeline("mac:00:11:22:33:44:55") == []

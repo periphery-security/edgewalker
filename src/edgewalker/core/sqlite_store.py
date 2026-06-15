@@ -197,6 +197,63 @@ class SqliteResultStore:
             for ev in diff_grade(prior["grade"] if prior else None, grade):
                 self._record_event(conn, scan_id, None, ev)
 
+    # ------------------------------------------------------------- history views
+
+    def recent_change_events(self, limit: int = 20) -> list[dict]:
+        """Return the most recent change events (newest first), with host context."""
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT ce.created_at, ce.event_type, ce.severity, ce.detail, "
+                "h.stable_key, h.label FROM change_events ce "
+                "LEFT JOIN hosts h ON h.id = ce.host_id ORDER BY ce.id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "created_at": r["created_at"],
+                "event_type": r["event_type"],
+                "severity": r["severity"],
+                "detail": json.loads(r["detail"]) if r["detail"] else {},
+                "stable_key": r["stable_key"],
+                "label": r["label"],
+            }
+            for r in rows
+        ]
+
+    def score_trend(self, limit: int = 30) -> list[dict]:
+        """Return recent assessment scores oldest-first (for a trend/sparkline)."""
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT started_at, overall_score, grade FROM scans "
+                "WHERE scan_type = 'assessment' AND overall_score IS NOT NULL "
+                "ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        trend = [
+            {"at": r["started_at"], "score": r["overall_score"], "grade": r["grade"]} for r in rows
+        ]
+        trend.reverse()  # chronological for plotting
+        return trend
+
+    def host_timeline(self, stable_key: str, limit: int = 20) -> list[dict]:
+        """Return the change-event history for a single host (newest first)."""
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT ce.created_at, ce.event_type, ce.severity, ce.detail "
+                "FROM change_events ce JOIN hosts h ON h.id = ce.host_id "
+                "WHERE h.stable_key = ? ORDER BY ce.id DESC LIMIT ?",
+                (stable_key, limit),
+            ).fetchall()
+        return [
+            {
+                "created_at": r["created_at"],
+                "event_type": r["event_type"],
+                "severity": r["severity"],
+                "detail": json.loads(r["detail"]) if r["detail"] else {},
+            }
+            for r in rows
+        ]
+
     # ------------------------------------------------------------- write helpers
 
     def _insert_scan(self, conn: sqlite3.Connection, module: str, result: Base) -> int:
