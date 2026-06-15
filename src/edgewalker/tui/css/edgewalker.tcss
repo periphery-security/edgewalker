@@ -151,11 +151,18 @@ SplashScreen, ModalScreen {
     height: 100%;
 }
 
-/* The four named views fill the content area. */
-#overview, #devices, #findings {
+/* The named views fill the content area. */
+#overview, #devices, #findings, #history {
     width: 100%;
     height: 100%;
     padding: 1 2;
+}
+
+/* History: a summary panel, the selectable reports table, then the comparison. */
+#history-reports {
+    height: auto;
+    max-height: 20;
+    margin: 1 0;
 }
 
 #live-log {

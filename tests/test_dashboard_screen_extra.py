@@ -869,14 +869,10 @@ async def test_dashboard_history_view_switch():
 
 
 @pytest.mark.asyncio
-async def test_dashboard_history_view_lists_reports_and_compares():
-    """With >=2 reports, the History view renders the report list and a comparison.
-
-    Asserts the wiring: action_history builds the report list and compares the
-    two most recent reports (ordinals 1 and 2 here).
-    """
+async def test_dashboard_history_view_populates_reports_table():
+    """The History view fills the selectable reports table (one row per report)."""
     # Third Party
-    from rich.text import Text
+    from textual.widgets import DataTable
 
     # First Party
     from edgewalker.core.config import settings
@@ -897,21 +893,94 @@ async def test_dashboard_history_view_lists_reports_and_compares():
             await app.push_screen(screen)
             await pilot.pause()
 
-            with (
-                patch(
-                    "edgewalker.tui.widgets.overview.build_report_list_view",
-                    return_value=Text("reports"),
-                ) as m_list,
-                patch(
-                    "edgewalker.tui.widgets.overview.build_comparison_view",
-                    return_value=Text("comparison"),
-                ) as m_cmp,
-            ):
-                screen.action_history()
-                await pilot.pause()
+            screen.action_history()
+            await pilot.pause()
 
-            m_list.assert_called_once()
+            table = screen.query_one("#history-reports", DataTable)
+            assert table.row_count == 2
+
+
+@pytest.mark.asyncio
+async def test_dashboard_history_picks_two_reports_to_compare():
+    """First enter marks the start; the second renders the comparison of the pair."""
+    # Third Party
+    from rich.text import Text
+
+    # First Party
+    from edgewalker.core.config import settings
+    from edgewalker.core.sqlite_store import SqliteResultStore
+    from edgewalker.tui.screens.dashboard import DashboardScreen
+
+    store = SqliteResultStore(settings.db_path)
+    store.record_assessment("net", 80, "B")
+    store.record_assessment("net", 58, "D")
+
+    app = EdgeWalkerApp()
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+            screen.action_history()
+            await pilot.pause()
+
+            with patch(
+                "edgewalker.tui.widgets.overview.build_comparison_view",
+                return_value=Text("comparison"),
+            ) as m_cmp:
+                screen._select_report_for_compare(1)  # first pick: start only
+                assert screen._compare_from == 1
+                m_cmp.assert_not_called()
+
+                screen._select_report_for_compare(2)  # second pick: compare 1 <-> 2
+
             m_cmp.assert_called_once()
             comparison = m_cmp.call_args.args[0]
             assert comparison["from"]["ordinal"] == 1
             assert comparison["to"]["ordinal"] == 2
+            assert screen._compare_from is None  # reset after a comparison
+
+
+@pytest.mark.asyncio
+async def test_dashboard_history_enter_routes_to_selection():
+    """Pressing enter on a focused report row drives the comparison selection."""
+    # Third Party
+    from rich.text import Text
+    from textual.widgets import DataTable
+
+    # First Party
+    from edgewalker.core.config import settings
+    from edgewalker.core.sqlite_store import SqliteResultStore
+    from edgewalker.tui.screens.dashboard import DashboardScreen
+
+    store = SqliteResultStore(settings.db_path)
+    store.record_assessment("net", 80, "B")
+    store.record_assessment("net", 58, "D")
+
+    app = EdgeWalkerApp()
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+            screen.action_history()
+            await pilot.pause()
+
+            screen.query_one("#history-reports", DataTable).focus()
+            await pilot.pause()
+
+            with patch(
+                "edgewalker.tui.widgets.overview.build_comparison_view",
+                return_value=Text("comparison"),
+            ) as m_cmp:
+                await pilot.press("enter")  # row 0 (newest) -> start
+                await pilot.press("down")
+                await pilot.press("enter")  # row 1 -> compare
+
+            m_cmp.assert_called_once()

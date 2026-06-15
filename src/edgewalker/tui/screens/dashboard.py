@@ -16,7 +16,17 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import Screen
-from textual.widgets import Button, ContentSwitcher, Footer, Header, Input, RichLog, Static, Tree
+from textual.widgets import (
+    Button,
+    ContentSwitcher,
+    DataTable,
+    Footer,
+    Header,
+    Input,
+    RichLog,
+    Static,
+    Tree,
+)
 
 # First Party
 from edgewalker import theme
@@ -117,6 +127,9 @@ class DashboardScreen(Screen):
         self._from_topology = False
         self._filter_query = ""
         self._narrow = False
+        # Report number picked as the start of a comparison in the HISTORY view
+        # (None = waiting for the first pick).
+        self._compare_from = None
 
     def compose(self) -> ComposeResult:
         """Compose the dashboard layout.
@@ -140,10 +153,10 @@ class DashboardScreen(Screen):
                         Static(id="findings-content", expand=True),
                         id="findings",
                     )
-                    yield ScrollableContainer(
-                        Static(id="history-content", expand=True),
-                        id="history",
-                    )
+                    with ScrollableContainer(id="history"):
+                        yield Static(id="history-summary", expand=True)
+                        yield DataTable(id="history-reports", cursor_type="row")
+                        yield Static(id="history-comparison", expand=True)
                     with Vertical(id="live-log"):
                         yield ScanProgress(id="scan-header")
                         yield RichLog(highlight=True, markup=True, id="wizard-log")
@@ -1029,33 +1042,86 @@ class DashboardScreen(Screen):
         self._switch_view("findings")
 
     def action_history(self) -> None:
-        """Show recent changes, the score trend, the report list, and the latest diff.
+        """Show recent changes/trend, a selectable report list, and a comparison.
 
-        Beyond the recent-changes/trend view, this lists past assessment reports
-        and — when there are at least two — appends a comparison of the two most
-        recent (the "what changed since last time" diff). Arbitrary two-report
+        The reports table is keyboard-navigable: scroll with the arrow keys and
+        press enter to pick two reports to compare (the first enter marks the
+        start, the second renders the diff between them). The same arbitrary
         comparison is available from the CLI via ``edgewalker compare``.
         """
         # First Party
         from edgewalker.core.config import settings  # noqa: PLC0415
         from edgewalker.core.sqlite_store import SqliteResultStore  # noqa: PLC0415
-        from edgewalker.tui.widgets.overview import (  # noqa: PLC0415
-            build_comparison_view,
-            build_history_view,
-            build_report_list_view,
-        )
+        from edgewalker.tui.widgets.overview import build_history_view  # noqa: PLC0415
 
         self._from_topology = False
         store = SqliteResultStore(settings.db_path)
+        self.query_one("#history-summary", Static).update(
+            build_history_view(store.recent_change_events(), store.score_trend())
+        )
         assessments = store.list_assessments()
-        parts = [build_history_view(store.recent_change_events(), store.score_trend())]
-        if assessments:
-            parts.append(build_report_list_view(assessments))
-        if len(assessments) >= 2:
-            latest = assessments[0]["ordinal"]  # newest-first, so [0] is the highest ordinal
-            parts.append(build_comparison_view(store.compare_assessments(latest - 1, latest)))
-        self.query_one("#history-content", Static).update(Group(*parts))
+        self._populate_reports_table(assessments)
+        self._compare_from = None
+        hint = (
+            "Scroll the reports and press enter to pick two to compare."
+            if len(assessments) >= 2
+            else "Run more scans to build up reports to compare."
+        )
+        self.query_one("#history-comparison", Static).update(Text(hint, style=theme.MUTED_STYLE))
         self._switch_view("history")
+        if assessments:
+            self.query_one("#history-reports", DataTable).focus()
+
+    def _populate_reports_table(self, assessments: list[dict]) -> None:
+        """(Re)fill the reports DataTable; each row is keyed by its report number."""
+        table = self.query_one("#history-reports", DataTable)
+        table.clear(columns=True)
+        table.add_columns("#", "When", "Score", "Grade", "Target")
+        for a in assessments:
+            score = f"{a['score']:.0f}" if a.get("score") is not None else "—"
+            when = str(a["at"])[:19].replace("T", " ")
+            table.add_row(
+                str(a["ordinal"]),
+                when,
+                score,
+                a.get("grade") or "—",
+                a.get("target") or "—",
+                key=str(a["ordinal"]),
+            )
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Enter on a report row: pick two reports to compare."""
+        if event.data_table.id != "history-reports":
+            return
+        try:
+            ordinal = int(event.row_key.value)
+        except (TypeError, ValueError):
+            return
+        self._select_report_for_compare(ordinal)
+
+    def _select_report_for_compare(self, ordinal: int) -> None:
+        """Track the two-report selection and render the comparison once both are set."""
+        panel = self.query_one("#history-comparison", Static)
+        if self._compare_from is None or self._compare_from == ordinal:
+            self._compare_from = ordinal
+            panel.update(
+                Text(
+                    f"Selected report #{ordinal} as the start — "
+                    "press enter on another report to compare.",
+                    style=theme.MUTED_STYLE,
+                )
+            )
+            return
+
+        # First Party
+        from edgewalker.core.config import settings  # noqa: PLC0415
+        from edgewalker.core.sqlite_store import SqliteResultStore  # noqa: PLC0415
+        from edgewalker.tui.widgets.overview import build_comparison_view  # noqa: PLC0415
+
+        a, b = sorted((self._compare_from, ordinal))
+        self._compare_from = None
+        store = SqliteResultStore(settings.db_path)
+        panel.update(build_comparison_view(store.compare_assessments(a, b)))
 
     def action_live_log(self) -> None:
         """Show the live scan log view."""
