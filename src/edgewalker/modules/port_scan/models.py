@@ -15,6 +15,7 @@ from pydantic import (
 
 # First Party
 from edgewalker.core.models import Base, validate_mac
+from edgewalker.utils import stable_host_key
 
 
 class UdpPort(BaseModel):
@@ -125,6 +126,15 @@ class Host(BaseModel):
         if key == "tcp_ports":
             return self.tcp
         return self.udp if key == "udp_ports" else getattr(self, key, default)
+
+    @property
+    def stable_key(self) -> str:
+        """Stable identity for this host across scans (physical MAC, else IP).
+
+        Not a serialized field: it embeds the raw MAC and is for local
+        correlation/diffing only, never telemetry.
+        """
+        return stable_host_key(self.mac, self.ip)
 
     ip: IPvAnyAddress = Field(description="IP Address of host")
     mac: Annotated[str, PlainValidator(validate_mac)] = Field(description="MAC Address of host")
