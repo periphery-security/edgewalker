@@ -227,6 +227,11 @@ class Settings(BaseSettings):
         description="Seconds between NVD API requests (rate-limit guard)",
         alias="EW_NVD_RATE_DELAY",
     )
+    nvd_cache_ttl: int = Field(
+        default=604800,
+        description="Seconds a cached NVD result stays fresh (default 7 days)",
+        alias="EW_NVD_CACHE_TTL",
+    )
     cred_workers: int = Field(
         default=8,
         description="Max concurrent threads for credential testing",

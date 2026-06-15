@@ -18,6 +18,7 @@ from loguru import logger
 from edgewalker import __version__, utils
 from edgewalker.core.config import settings
 from edgewalker.modules import ScanModule
+from edgewalker.modules.cve_scan.cache import get_cache
 from edgewalker.modules.cve_scan.models import CveModel, CveScanModel, CveScanResultModel
 from edgewalker.utils import get_device_id
 
@@ -34,6 +35,14 @@ async def search_cves_async(
         return []
 
     product = product.lower().strip()
+
+    # Serve from the local cache when a fresh entry exists, sparing NVD a request.
+    cache = get_cache()
+    if cache is not None:
+        cached = cache.get(product, version)
+        if cached is not None:
+            return cached
+
     params = {"keywordSearch": product, "resultsPerPage": 20}
     if version:
         params["keywordSearch"] = f"{product} {version}"
@@ -101,6 +110,8 @@ async def search_cves_async(
                     "severity": severity,
                     "score": base_score,
                 })
+            if cache is not None:
+                cache.set(product, version, cves)
             return cves
         except Exception as e:
             logger.error(f"Error searching CVEs for {product}: {e}")

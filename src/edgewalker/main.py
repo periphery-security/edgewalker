@@ -15,7 +15,7 @@ import sys
 from edgewalker.cli import app
 from edgewalker.core.config import init_config, settings
 from edgewalker.core.logger_config import setup_logging
-from edgewalker.modules import mac_lookup, password_scan
+from edgewalker.modules import cve_scan, mac_lookup, password_scan
 from edgewalker.tui.app import EdgeWalkerApp
 
 
@@ -32,6 +32,7 @@ def main() -> None:
     settings.cache_dir.mkdir(parents=True, exist_ok=True)
     mac_lookup.init_cache(settings.cache_dir)
     password_scan.init_cache(settings.cache_dir)
+    cve_scan.init_cache(settings.cache_dir)
 
     # If no arguments, launch TUI
     if len(sys.argv) == 1:
