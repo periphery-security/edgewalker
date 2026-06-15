@@ -24,12 +24,14 @@ Type "export EW_DATA_DIR=$(mktemp -d) EW_CONFIG_DIR=$(mktemp -d) EW_CACHE_DIR=$(
 Enter
 Type "uv run python scripts/seed_demo_history.py >/dev/null 2>&1"
 Enter
+Sleep 2s
 Type "clear"
 Enter
+Sleep 1s
 Show
 
 # --- List past assessment reports ---
-Type "edgewalker history --list"
+Type "uv run edgewalker history --list"
 Sleep 800ms
 Enter
 Wait+Screen /Reports/
@@ -39,7 +41,7 @@ Type "clear"
 Enter
 
 # --- Compare report #1 to report #3: what changed between them ---
-Type "edgewalker compare 1 3"
+Type "uv run edgewalker compare 1 3"
 Sleep 800ms
 Enter
 Wait+Screen /Comparing/
@@ -49,7 +51,7 @@ Type "clear"
 Enter
 
 # --- Recent changes + score-trend sparkline ---
-Type "edgewalker history"
+Type "uv run edgewalker history"
 Sleep 800ms
 Enter
 Wait+Screen /Score trend/
