@@ -115,6 +115,19 @@ In the TUI, press `h` for the **History** view: the score trend, the change
 log, and a scrollable report list — press <kbd>enter</kbd> on two reports to
 compare them.
 
+<table align="center">
+  <tr>
+    <td align="center"><strong>CLI: history &amp; compare</strong></td>
+    <td align="center"><strong>TUI: History view</strong></td>
+  </tr>
+  <tr>
+    <td><img src="images/cli-demo.gif" alt="EdgeWalker history & compare (CLI)" width="100%"></td>
+    <td><img src="images/tui-history.gif" alt="EdgeWalker History view (TUI)" width="100%"></td>
+  </tr>
+</table>
+
+<!-- Render with `vhs cli-demo.tape` and `vhs tui-history.tape` (see those files). -->
+
 ### CI/CD & Automation
 EdgeWalker supports non-interactive execution for automated environments:
 ```bash
