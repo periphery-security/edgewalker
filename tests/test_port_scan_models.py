@@ -93,11 +93,4 @@ def test_host_serialization():
 
 def test_port_scan_model():
     model = PortScanModel(target="192.168.1.0/24")
-    assert model["target"] == "192.168.1.0/24"
-    assert model.get("target") == "192.168.1.0/24"
-    assert model.get("nonexistent", "default") == "default"
-
-    with pytest.raises(TypeError):
-        model[123]
-    with pytest.raises(KeyError):
-        model["nonexistent"]
+    assert model.target == "192.168.1.0/24"

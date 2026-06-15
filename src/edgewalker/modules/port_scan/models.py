@@ -191,19 +191,6 @@ class PortScanModel(Base):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __getitem__(self, key: str) -> object:
-        """Allow subscriptable access."""
-        if not isinstance(key, str):
-            raise TypeError(f"attribute name must be string, not {type(key).__name__!r}")
-        try:
-            return getattr(self, key)
-        except AttributeError as e:
-            raise KeyError(key) from e
-
-    def get(self, key: str, default: object = None) -> object:
-        """Allow .get() access."""
-        return getattr(self, key, default)
-
     hosts: list[Host] = Field(default_factory=list, description="List of hosts found")
     gateway_ip: Optional[str] = Field(
         default=None, description="Detected gateway IP for the subnet"

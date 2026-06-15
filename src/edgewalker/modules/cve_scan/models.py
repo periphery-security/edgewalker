@@ -13,14 +13,6 @@ from edgewalker.core.models import Base
 class CveModel(BaseModel):
     """Model for storing CVE details."""
 
-    def __getitem__(self, key: str) -> object:
-        """Allow subscriptable access."""
-        return getattr(self, key)
-
-    def get(self, key: str, default: object = None) -> object:
-        """Allow .get() access."""
-        return getattr(self, key, default)
-
     id: str = Field(description="CVE ID")
     description: str = Field(description="CVE description")
     severity: str = Field(description="CVE severity")
@@ -31,14 +23,6 @@ class CveScanResultModel(BaseModel):
     """Model for storing CVE scan results for a single service."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def __getitem__(self, key: str) -> object:
-        """Allow subscriptable access."""
-        return getattr(self, key)
-
-    def get(self, key: str, default: object = None) -> object:
-        """Allow .get() access."""
-        return getattr(self, key, default)
 
     ip: IPvAnyAddress = Field(description="Target IP address")
     port: int = Field(description="Target port number")
@@ -75,19 +59,6 @@ class CveScanResultModel(BaseModel):
 
 class CveScanModel(Base):
     """Model for storing CVE scan results."""
-
-    def __getitem__(self, key: str) -> object:
-        """Allow subscriptable access."""
-        if not isinstance(key, str):
-            raise TypeError(f"attribute name must be string, not {type(key).__name__!r}")
-        try:
-            return getattr(self, key)
-        except AttributeError as e:
-            raise KeyError(key) from e
-
-    def get(self, key: str, default: object = None) -> object:
-        """Allow .get() access."""
-        return getattr(self, key, default)
 
     results: list[CveScanResultModel] = Field(description="List of CVE scan results")
 

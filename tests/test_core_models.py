@@ -45,21 +45,23 @@ def test_base_model():
         timestamp=now,
     )
 
-    assert base["id"] == "test-id"
-    assert base.get("module") == "unspecified"
-    assert base.get("nonexistent", "default") == "default"
-    assert base.get(123, "default") == "default"
+    # Attribute access (dict-emulation has been removed)
+    assert base.id == "test-id"
+    assert base.module == "unspecified"
+    assert base.device_id == "test-device"
 
-    with pytest.raises(TypeError):
-        base[123]
-    with pytest.raises(KeyError):
-        base["nonexistent"]
-
-    # Equality with dict
-    dump = base.model_dump(mode="json")
-    assert base == dump
-    assert not (base == {"wrong": "dict"})
-    assert not (base == "not-a-dict")
+    # Equality is field-based against other models, not dicts
+    twin = Base(
+        id="test-id",
+        device_id="test-device",
+        version="1.0.0",
+        module="unspecified",
+        module_version="0.1.0",
+        timestamp=now,
+    )
+    assert base == twin
+    assert base != base.model_dump(mode="json")
+    assert base != "not-a-dict"
 
 
 def test_base_serialization():
