@@ -364,9 +364,11 @@ class SqliteResultStore:
     ) -> None:
         """Upsert host_state + per-port findings and emit port/device change events.
 
-        The first-ever port scan establishes a baseline and emits no events
-        (everything would otherwise look "new"); subsequent scans diff against
-        the immediately prior port scan.
+        The first-ever port scan establishes a baseline: per-port diffs are
+        suppressed (every open port would otherwise look "new", flooding the
+        log), but each discovered device still emits a ``device_appeared`` event
+        — bounded at one per host — so a fresh install shows something in
+        history. Subsequent scans diff against the immediately prior port scan.
         """
         prior_scan_id = self._prior_scan_id(conn, "port_scan", scan_id)
         prior_ports = self._ports_by_key_for_scan(conn, prior_scan_id)
@@ -418,10 +420,12 @@ class SqliteResultStore:
                     detail={"service": port.name, "product": port.product_name},
                 )
 
-        if prior_scan_id is not None:
-            for ev in diff_devices(set(prior_ports), new_keys):
-                host_id = self._host_id_by_key(conn, ev.detail["stable_key"])
-                self._record_event(conn, scan_id, host_id, ev)
+        # Device appearance/disappearance is diffed even on the baseline scan
+        # (prior_ports is empty -> every discovered host is "appeared"), unlike
+        # the per-port diff above which stays silent on the baseline.
+        for ev in diff_devices(set(prior_ports), new_keys):
+            host_id = self._host_id_by_key(conn, ev.detail["stable_key"])
+            self._record_event(conn, scan_id, host_id, ev)
 
     def _save_cve_findings(self, conn: sqlite3.Connection, scan_id: int, result: Base) -> None:
         """Write CVE findings (linked to host by IP) and emit cve change events."""

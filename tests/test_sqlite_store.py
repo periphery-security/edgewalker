@@ -196,9 +196,19 @@ def _events(store, event_type=None):
         return conn.execute("SELECT * FROM change_events").fetchall()
 
 
-def test_first_port_scan_is_baseline_no_events(store):
+def test_first_port_scan_baseline_suppresses_port_events(store):
+    """The baseline scan emits no per-port events (would otherwise flood)."""
     store.save_scan("port_scan", _port_scan())
-    assert _events(store) == []  # baseline emits nothing
+    assert _events(store, "port_opened") == []
+    assert _events(store, "port_closed") == []
+
+
+def test_first_port_scan_emits_device_appeared(store):
+    """A fresh install still shows discovered devices in history."""
+    store.save_scan("port_scan", _port_scan())
+    appeared = _events(store, "device_appeared")
+    assert len(appeared) == 1
+    assert json.loads(appeared[0]["detail"])["stable_key"] == "mac:00:11:22:33:44:55"
 
 
 def test_second_scan_emits_port_opened(store):
@@ -220,22 +230,29 @@ def test_port_closed_event(store):
 
 
 def test_dhcp_ip_change_is_not_material(store):
-    """A device whose only change is its IP (MAC stable) emits no events."""
+    """A device whose only change is its IP (MAC stable) emits no new events.
+
+    The baseline still records its one device_appeared, but the IP-only rescan
+    adds nothing material — no port churn, no second appearance/disappearance.
+    """
     store.save_scan("port_scan", _port_scan())
     moved = _port_scan()
     moved.hosts[0].ip = "192.168.1.200"
     store.save_scan("port_scan", moved)
-    assert _events(store) == []
+    assert _events(store, "port_opened") == []
+    assert _events(store, "port_closed") == []
+    assert _events(store, "device_disappeared") == []
+    assert len(_events(store, "device_appeared")) == 1  # only the baseline's
 
 
 def test_device_appeared_on_second_scan(store):
-    store.save_scan("port_scan", _port_scan())
+    store.save_scan("port_scan", _port_scan())  # baseline: first host appears
     bigger = _port_scan()
     bigger.hosts.append(Host(ip="192.168.1.50", mac="00:11:22:33:44:66", state="up"))
     store.save_scan("port_scan", bigger)
-    appeared = _events(store, "device_appeared")
-    assert len(appeared) == 1
-    assert json.loads(appeared[0]["detail"])["stable_key"] == "mac:00:11:22:33:44:66"
+    keys = {json.loads(e["detail"])["stable_key"] for e in _events(store, "device_appeared")}
+    assert "mac:00:11:22:33:44:66" in keys  # the newly-seen device
+    assert keys == {"mac:00:11:22:33:44:55", "mac:00:11:22:33:44:66"}
 
 
 def _cve_scan(cve_ids):
@@ -283,9 +300,10 @@ def test_recent_change_events_newest_first_with_host_context(store):
     store.save_scan("port_scan", changed)
 
     events = store.recent_change_events()
-    assert len(events) == 1
+    # Newest first: the port_opened from the rescan precedes the baseline's
+    # device_appeared.
+    assert [e["event_type"] for e in events] == ["port_opened", "device_appeared"]
     ev = events[0]
-    assert ev["event_type"] == "port_opened"
     assert ev["detail"]["port"] == 23
     assert ev["stable_key"] == "mac:00:11:22:33:44:55"
 
@@ -313,8 +331,8 @@ def test_host_timeline_for_specific_host(store):
     changed.hosts[0].tcp.append(TcpPort(port=23, name="telnet"))
     store.save_scan("port_scan", changed)
     timeline = store.host_timeline("mac:00:11:22:33:44:55")
-    assert len(timeline) == 1
-    assert timeline[0]["event_type"] == "port_opened"
+    # Newest first: port_opened (rescan) then device_appeared (baseline).
+    assert [e["event_type"] for e in timeline] == ["port_opened", "device_appeared"]
 
 
 def test_history_views_empty_by_default(store):
