@@ -225,12 +225,13 @@ async def test_navigation_panel_groups_and_active_view():
 
         # SCAN, VIEW, and the CONTROL (cancel) mnemonics are present.
         items = {item.key: item for item in panel.query(NavItem)}
-        assert set(items) == {"s", "S", "r", "o", "d", "f", "l", "esc"}
+        assert set(items) == {"s", "S", "r", "o", "d", "f", "h", "l", "esc"}
         assert items["esc"].action == "go_home"
 
         # View items carry their ContentSwitcher name; scan items do not.
         assert items["o"].view == "overview"
         assert items["d"].view == "devices"
+        assert items["h"].view == "history"
         assert items["s"].view is None
 
         # Overview is the default active view on mount.

@@ -60,6 +60,7 @@ class DashboardScreen(Screen):
         Binding("r", "run_all", "Re-run All", show=False),
         Binding("o", "overview", "Overview", show=False),
         Binding("d", "devices", "Devices", show=False),
+        Binding("h", "history", "History", show=False),
         Binding("f", "findings", "Findings", show=False),
         Binding("l", "live_log", "Live Log", show=False),
         Binding("slash", "filter", "Filter", show=False, key_display="/"),
@@ -138,6 +139,10 @@ class DashboardScreen(Screen):
                     yield ScrollableContainer(
                         Static(id="findings-content", expand=True),
                         id="findings",
+                    )
+                    yield ScrollableContainer(
+                        Static(id="history-content", expand=True),
+                        id="history",
                     )
                     with Vertical(id="live-log"):
                         yield ScanProgress(id="scan-header")
@@ -1006,6 +1011,19 @@ class DashboardScreen(Screen):
         self._from_topology = False
         self._render_findings()
         self._switch_view("findings")
+
+    def action_history(self) -> None:
+        """Show recent network changes and the security score trend."""
+        # First Party
+        from edgewalker.core.config import settings  # noqa: PLC0415
+        from edgewalker.core.sqlite_store import SqliteResultStore  # noqa: PLC0415
+        from edgewalker.tui.widgets.overview import build_history_view  # noqa: PLC0415
+
+        self._from_topology = False
+        store = SqliteResultStore(settings.db_path)
+        view = build_history_view(store.recent_change_events(), store.score_trend())
+        self.query_one("#history-content", Static).update(view)
+        self._switch_view("history")
 
     def action_live_log(self) -> None:
         """Show the live scan log view."""

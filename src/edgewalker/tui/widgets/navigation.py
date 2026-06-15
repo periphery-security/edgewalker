@@ -283,6 +283,7 @@ class NavPanel(Vertical):
         yield NavItem("o", "Overview", view="overview", action="overview", id="nav-overview")
         yield NavItem("d", "Devices", view="devices", action="devices", id="nav-devices")
         yield NavItem("f", "Findings", view="findings", action="findings", id="nav-findings")
+        yield NavItem("h", "History", view="history", action="history", id="nav-history")
         yield NavItem("l", "Live log", view="live-log", action="live_log", id="nav-live-log")
 
         # Live-scan only: progress + cancel control (hidden while idle).

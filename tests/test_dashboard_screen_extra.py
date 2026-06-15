@@ -841,3 +841,28 @@ async def test_dashboard_run_guided_scans():
                     worker = screen._run_guided_web_scan()
                     await worker.wait()
                     assert mock_web.called
+
+
+@pytest.mark.asyncio
+async def test_dashboard_history_view_switch():
+    """Activating the History view switches the ContentSwitcher and renders."""
+    # Third Party
+    from textual.widgets import ContentSwitcher
+
+    # First Party
+    from edgewalker.tui.screens.dashboard import DashboardScreen
+
+    app = EdgeWalkerApp()
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            screen.action_history()
+            await pilot.pause()
+
+            assert screen.query_one("#view-switcher", ContentSwitcher).current == "history"

@@ -1,28 +1,36 @@
 # Third Party
-from rich.table import Table
-from rich.text import Text
+from rich.console import Group
 from typer.testing import CliRunner
 
 # First Party
 from edgewalker.cli.cli import app
-from edgewalker.cli.history import build_history_view, sparkline
+from edgewalker.tui.widgets.overview import build_history_view, history_sparkline
 
 
 def test_sparkline_empty():
-    assert sparkline([]) == ""
+    assert history_sparkline([]) == ""
 
 
 def test_sparkline_maps_range_to_blocks():
-    spark = sparkline([0, 50, 100])
+    spark = history_sparkline([0, 50, 100])
     assert spark[0] == "▁" and spark[-1] == "█"
     assert len(spark) == 3
 
 
+def _render(group: Group) -> str:
+    # Render the Group to plain text for assertions.
+    # Third Party
+    from rich.console import Console
+
+    console = Console(width=120, record=True)
+    console.print(group)
+    return console.export_text()
+
+
 def test_build_history_view_empty_shows_message():
     out = build_history_view([], [])
-    assert len(out) == 1
-    assert isinstance(out[0], Text)
-    assert "No history yet" in out[0].plain
+    assert isinstance(out, Group)
+    assert "No history yet" in _render(out)
 
 
 def test_build_history_view_renders_trend_and_table():
@@ -37,14 +45,13 @@ def test_build_history_view_renders_trend_and_table():
         }
     ]
     trend = [{"at": "t1", "score": 90, "grade": "A"}, {"at": "t2", "score": 50, "grade": "D"}]
-    out = build_history_view(events, trend)
-    # A trend Text line and a change-events Table.
-    assert any(isinstance(r, Text) for r in out)
-    assert any(isinstance(r, Table) for r in out)
+    text = _render(build_history_view(events, trend))
+    assert "Score trend" in text
+    assert "port_opened" in text
+    assert "Recent changes" in text
 
 
-def test_history_command_runs_with_empty_db(tmp_path, monkeypatch):
-    # Point the DB at an isolated path (autouse isolate_db already does, but be explicit).
+def test_history_command_runs_with_empty_db(tmp_path):
     # First Party
     from edgewalker.core.config import settings
 

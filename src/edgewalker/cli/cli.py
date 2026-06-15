@@ -305,14 +305,13 @@ def history(
 ) -> None:
     """Show recent network changes and the security score trend."""
     # First Party
-    from edgewalker.cli.history import build_history_view  # noqa: PLC0415
     from edgewalker.core.config import settings  # noqa: PLC0415
     from edgewalker.core.sqlite_store import SqliteResultStore  # noqa: PLC0415
+    from edgewalker.tui.widgets.overview import build_history_view  # noqa: PLC0415
 
     print_logo()
     store = SqliteResultStore(settings.db_path)
-    for renderable in build_history_view(store.recent_change_events(limit), store.score_trend()):
-        console.print(renderable)
+    console.print(build_history_view(store.recent_change_events(limit), store.score_trend()))
 
 
 @app.command()

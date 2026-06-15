@@ -254,3 +254,73 @@ def build_overview_empty() -> RenderableType:
         border_style=theme.ACCENT,
         box=theme.BOX_STYLE,
     )
+
+
+# ── History view (recent changes + score trend) ────────────────────────────
+
+_SPARK = "▁▂▃▄▅▆▇█"
+
+
+def history_sparkline(values: list[float]) -> str:
+    """Render values as a unicode block sparkline."""
+    if not values:
+        return ""
+    lo, hi = min(values), max(values)
+    span = (hi - lo) or 1
+    return "".join(_SPARK[int((v - lo) / span * (len(_SPARK) - 1))] for v in values)
+
+
+def _history_detail(event_type: str, detail: dict) -> str:
+    """Human-readable one-liner for a change event's detail payload."""
+    if "port" in detail:
+        return f"port {detail['port']}"
+    if "cve" in detail:
+        return str(detail["cve"])
+    if "service" in detail:
+        return str(detail["service"])
+    if event_type == "grade_changed":
+        return f"{detail.get('from')} → {detail.get('to')}"
+    if "stable_key" in detail:
+        return str(detail["stable_key"])
+    return ""
+
+
+def build_history_view(events: list[dict], trend: list[dict]) -> RenderableType:
+    """Build the recent-changes + score-trend renderable (CLI and TUI share it)."""
+    parts: list[RenderableType] = []
+
+    if trend:
+        spark = history_sparkline([t["score"] for t in trend])
+        latest = trend[-1]
+        parts.append(
+            Text.from_markup(
+                f"[{theme.ACCENT}]Score trend[/] {spark}  "
+                f"latest [bold]{latest['score']:.0f}[/] (grade {latest['grade']})"
+            )
+        )
+
+    if events:
+        table = Table(title="Recent changes", title_style=theme.HEADER, expand=True)
+        table.add_column("When", style=theme.MUTED, no_wrap=True)
+        table.add_column("Event")
+        table.add_column("Severity")
+        table.add_column("Device", style=theme.MUTED)
+        table.add_column("Detail")
+        for e in events:
+            device = e.get("label") or e.get("stable_key") or "—"
+            sev = e.get("severity") or ""
+            table.add_row(
+                str(e["created_at"])[:19].replace("T", " "),
+                e["event_type"],
+                Text(sev, style=severity_style(sev)),
+                device,
+                _history_detail(e["event_type"], e.get("detail", {})),
+            )
+        parts.append(table)
+
+    if not parts:
+        parts.append(
+            Text("No history yet. Run a scan to start tracking changes.", style=theme.MUTED)
+        )
+
+    return Group(*parts)
