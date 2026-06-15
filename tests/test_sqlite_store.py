@@ -17,6 +17,13 @@ from edgewalker.modules.password_scan.models import (
     StatusEnum,
 )
 from edgewalker.modules.port_scan.models import Host, PortScanModel, TcpPort
+from edgewalker.modules.sql_scan.models import SqlScanModel, SqlScanResultModel
+from edgewalker.modules.web_scan.models import (
+    SecurityHeadersModel,
+    TlsInfoModel,
+    WebScanModel,
+    WebScanResultModel,
+)
 
 
 @pytest.fixture
@@ -288,6 +295,112 @@ def test_grade_changed_event(store):
     detail = json.loads(events[0]["detail"])
     assert detail["from"] == "A" and detail["to"] == "D"
     assert events[0]["host_id"] is None  # network-level event
+
+
+# --- sql findings ----------------------------------------------------------
+
+
+def _sql_scan(services: list[tuple[str, str]]) -> SqlScanModel:
+    """Build a SQL scan from (service, status) pairs on the baseline host."""
+    return SqlScanModel(
+        id="s1",
+        device_id="dev",
+        version="1.0",
+        results=[
+            SqlScanResultModel(ip="192.168.1.10", port=3306, service=svc, status=status)
+            for svc, status in services
+        ],
+        summary={},
+    )
+
+
+def test_save_sql_findings_linked_to_host(store):
+    store.save_scan("port_scan", _port_scan())
+    store.save_scan("sql_scan", _sql_scan([("mysql", "successful")]))
+    with sqlite3.connect(store.db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM findings WHERE kind = 'sql'").fetchone()
+        assert row["ref"] == "mysql"
+        assert row["severity"] == "CRITICAL"  # mysql weight 80 -> CRITICAL
+        assert row["host_id"] is not None
+
+
+def test_sql_finding_skips_non_vulnerable_status(store):
+    store.save_scan("port_scan", _port_scan())
+    store.save_scan("sql_scan", _sql_scan([("mysql", "failed")]))
+    with sqlite3.connect(store.db_path) as conn:
+        rows = conn.execute("SELECT * FROM findings WHERE kind = 'sql'").fetchall()
+        assert rows == []
+
+
+def test_sql_vuln_appeared_event(store):
+    store.save_scan("port_scan", _port_scan())
+    store.save_scan("sql_scan", _sql_scan([("mysql", "successful")]))  # baseline
+    store.save_scan("sql_scan", _sql_scan([("mysql", "successful"), ("redis", "anonymous")]))
+    appeared = _events(store, "sql_vuln_appeared")
+    assert len(appeared) == 1
+    assert json.loads(appeared[0]["detail"])["service"] == "redis"
+
+
+def test_sql_vuln_resolved_event(store):
+    store.save_scan("port_scan", _port_scan())
+    store.save_scan("sql_scan", _sql_scan([("mysql", "successful")]))  # baseline
+    store.save_scan("sql_scan", _sql_scan([]))  # service secured
+    assert len(_events(store, "sql_vuln_resolved")) == 1
+
+
+# --- web findings ----------------------------------------------------------
+
+
+def _web_result(**kwargs) -> WebScanResultModel:
+    """A web result that is clean by default (CSP + HSTS present, no TLS issue)."""
+    defaults = dict(
+        ip="192.168.1.10",
+        port=443,
+        protocol="https",
+        headers=SecurityHeadersModel(csp=True, hsts=True),
+    )
+    defaults.update(kwargs)
+    return WebScanResultModel(**defaults)
+
+
+def _web_scan(results: list[WebScanResultModel]) -> WebScanModel:
+    return WebScanModel(id="w1", device_id="dev", version="1.0", results=results, summary={})
+
+
+def test_save_web_findings_issue_kinds(store):
+    store.save_scan("port_scan", _port_scan())
+    res = _web_result(
+        headers=SecurityHeadersModel(csp=False, hsts=False),
+        tls=TlsInfoModel(expired=True),
+        sensitive_files=[".env"],
+    )
+    store.save_scan("web_scan", _web_scan([res]))
+    with sqlite3.connect(store.db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT ref, severity FROM findings WHERE kind = 'web'").fetchall()
+        by_ref = {r["ref"]: r["severity"] for r in rows}
+        assert by_ref == {
+            "expired_tls": "HIGH",  # 70
+            "sensitive_file": "CRITICAL",  # 90
+            "insecure_header": "MEDIUM",  # 40
+        }
+
+
+def test_clean_web_service_records_no_findings(store):
+    store.save_scan("port_scan", _port_scan())
+    store.save_scan("web_scan", _web_scan([_web_result()]))
+    with sqlite3.connect(store.db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM findings WHERE kind = 'web'").fetchone()[0] == 0
+
+
+def test_web_issue_appeared_event(store):
+    store.save_scan("port_scan", _port_scan())
+    store.save_scan("web_scan", _web_scan([_web_result()]))  # baseline, clean
+    store.save_scan("web_scan", _web_scan([_web_result(sensitive_files=["backup.sql"])]))
+    appeared = _events(store, "web_issue_appeared")
+    assert len(appeared) == 1
+    assert json.loads(appeared[0]["detail"])["issue"] == "sensitive_file"
 
 
 # --- history views ---------------------------------------------------------

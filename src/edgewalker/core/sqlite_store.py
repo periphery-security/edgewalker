@@ -30,6 +30,8 @@ from edgewalker.core.diff import (
     diff_devices,
     diff_grade,
     diff_ports,
+    diff_sql,
+    diff_web,
 )
 from edgewalker.core.models import Base
 from edgewalker.core.risk import RiskEngine
@@ -147,10 +149,10 @@ class SqliteResultStore:
         """Persist a scan result's structured signal; return the DB path.
 
         Records a ``scans`` row for every module. For port scans it upserts
-        ``hosts`` + ``host_state`` and writes per-port findings; for CVE and
-        credential scans it writes the corresponding findings. (SQL/web findings
-        are out of scope for the four diff signals and are not recorded here;
-        their full payloads still land in the JSON store via the composite.)
+        ``hosts`` + ``host_state`` and writes per-port findings; for CVE,
+        credential, SQL and web scans it writes the corresponding findings and
+        emits the matching change events. Full scan payloads still land in the
+        JSON store via the composite.
         """
         with closing(self._connect()) as conn, conn:
             scan_id = self._insert_scan(conn, module, result)
@@ -160,6 +162,10 @@ class SqliteResultStore:
                 self._save_cve_findings(conn, scan_id, result)
             elif module == "password_scan":
                 self._save_credential_findings(conn, scan_id, result)
+            elif module == "sql_scan":
+                self._save_sql_findings(conn, scan_id, result)
+            elif module == "web_scan":
+                self._save_web_findings(conn, scan_id, result)
         return self.db_path
 
     def get_latest_port_scan(self) -> PortScanModel | None:
@@ -481,6 +487,102 @@ class SqliteResultStore:
                 old_services = {ref for ref, _ in prior.get(host_id, [])}
                 for ev in diff_credentials(old_services, new.get(host_id, set())):
                     self._record_event(conn, scan_id, host_id, ev)
+
+    def _save_sql_findings(self, conn: sqlite3.Connection, scan_id: int, result: Base) -> None:
+        """Write SQL findings (linked to host by IP) and emit sql change events.
+
+        A finding is recorded for each service whose login succeeded or allowed
+        anonymous access (mirroring the risk engine); severity comes from the
+        configured ``sql_severity`` weights.
+        """
+        prior_scan_id = self._prior_scan_id(conn, "sql_scan", scan_id)
+        prior = self._refs_by_host_for_scan(conn, prior_scan_id, "sql")
+        new: dict[Optional[int], dict[str, str]] = {}
+
+        for res in getattr(result, "results", []):
+            status = getattr(res.status, "value", str(res.status))
+            if status not in ("successful", "anonymous"):
+                continue
+            svc = getattr(res.service, "value", str(res.service))
+            severity = self._severity_of_sql(svc)
+            host_id = self._host_id_by_ip(conn, str(res.ip))
+            new.setdefault(host_id, {})[svc] = severity
+            self._insert_finding(
+                conn,
+                scan_id,
+                host_id,
+                kind="sql",
+                severity=severity,
+                ref=svc,
+                detail={"port": res.port, "status": status, "version": res.version},
+            )
+
+        if prior_scan_id is not None:
+            for host_id in set(prior) | set(new):
+                old_services = {ref for ref, _ in prior.get(host_id, [])}
+                for ev in diff_sql(old_services, new.get(host_id, {})):
+                    self._record_event(conn, scan_id, host_id, ev)
+
+    def _save_web_findings(self, conn: sqlite3.Connection, scan_id: int, result: Base) -> None:
+        """Write web findings (linked to host by IP) and emit web change events.
+
+        Each web service contributes up to three issue kinds — ``sensitive_file``,
+        ``expired_tls`` and ``insecure_header`` — with severity from the
+        configured ``web_severity`` weights.
+        """
+        prior_scan_id = self._prior_scan_id(conn, "web_scan", scan_id)
+        prior = self._refs_by_host_for_scan(conn, prior_scan_id, "web")
+        new: dict[Optional[int], dict[str, str]] = {}
+
+        for res in getattr(result, "results", []):
+            host_id = self._host_id_by_ip(conn, str(res.ip))
+            for issue, severity in self._web_issues(res).items():
+                new.setdefault(host_id, {})[issue] = severity
+                self._insert_finding(
+                    conn,
+                    scan_id,
+                    host_id,
+                    kind="web",
+                    severity=severity,
+                    ref=issue,
+                    detail={"port": res.port},
+                )
+
+        if prior_scan_id is not None:
+            for host_id in set(prior) | set(new):
+                old_issues = {ref for ref, _ in prior.get(host_id, [])}
+                for ev in diff_web(old_issues, new.get(host_id, {})):
+                    self._record_event(conn, scan_id, host_id, ev)
+
+    @staticmethod
+    def _severity_of_sql(service: str) -> str:
+        """Severity label for a vulnerable SQL service via the risk weights."""
+        score = settings.sql_severity.get(service, settings.sql_severity_default)
+        return RiskEngine.get_risk_level(score)[0]
+
+    @staticmethod
+    def _web_issues(res: object) -> dict[str, str]:
+        """Map a web result to its issue kinds and severity labels.
+
+        Mirrors :meth:`RiskEngine._calculate_web_score`: an expired certificate,
+        any exposed sensitive file, and a missing CSP/HSTS header each surface as
+        a distinct issue keyed by kind.
+        """
+        issues: dict[str, str] = {}
+        tls = getattr(res, "tls", None)
+        if tls is not None and getattr(tls, "expired", False):
+            score = settings.web_severity.get("expired_cert", 70)
+            issues["expired_tls"] = RiskEngine.get_risk_level(score)[0]
+        if getattr(res, "sensitive_files", None):
+            score = settings.web_severity.get("sensitive_file", 90)
+            issues["sensitive_file"] = RiskEngine.get_risk_level(score)[0]
+        headers = getattr(res, "headers", None)
+        if headers is not None and (
+            not getattr(headers, "csp", False) or not getattr(headers, "hsts", False)
+        ):
+            score = settings.web_severity.get("missing_headers", 40)
+            issues["insecure_header"] = RiskEngine.get_risk_level(score)[0]
+        return issues
 
     def _insert_finding(
         self,
