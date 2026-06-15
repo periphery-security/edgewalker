@@ -300,6 +300,22 @@ def report() -> None:
 
 
 @app.command()
+def history(
+    limit: int = typer.Option(20, help="Number of recent change events to show."),
+) -> None:
+    """Show recent network changes and the security score trend."""
+    # First Party
+    from edgewalker.cli.history import build_history_view  # noqa: PLC0415
+    from edgewalker.core.config import settings  # noqa: PLC0415
+    from edgewalker.core.sqlite_store import SqliteResultStore  # noqa: PLC0415
+
+    print_logo()
+    store = SqliteResultStore(settings.db_path)
+    for renderable in build_history_view(store.recent_change_events(limit), store.score_trend()):
+        console.print(renderable)
+
+
+@app.command()
 def findings() -> None:
     """List prioritised findings from the latest assessment."""
     # First Party
