@@ -10,6 +10,7 @@ from loguru import logger
 # First Party
 from edgewalker import theme, utils
 from edgewalker.core.config import settings
+from edgewalker.core.engine import Engine
 from edgewalker.core.scanner_service import ScannerService
 from edgewalker.display import (
     build_credential_display,
@@ -332,6 +333,12 @@ class ScanController:
             utils.console.print(renderable)
 
         utils.console.print()
+
+        # Record a score-trend snapshot for the network we just assessed. The
+        # store dedupes unchanged snapshots, so viewing the same report twice
+        # adds no duplicate point (and the guided flow, which finalizes before
+        # rendering this report, never double-records).
+        Engine(self.scanner).record_assessment_snapshot()
 
         if report_data:
             report_path = utils.save_results(report_data, "security_report.json")

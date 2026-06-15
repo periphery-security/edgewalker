@@ -222,12 +222,24 @@ class Engine:
         self._finalize_assessment(opts)
 
     def _finalize_assessment(self, opts: AssessmentOptions) -> None:
-        """Record the assessment's network score/grade once all phases are done.
+        """Record the assessment's score/grade once all phases of a run are done."""
+        self.record_assessment_snapshot(opts.target or "")
 
-        Computes the grade from the just-persisted bundle (reusing the report
-        summary logic) and hands it to the store, which drives the score trend
-        and emits any ``grade_changed`` event. No-ops on stores that don't
-        track history (the one-off JSON store).
+    def record_assessment_snapshot(self, target: str = "") -> None:
+        """Compute the current network score/grade from disk and record it.
+
+        Reads the just-persisted scan bundle, reuses the report summary logic to
+        derive the grade, and hands it to the store — which drives the score
+        trend and emits any ``grade_changed`` event. The store dedupes unchanged
+        snapshots, so every front-end can call this at its own assessment/report
+        convergence point (the guided sequence, the TUI run-all terminus, the
+        CLI report view) without double-recording. No-ops when there is no
+        usable port-scan data, and on stores that don't track history (the
+        one-off JSON store).
+
+        Args:
+            target: The scanned target; falls back to the bundle's own target
+                when callers (e.g. a report view) don't carry it.
         """
         # First Party
         from edgewalker.core.findings import build_summary  # noqa: PLC0415
@@ -235,7 +247,7 @@ class Engine:
         summary = build_summary(self.load_report_inputs())
         if summary is not None:
             self.scanner.store.record_assessment(
-                opts.target or "", float(summary.score), summary.grade
+                target or summary.target or "", float(summary.score), summary.grade
             )
 
     # ------------------------------------------------------------- report inputs

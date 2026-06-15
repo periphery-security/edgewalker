@@ -154,6 +154,35 @@ def test_record_assessment_writes_score_row(store):
         assert row["grade"] == "C"
 
 
+def _assessment_rows(store):
+    with sqlite3.connect(store.db_path) as conn:
+        return conn.execute("SELECT COUNT(*) FROM scans WHERE scan_type = 'assessment'").fetchone()[
+            0
+        ]
+
+
+def test_record_assessment_dedupes_unchanged_snapshot(store):
+    """Repeated identical snapshots collapse to a single trend point."""
+    store.record_assessment("192.168.1.0/24", 72.0, "C")
+    store.record_assessment("192.168.1.0/24", 72.0, "C")
+    assert _assessment_rows(store) == 1
+
+
+def test_record_assessment_records_on_any_change(store):
+    """A change in either score or grade adds a new point."""
+    store.record_assessment("net", 72.0, "C")
+    store.record_assessment("net", 71.0, "C")  # score moved
+    store.record_assessment("net", 71.0, "B")  # grade moved
+    assert _assessment_rows(store) == 3
+
+
+def test_record_assessment_dedupe_emits_no_spurious_grade_event(store):
+    """A deduped snapshot must not fire a grade_changed event either."""
+    store.record_assessment("net", 72.0, "C")
+    store.record_assessment("net", 72.0, "C")
+    assert _events(store, "grade_changed") == []
+
+
 # --- change events ---------------------------------------------------------
 
 

@@ -183,11 +183,20 @@ class SqliteResultStore:
 
         Drives the score trend; fires a ``grade_changed`` event (network-level,
         host_id NULL) when the grade differs from the previous assessment.
+
+        Idempotent against churn: a snapshot whose score *and* grade match the
+        most recent assessment is dropped. This lets front-ends call this freely
+        from every report/overview convergence point (TUI run-all terminus, CLI
+        report view, the guided sequence) without flooding the trend with
+        duplicate points — only genuine score movement adds a row.
         """
         with closing(self._connect()) as conn, conn:
             prior = conn.execute(
-                "SELECT grade FROM scans WHERE scan_type = 'assessment' ORDER BY id DESC LIMIT 1"
+                "SELECT overall_score, grade FROM scans WHERE scan_type = 'assessment' "
+                "ORDER BY id DESC LIMIT 1"
             ).fetchone()
+            if prior is not None and prior["grade"] == grade and prior["overall_score"] == score:
+                return  # collapse consecutive identical points
             cur = conn.execute(
                 "INSERT INTO scans (started_at, finished_at, scan_type, target, "
                 "overall_score, grade) VALUES (?, ?, 'assessment', ?, ?, ?)",

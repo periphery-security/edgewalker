@@ -272,6 +272,17 @@ class DashboardScreen(Screen):
         )
         nav.show_scan_progress(idx + 1, len(plan), f"{label}…")
 
+    def _record_assessment_snapshot(self) -> None:
+        """Record a score-trend snapshot at the end of a run-all assessment.
+
+        Driven through the shared :class:`Engine` so the TUI populates the same
+        score trend / ``grade_changed`` history the guided CLI does. The store
+        dedupes unchanged snapshots, so calling this from both guided termini
+        (the web-scan terminus and the module-skipped terminus) never
+        double-records.
+        """
+        Engine(self.app.scanner).record_assessment_snapshot(self._auto_target or "")
+
     def _finish_scan_phases(self) -> None:
         """Stop the spinner and let the sidebar reflect the saved results."""
         self.query_one("#scan-header", ScanProgress).set_progress(
@@ -424,6 +435,10 @@ class DashboardScreen(Screen):
             else:
                 self._next_guided_step()
         else:
+            # Terminus when the final module(s) were skipped (web disabled), so
+            # _on_guided_web_done never ran: record the snapshot here instead.
+            if self._auto_run:
+                self._record_assessment_snapshot()
             self._auto_step = 0
             self._auto_run = False  # Reset auto-run when finished
 
@@ -960,6 +975,7 @@ class DashboardScreen(Screen):
         self._update_report_view(Group(header, build_overview(summary)))
 
         self._auto_step = 0
+        self._record_assessment_snapshot()
         self._finish_scan_phases()
         self._show_continue("Done")
 

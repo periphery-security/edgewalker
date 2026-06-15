@@ -252,3 +252,21 @@ def test_finalize_assessment_noop_when_no_summary():
         engine._finalize_assessment(AssessmentOptions(target="t"))
 
     scanner.store.record_assessment.assert_not_called()
+
+
+def test_record_assessment_snapshot_falls_back_to_bundle_target():
+    """A report view with no target uses the summary's own target."""
+    # Standard Library
+    from unittest.mock import patch
+
+    scanner = MagicMock()
+    engine = Engine(scanner=scanner)
+
+    summary = MagicMock(score=80, grade="B", target="10.0.0.0/24")
+    with (
+        patch.object(Engine, "load_report_inputs", return_value={"port": {}}),
+        patch("edgewalker.core.findings.build_summary", return_value=summary),
+    ):
+        engine.record_assessment_snapshot()  # no target supplied
+
+    scanner.store.record_assessment.assert_called_once_with("10.0.0.0/24", 80.0, "B")
