@@ -288,6 +288,32 @@ def _history_detail(event_type: str, detail: dict) -> str:
     return ""
 
 
+def _fmt_when(at: object) -> str:
+    """Format a stored ISO timestamp as ``YYYY-MM-DD HH:MM:SS`` for display."""
+    return str(at)[:19].replace("T", " ")
+
+
+def _changes_table(events: list[dict], title: str) -> Table:
+    """Render a list of change events as a styled table (shared across views)."""
+    table = Table(title=title, title_style=theme.HEADER, expand=True)
+    table.add_column("When", style=theme.MUTED, no_wrap=True)
+    table.add_column("Event")
+    table.add_column("Severity")
+    table.add_column("Device", style=theme.MUTED)
+    table.add_column("Detail")
+    for e in events:
+        device = e.get("label") or e.get("stable_key") or "—"
+        sev = e.get("severity") or ""
+        table.add_row(
+            _fmt_when(e["created_at"]),
+            e["event_type"],
+            Text(sev, style=severity_style(sev)),
+            device,
+            _history_detail(e["event_type"], e.get("detail", {})),
+        )
+    return table
+
+
 def build_history_view(events: list[dict], trend: list[dict]) -> RenderableType:
     """Build the recent-changes + score-trend renderable (CLI and TUI share it)."""
     parts: list[RenderableType] = []
@@ -303,27 +329,59 @@ def build_history_view(events: list[dict], trend: list[dict]) -> RenderableType:
         )
 
     if events:
-        table = Table(title="Recent changes", title_style=theme.HEADER, expand=True)
-        table.add_column("When", style=theme.MUTED, no_wrap=True)
-        table.add_column("Event")
-        table.add_column("Severity")
-        table.add_column("Device", style=theme.MUTED)
-        table.add_column("Detail")
-        for e in events:
-            device = e.get("label") or e.get("stable_key") or "—"
-            sev = e.get("severity") or ""
-            table.add_row(
-                str(e["created_at"])[:19].replace("T", " "),
-                e["event_type"],
-                Text(sev, style=severity_style(sev)),
-                device,
-                _history_detail(e["event_type"], e.get("detail", {})),
-            )
-        parts.append(table)
+        parts.append(_changes_table(events, "Recent changes"))
 
     if not parts:
         parts.append(
             Text("No history yet. Run a scan to start tracking changes.", style=theme.MUTED)
         )
 
+    return Group(*parts)
+
+
+def build_report_list_view(assessments: list[dict]) -> RenderableType:
+    """Render the list of past assessment reports (newest first, numbered)."""
+    if not assessments:
+        return Text("No reports yet. Run a scan to record one.", style=theme.MUTED)
+
+    table = Table(title="Reports", title_style=theme.HEADER, expand=True)
+    table.add_column("#", style=theme.MUTED, justify="right", no_wrap=True)
+    table.add_column("When", style=theme.MUTED, no_wrap=True)
+    table.add_column("Score", justify="right")
+    table.add_column("Grade")
+    table.add_column("Target", style=theme.MUTED)
+    for a in assessments:
+        grade = a.get("grade") or "—"
+        table.add_row(
+            str(a["ordinal"]),
+            _fmt_when(a["at"]),
+            f"{a['score']:.0f}" if a.get("score") is not None else "—",
+            Text(grade, style=_GRADE_STYLE.get(grade, theme.MUTED)),
+            a.get("target") or "—",
+        )
+    return table
+
+
+def build_comparison_view(comparison: dict) -> RenderableType:
+    """Render a comparison between two reports: their headers + what changed."""
+    a, b = comparison["from"], comparison["to"]
+    changes = comparison.get("changes", [])
+    parts: list[RenderableType] = [
+        Text.from_markup(
+            f"[{theme.ACCENT}]Comparing[/]  "
+            f"#{a['ordinal']} ({_fmt_when(a['at'])}, {a['score']:.0f}/{a['grade']})  →  "
+            f"#{b['ordinal']} ({_fmt_when(b['at'])}, {b['score']:.0f}/{b['grade']})"
+        )
+    ]
+    if a["grade"] != b["grade"]:
+        parts.append(
+            Text.from_markup(
+                f"  grade [bold {_GRADE_STYLE.get(a['grade'], theme.MUTED)}]{a['grade']}[/] "
+                f"→ [bold {_GRADE_STYLE.get(b['grade'], theme.MUTED)}]{b['grade']}[/]"
+            )
+        )
+    if changes:
+        parts.append(_changes_table(changes, "Changes"))
+    else:
+        parts.append(Text("No material changes between these reports.", style=theme.MUTED))
     return Group(*parts)
