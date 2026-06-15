@@ -1029,16 +1029,32 @@ class DashboardScreen(Screen):
         self._switch_view("findings")
 
     def action_history(self) -> None:
-        """Show recent network changes and the security score trend."""
+        """Show recent changes, the score trend, the report list, and the latest diff.
+
+        Beyond the recent-changes/trend view, this lists past assessment reports
+        and — when there are at least two — appends a comparison of the two most
+        recent (the "what changed since last time" diff). Arbitrary two-report
+        comparison is available from the CLI via ``edgewalker compare``.
+        """
         # First Party
         from edgewalker.core.config import settings  # noqa: PLC0415
         from edgewalker.core.sqlite_store import SqliteResultStore  # noqa: PLC0415
-        from edgewalker.tui.widgets.overview import build_history_view  # noqa: PLC0415
+        from edgewalker.tui.widgets.overview import (  # noqa: PLC0415
+            build_comparison_view,
+            build_history_view,
+            build_report_list_view,
+        )
 
         self._from_topology = False
         store = SqliteResultStore(settings.db_path)
-        view = build_history_view(store.recent_change_events(), store.score_trend())
-        self.query_one("#history-content", Static).update(view)
+        assessments = store.list_assessments()
+        parts = [build_history_view(store.recent_change_events(), store.score_trend())]
+        if assessments:
+            parts.append(build_report_list_view(assessments))
+        if len(assessments) >= 2:
+            latest = assessments[0]["ordinal"]  # newest-first, so [0] is the highest ordinal
+            parts.append(build_comparison_view(store.compare_assessments(latest - 1, latest)))
+        self.query_one("#history-content", Static).update(Group(*parts))
         self._switch_view("history")
 
     def action_live_log(self) -> None:

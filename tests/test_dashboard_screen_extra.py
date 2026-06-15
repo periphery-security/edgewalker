@@ -866,3 +866,52 @@ async def test_dashboard_history_view_switch():
             await pilot.pause()
 
             assert screen.query_one("#view-switcher", ContentSwitcher).current == "history"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_history_view_lists_reports_and_compares():
+    """With >=2 reports, the History view renders the report list and a comparison.
+
+    Asserts the wiring: action_history builds the report list and compares the
+    two most recent reports (ordinals 1 and 2 here).
+    """
+    # Third Party
+    from rich.text import Text
+
+    # First Party
+    from edgewalker.core.config import settings
+    from edgewalker.core.sqlite_store import SqliteResultStore
+    from edgewalker.tui.screens.dashboard import DashboardScreen
+
+    store = SqliteResultStore(settings.db_path)  # isolate_db gives a fresh path
+    store.record_assessment("net", 80, "B")
+    store.record_assessment("net", 58, "D")
+
+    app = EdgeWalkerApp()
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            with (
+                patch(
+                    "edgewalker.tui.widgets.overview.build_report_list_view",
+                    return_value=Text("reports"),
+                ) as m_list,
+                patch(
+                    "edgewalker.tui.widgets.overview.build_comparison_view",
+                    return_value=Text("comparison"),
+                ) as m_cmp,
+            ):
+                screen.action_history()
+                await pilot.pause()
+
+            m_list.assert_called_once()
+            m_cmp.assert_called_once()
+            comparison = m_cmp.call_args.args[0]
+            assert comparison["from"]["ordinal"] == 1
+            assert comparison["to"]["ordinal"] == 2
