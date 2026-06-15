@@ -22,7 +22,17 @@ from pathlib import Path
 from typing import Optional
 
 # First Party
+from edgewalker.core.config import settings
+from edgewalker.core.diff import (
+    ChangeEvent,
+    diff_credentials,
+    diff_cves,
+    diff_devices,
+    diff_grade,
+    diff_ports,
+)
 from edgewalker.core.models import Base
+from edgewalker.core.risk import RiskEngine
 from edgewalker.modules.port_scan.models import Host, PortScanModel, TcpPort
 
 SCHEMA_VERSION = 1
@@ -169,17 +179,23 @@ class SqliteResultStore:
         return PortScanModel(target=scan["target"], hosts=hosts, success=True)
 
     def record_assessment(self, target: str, score: float, grade: str) -> None:
-        """Record a completed assessment's network score and grade as a scans row.
+        """Record a completed assessment's score/grade and emit any grade change.
 
-        This is what drives the score trend. Emitting a ``grade_changed``
-        change-event from here is wired up alongside the diff engine.
+        Drives the score trend; fires a ``grade_changed`` event (network-level,
+        host_id NULL) when the grade differs from the previous assessment.
         """
         with closing(self._connect()) as conn, conn:
-            conn.execute(
+            prior = conn.execute(
+                "SELECT grade FROM scans WHERE scan_type = 'assessment' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            cur = conn.execute(
                 "INSERT INTO scans (started_at, finished_at, scan_type, target, "
                 "overall_score, grade) VALUES (?, ?, 'assessment', ?, ?, ?)",
                 (_now(), _now(), target, score, grade),
             )
+            scan_id = int(cur.lastrowid)
+            for ev in diff_grade(prior["grade"] if prior else None, grade):
+                self._record_event(conn, scan_id, None, ev)
 
     # ------------------------------------------------------------- write helpers
 
@@ -212,12 +228,93 @@ class SqliteResultStore:
                 return int(r["host_id"])
         return None
 
+    def _host_id_by_key(self, conn: sqlite3.Connection, stable_key: str) -> Optional[int]:
+        """Resolve a host id from its stable_key."""
+        row = conn.execute("SELECT id FROM hosts WHERE stable_key = ?", (stable_key,)).fetchone()
+        return int(row["id"]) if row else None
+
+    @staticmethod
+    def _prior_scan_id(conn: sqlite3.Connection, scan_type: str, before_id: int) -> Optional[int]:
+        """Return the id of the most recent scan of ``scan_type`` before ``before_id``."""
+        row = conn.execute(
+            "SELECT MAX(id) AS id FROM scans WHERE scan_type = ? AND id < ?",
+            (scan_type, before_id),
+        ).fetchone()
+        return int(row["id"]) if row and row["id"] is not None else None
+
+    @staticmethod
+    def _ports_by_key_for_scan(
+        conn: sqlite3.Connection, scan_id: Optional[int]
+    ) -> dict[str, set[int]]:
+        """Map stable_key -> set of open ports recorded by the given scan."""
+        if scan_id is None:
+            return {}
+        rows = conn.execute(
+            "SELECT h.stable_key AS key, hs.open_ports AS ports FROM host_state hs "
+            "JOIN hosts h ON h.id = hs.host_id WHERE hs.last_scan_id = ?",
+            (scan_id,),
+        ).fetchall()
+        result: dict[str, set[int]] = {}
+        for r in rows:
+            ports = {p["port"] for p in json.loads(r["ports"])} if r["ports"] else set()
+            result[r["key"]] = ports
+        return result
+
+    @staticmethod
+    def _refs_by_host_for_scan(
+        conn: sqlite3.Connection, scan_id: Optional[int], kind: str
+    ) -> dict[Optional[int], list[tuple[str, Optional[str]]]]:
+        """Map host_id -> [(ref, severity), ...] for findings of ``kind`` in a scan."""
+        result: dict[Optional[int], list[tuple[str, Optional[str]]]] = {}
+        if scan_id is None:
+            return result
+        rows = conn.execute(
+            "SELECT host_id, ref, severity FROM findings WHERE scan_id = ? AND kind = ?",
+            (scan_id, kind),
+        ).fetchall()
+        for r in rows:
+            result.setdefault(r["host_id"], []).append((r["ref"], r["severity"]))
+        return result
+
+    def _record_event(
+        self, conn: sqlite3.Connection, scan_id: int, host_id: Optional[int], event: ChangeEvent
+    ) -> None:
+        """Persist a single change event (flushed_at stays NULL until Phase 4)."""
+        conn.execute(
+            "INSERT INTO change_events "
+            "(host_id, scan_id, event_type, severity, detail, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (host_id, scan_id, event.event_type, event.severity, json.dumps(event.detail), _now()),
+        )
+
+    @staticmethod
+    def _severity_of_port(port: int) -> str:
+        """Map a port to a severity label via the configured risk weights."""
+        score = settings.port_severity.get(port, settings.port_severity_default)
+        return RiskEngine.get_risk_level(score)[0]
+
     def _save_port_scan(
         self, conn: sqlite3.Connection, scan_id: int, result: PortScanModel
     ) -> None:
-        """Upsert host_state and per-port findings for each up host."""
+        """Upsert host_state + per-port findings and emit port/device change events.
+
+        The first-ever port scan establishes a baseline and emits no events
+        (everything would otherwise look "new"); subsequent scans diff against
+        the immediately prior port scan.
+        """
+        prior_scan_id = self._prior_scan_id(conn, "port_scan", scan_id)
+        prior_ports = self._ports_by_key_for_scan(conn, prior_scan_id)
+        new_keys: set[str] = set()
+
         for host in (h for h in result.hosts if h.state == "up"):
             host_id = self._upsert_host(conn, host.stable_key)
+            new_keys.add(host.stable_key)
+            new_ports = {p.port for p in host.tcp}
+            if prior_scan_id is not None:
+                for ev in diff_ports(
+                    prior_ports.get(host.stable_key, set()), new_ports, self._severity_of_port
+                ):
+                    self._record_event(conn, scan_id, host_id, ev)
             open_ports = [p.model_dump(mode="json") for p in host.tcp]
             fingerprint = {
                 "ip": str(host.ip),
@@ -255,11 +352,21 @@ class SqliteResultStore:
                     detail={"service": port.name, "product": port.product_name},
                 )
 
+        if prior_scan_id is not None:
+            for ev in diff_devices(set(prior_ports), new_keys):
+                host_id = self._host_id_by_key(conn, ev.detail["stable_key"])
+                self._record_event(conn, scan_id, host_id, ev)
+
     def _save_cve_findings(self, conn: sqlite3.Connection, scan_id: int, result: Base) -> None:
-        """Write one finding per discovered CVE, linked to its host by IP."""
+        """Write CVE findings (linked to host by IP) and emit cve change events."""
+        prior_scan_id = self._prior_scan_id(conn, "cve_scan", scan_id)
+        prior = self._refs_by_host_for_scan(conn, prior_scan_id, "cve")
+        new: dict[Optional[int], dict[str, str]] = {}
+
         for res in getattr(result, "results", []):
             host_id = self._host_id_by_ip(conn, str(res.ip))
             for cve in res.cves:
+                new.setdefault(host_id, {})[cve.id] = cve.severity
                 self._insert_finding(
                     conn,
                     scan_id,
@@ -270,14 +377,25 @@ class SqliteResultStore:
                     detail={"product": res.product, "version": res.version, "score": cve.score},
                 )
 
+        if prior_scan_id is not None:
+            for host_id in set(prior) | set(new):
+                old_ids = {ref for ref, _ in prior.get(host_id, [])}
+                for ev in diff_cves(old_ids, new.get(host_id, {})):
+                    self._record_event(conn, scan_id, host_id, ev)
+
     def _save_credential_findings(
         self, conn: sqlite3.Connection, scan_id: int, result: Base
     ) -> None:
-        """Write a finding for each successful (exposed) credential, linked by IP."""
+        """Write exposed-credential findings (by IP) and emit credential change events."""
+        prior_scan_id = self._prior_scan_id(conn, "password_scan", scan_id)
+        prior = self._refs_by_host_for_scan(conn, prior_scan_id, "cred")
+        new: dict[Optional[int], set[str]] = {}
+
         for res in getattr(result, "results", []):
             if str(res.login_attempt) not in ("successful", "StatusEnum.successful"):
                 continue
             host_id = self._host_id_by_ip(conn, str(res.ip))
+            new.setdefault(host_id, set()).add(str(res.service))
             self._insert_finding(
                 conn,
                 scan_id,
@@ -287,6 +405,12 @@ class SqliteResultStore:
                 ref=str(res.service),
                 detail={"port": res.port},
             )
+
+        if prior_scan_id is not None:
+            for host_id in set(prior) | set(new):
+                old_services = {ref for ref, _ in prior.get(host_id, [])}
+                for ev in diff_credentials(old_services, new.get(host_id, set())):
+                    self._record_event(conn, scan_id, host_id, ev)
 
     def _insert_finding(
         self,

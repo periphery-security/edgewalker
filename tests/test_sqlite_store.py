@@ -1,4 +1,5 @@
 # Standard Library
+import json
 import sqlite3
 
 # Third Party
@@ -151,3 +152,93 @@ def test_record_assessment_writes_score_row(store):
         row = conn.execute("SELECT * FROM scans WHERE scan_type = 'assessment'").fetchone()
         assert row["overall_score"] == 72.5
         assert row["grade"] == "C"
+
+
+# --- change events ---------------------------------------------------------
+
+
+def _events(store, event_type=None):
+    with sqlite3.connect(store.db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        if event_type:
+            return conn.execute(
+                "SELECT * FROM change_events WHERE event_type = ?", (event_type,)
+            ).fetchall()
+        return conn.execute("SELECT * FROM change_events").fetchall()
+
+
+def test_first_port_scan_is_baseline_no_events(store):
+    store.save_scan("port_scan", _port_scan())
+    assert _events(store) == []  # baseline emits nothing
+
+
+def test_second_scan_emits_port_opened(store):
+    store.save_scan("port_scan", _port_scan())
+    changed = _port_scan()
+    changed.hosts[0].tcp.append(TcpPort(port=23, name="telnet"))
+    store.save_scan("port_scan", changed)
+    opened = _events(store, "port_opened")
+    assert len(opened) == 1
+    assert json.loads(opened[0]["detail"])["port"] == 23
+
+
+def test_port_closed_event(store):
+    store.save_scan("port_scan", _port_scan())
+    closed_scan = _port_scan()
+    closed_scan.hosts[0].tcp = []  # port 80 went away
+    store.save_scan("port_scan", closed_scan)
+    assert len(_events(store, "port_closed")) == 1
+
+
+def test_dhcp_ip_change_is_not_material(store):
+    """A device whose only change is its IP (MAC stable) emits no events."""
+    store.save_scan("port_scan", _port_scan())
+    moved = _port_scan()
+    moved.hosts[0].ip = "192.168.1.200"
+    store.save_scan("port_scan", moved)
+    assert _events(store) == []
+
+
+def test_device_appeared_on_second_scan(store):
+    store.save_scan("port_scan", _port_scan())
+    bigger = _port_scan()
+    bigger.hosts.append(Host(ip="192.168.1.50", mac="00:11:22:33:44:66", state="up"))
+    store.save_scan("port_scan", bigger)
+    appeared = _events(store, "device_appeared")
+    assert len(appeared) == 1
+    assert json.loads(appeared[0]["detail"])["stable_key"] == "mac:00:11:22:33:44:66"
+
+
+def _cve_scan(cve_ids):
+    return CveScanModel(
+        target="192.168.1.0/24",
+        results=[
+            CveScanResultModel(
+                ip="192.168.1.10",
+                port=80,
+                service="http",
+                product="lighttpd",
+                version="1.4",
+                cves=[CveModel(id=c, description="x", severity="HIGH", score=7.5) for c in cve_ids],
+            )
+        ],
+    )
+
+
+def test_cve_appeared_event(store):
+    store.save_scan("port_scan", _port_scan())
+    store.save_scan("cve_scan", _cve_scan(["CVE-2024-1"]))  # baseline
+    store.save_scan("cve_scan", _cve_scan(["CVE-2024-1", "CVE-2024-2"]))
+    appeared = _events(store, "cve_appeared")
+    assert len(appeared) == 1
+    assert json.loads(appeared[0]["detail"])["cve"] == "CVE-2024-2"
+
+
+def test_grade_changed_event(store):
+    store.record_assessment("192.168.1.0/24", 90, "A")  # baseline, no event
+    store.record_assessment("192.168.1.0/24", 40, "D")
+    events = _events(store, "grade_changed")
+    assert len(events) == 1
+    detail = json.loads(events[0]["detail"])
+    assert detail["from"] == "A" and detail["to"] == "D"
+    assert events[0]["host_id"] is None  # network-level event
