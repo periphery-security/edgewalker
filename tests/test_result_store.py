@@ -1,11 +1,12 @@
 # Standard Library
 import json
+from unittest.mock import MagicMock
 
 # Third Party
 import pytest
 
 # First Party
-from edgewalker.core.result_store import JsonResultStore, ResultStore
+from edgewalker.core.result_store import CompositeStore, JsonResultStore, ResultStore
 from edgewalker.modules.cve_scan.models import CveScanModel
 from edgewalker.modules.port_scan.models import Host, PortScanModel
 
@@ -66,3 +67,45 @@ def test_get_latest_port_scan_roundtrip(store):
 def test_get_latest_port_scan_returns_none_when_absent(store):
     s, _ = store
     assert s.get_latest_port_scan() is None
+
+
+# --- record_assessment + CompositeStore ------------------------------------
+
+
+def test_json_store_record_assessment_is_noop(store):
+    s, _ = store
+    # Must not raise and must not create any file.
+    assert s.record_assessment("10.0.0.0/24", 80.0, "B") is None
+
+
+def test_composite_satisfies_protocol():
+    assert isinstance(CompositeStore(JsonResultStore()), ResultStore)
+
+
+def test_composite_writes_to_all_stores_and_returns_primary_path():
+    primary, secondary = MagicMock(), MagicMock()
+    primary.save_scan.return_value = "/tmp/port_scan.json"
+    composite = CompositeStore(primary, secondary)
+
+    model = PortScanModel(target="t")
+    path = composite.save_scan("port_scan", model)
+
+    assert path == "/tmp/port_scan.json"  # primary's path is returned
+    primary.save_scan.assert_called_once()
+    secondary.save_scan.assert_called_once()  # secondary got the write too
+
+
+def test_composite_reads_from_primary_only():
+    primary, secondary = MagicMock(), MagicMock()
+    primary.get_latest_port_scan.return_value = "sentinel"
+    composite = CompositeStore(primary, secondary)
+
+    assert composite.get_latest_port_scan() == "sentinel"
+    secondary.get_latest_port_scan.assert_not_called()
+
+
+def test_composite_record_assessment_fans_out():
+    primary, secondary = MagicMock(), MagicMock()
+    CompositeStore(primary, secondary).record_assessment("t", 50.0, "C")
+    primary.record_assessment.assert_called_once_with("t", 50.0, "C")
+    secondary.record_assessment.assert_called_once_with("t", 50.0, "C")

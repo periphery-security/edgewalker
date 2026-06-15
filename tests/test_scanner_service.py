@@ -61,6 +61,45 @@ def test_from_env_without_demo_env_has_no_demo_service():
         assert service.demo_mode is False
 
 
+def test_from_env_builds_dual_write_composite_store():
+    # First Party
+    from edgewalker.core.result_store import CompositeStore, JsonResultStore
+    from edgewalker.core.sqlite_store import SqliteResultStore
+
+    service = ScannerService.from_env()
+    assert isinstance(service.store, CompositeStore)
+    kinds = [type(s) for s in service.store.stores]
+    assert JsonResultStore in kinds
+    assert SqliteResultStore in kinds
+
+
+@pytest.mark.asyncio
+async def test_from_env_port_scan_dual_writes_json_and_sqlite(tmp_path):
+    # First Party
+    from edgewalker.core.config import settings
+
+    settings.output_dir = tmp_path  # isolate_db fixture already isolates the DB
+    service = ScannerService.from_env()
+    mock_results = PortScanModel(success=True, target="1.1.1.1")
+    with patch(
+        "edgewalker.modules.port_scan.quick_scan", new_callable=AsyncMock, return_value=mock_results
+    ):
+        await service.perform_port_scan("1.1.1.1")
+
+    # JSON portable artifact written...
+    assert (tmp_path / "port_scan.json").exists()
+    # ...and the SQLite history DB recorded the scan.
+    sqlite_store = next(s for s in service.store.stores if type(s).__name__ == "SqliteResultStore")
+    # Standard Library
+    import sqlite3  # noqa: PLC0415
+
+    with sqlite3.connect(sqlite_store.db_path) as conn:
+        assert (
+            conn.execute("SELECT COUNT(*) FROM scans WHERE scan_type='port_scan'").fetchone()[0]
+            == 1
+        )
+
+
 def test_from_env_with_demo_env_builds_demo_service():
     # First Party
     from edgewalker.core.demo_service import DemoService

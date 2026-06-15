@@ -10,7 +10,8 @@ from typing import Callable, Optional
 # First Party
 from edgewalker.core.config import settings
 from edgewalker.core.demo_service import DemoService
-from edgewalker.core.result_store import JsonResultStore, ResultStore
+from edgewalker.core.result_store import CompositeStore, JsonResultStore, ResultStore
+from edgewalker.core.sqlite_store import SqliteResultStore
 from edgewalker.core.telemetry import TelemetryManager
 from edgewalker.modules import cve_scan, password_scan, port_scan, sql_scan, web_scan
 from edgewalker.modules.cve_scan.models import CveScanModel
@@ -65,15 +66,20 @@ class ScannerService:
         """Build a service honoring ``EW_DEMO_MODE`` — the CLI/TUI entry point.
 
         This is the one place the demo-mode environment variable is read, keeping
-        that coupling out of the engine constructor.
+        that coupling out of the engine constructor. The one-off path dual-writes
+        through a :class:`CompositeStore`: the JSON files stay the portable
+        artifact every existing reader consumes, while the SQLite store
+        accumulates per-device history and change events across runs.
         """
         demo_service = (
             DemoService(progress_callback) if os.environ.get("EW_DEMO_MODE") == "1" else None
         )
+        store = CompositeStore(JsonResultStore(), SqliteResultStore(settings.db_path))
         return cls(
             progress_callback=progress_callback,
             telemetry_callback=telemetry_callback,
             demo_service=demo_service,
+            store=store,
         )
 
     def _notify(self, event_type: str, message: str) -> None:
