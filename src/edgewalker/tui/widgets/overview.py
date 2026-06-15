@@ -278,6 +278,9 @@ def _history_detail(event_type: str, detail: dict) -> str:
         return str(detail["cve"])
     if "service" in detail:
         return str(detail["service"])
+    if "issue" in detail:
+        # Web issue kinds (sensitive_file / expired_tls / insecure_header).
+        return str(detail["issue"]).replace("_", " ")
     if event_type == "grade_changed":
         return f"{detail.get('from')} → {detail.get('to')}"
     if "stable_key" in detail:

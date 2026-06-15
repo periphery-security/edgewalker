@@ -51,6 +51,32 @@ def test_build_history_view_renders_trend_and_table():
     assert "Recent changes" in text
 
 
+def test_build_history_view_renders_web_and_sql_events():
+    events = [
+        {
+            "created_at": "2026-06-15T12:00:00+00:00",
+            "event_type": "web_issue_appeared",
+            "severity": "CRITICAL",
+            "detail": {"issue": "sensitive_file"},
+            "stable_key": "mac:00:11:22:33:44:55",
+            "label": None,
+        },
+        {
+            "created_at": "2026-06-15T12:00:00+00:00",
+            "event_type": "sql_vuln_appeared",
+            "severity": "CRITICAL",
+            "detail": {"service": "mysql"},
+            "stable_key": "mac:00:11:22:33:44:55",
+            "label": None,
+        },
+    ]
+    text = _render(build_history_view(events, []))
+    assert "web_issue_appeared" in text
+    assert "sensitive file" in text  # underscores humanised
+    assert "sql_vuln_appeared" in text
+    assert "mysql" in text
+
+
 def test_history_command_runs_with_empty_db(tmp_path):
     # First Party
     from edgewalker.core.config import settings
