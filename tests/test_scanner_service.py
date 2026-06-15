@@ -164,7 +164,7 @@ async def test_perform_port_scan_quick(scanner_service):
     with patch(
         "edgewalker.modules.port_scan.quick_scan", new_callable=AsyncMock, return_value=mock_results
     ):
-        with patch("edgewalker.core.scanner_service.save_results") as mock_save:
+        with patch("edgewalker.core.result_store.save_results") as mock_save:
             res = await scanner_service.perform_port_scan("1.1.1.1", full=False)
             assert res == mock_results
             assert mock_save.call_count == 2
@@ -176,7 +176,7 @@ async def test_perform_port_scan_full(scanner_service):
     with patch(
         "edgewalker.modules.port_scan.full_scan", new_callable=AsyncMock, return_value=mock_results
     ):
-        with patch("edgewalker.core.scanner_service.save_results") as mock_save:
+        with patch("edgewalker.core.result_store.save_results") as mock_save:
             res = await scanner_service.perform_port_scan("1.1.1.1", full=True)
             assert res == mock_results
             assert mock_save.call_count == 2
@@ -214,7 +214,7 @@ async def test_perform_credential_scan_with_hosts(scanner_service):
         new_callable=AsyncMock,
         return_value=mock_pass_results,
     ):
-        with patch("edgewalker.core.scanner_service.save_results") as mock_save:
+        with patch("edgewalker.core.result_store.save_results") as mock_save:
             res = await scanner_service.perform_credential_scan(port_results)
             assert res == mock_pass_results
             assert mock_save.call_count == 2
@@ -240,7 +240,7 @@ async def test_perform_cve_scan_with_hosts(scanner_service):
     with patch(
         "edgewalker.modules.cve_scan.scan", new_callable=AsyncMock, return_value=mock_cve_results
     ):
-        with patch("edgewalker.core.scanner_service.save_results") as mock_save:
+        with patch("edgewalker.core.result_store.save_results") as mock_save:
             res = await scanner_service.perform_cve_scan(port_results)
             assert res == mock_cve_results
             assert mock_save.call_count == 2
@@ -262,7 +262,7 @@ async def test_perform_port_scan_dict_results(scanner_service):
         new_callable=AsyncMock,
         return_value=mock_results_dict,
     ):
-        with patch("edgewalker.core.scanner_service.save_results"):
+        with patch("edgewalker.core.result_store.save_results"):
             res = await scanner_service.perform_port_scan("1.1.1.1")
             assert isinstance(res, PortScanModel)
             assert res.target == "1.1.1.1"
@@ -283,7 +283,7 @@ async def test_perform_credential_scan_from_file(scanner_service):
                 new_callable=AsyncMock,
                 return_value=mock_pass_results,
             ):
-                with patch("edgewalker.core.scanner_service.save_results"):
+                with patch("edgewalker.core.result_store.save_results"):
                     res = await scanner_service.perform_credential_scan()
                     assert res == mock_pass_results
 
@@ -303,7 +303,7 @@ async def test_perform_cve_scan_from_file(scanner_service):
                 new_callable=AsyncMock,
                 return_value=mock_cve_results,
             ):
-                with patch("edgewalker.core.scanner_service.save_results"):
+                with patch("edgewalker.core.result_store.save_results"):
                     res = await scanner_service.perform_cve_scan()
                     assert res == mock_cve_results
 
@@ -323,7 +323,7 @@ async def test_perform_port_scan_passes_verbose(scanner_service):
     with patch(
         "edgewalker.modules.port_scan.quick_scan", new_callable=AsyncMock, return_value=mock_results
     ) as mock_quick:
-        with patch("edgewalker.core.scanner_service.save_results"):
+        with patch("edgewalker.core.result_store.save_results"):
             await scanner_service.perform_port_scan("1.1.1.1", full=False, verbose=True)
             mock_quick.assert_called_once_with(
                 target="1.1.1.1",
@@ -340,7 +340,7 @@ async def test_perform_port_scan_passes_unprivileged(scanner_service):
     with patch(
         "edgewalker.modules.port_scan.quick_scan", new_callable=AsyncMock, return_value=mock_results
     ) as mock_quick:
-        with patch("edgewalker.core.scanner_service.save_results"):
+        with patch("edgewalker.core.result_store.save_results"):
             await scanner_service.perform_port_scan("1.1.1.1", full=False, unprivileged=True)
             mock_quick.assert_called_once_with(
                 target="1.1.1.1",
@@ -352,7 +352,7 @@ async def test_perform_port_scan_passes_unprivileged(scanner_service):
     with patch(
         "edgewalker.modules.port_scan.full_scan", new_callable=AsyncMock, return_value=mock_results
     ) as mock_full:
-        with patch("edgewalker.core.scanner_service.save_results"):
+        with patch("edgewalker.core.result_store.save_results"):
             await scanner_service.perform_port_scan("1.1.1.1", full=True, unprivileged=True)
             mock_full.assert_called_once_with(
                 target="1.1.1.1",

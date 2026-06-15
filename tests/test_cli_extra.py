@@ -22,7 +22,7 @@ def mock_settings_dir(tmp_path):
 
 @patch("edgewalker.core.scanner_service.port_scan.quick_scan", new_callable=AsyncMock)
 @patch("edgewalker.utils.get_input", return_value="1.1.1.1")
-@patch("edgewalker.core.scanner_service.save_results")
+@patch("edgewalker.core.result_store.save_results")
 @patch("edgewalker.core.scanner_service.submit_scan_data")
 def test_run_port_scan_fail(mock_submit, mock_save, mock_input, mock_quick):
     # First Party
@@ -41,7 +41,7 @@ def test_run_port_scan_fail(mock_submit, mock_save, mock_input, mock_quick):
 )
 @patch("edgewalker.utils.get_input", side_effect=["10"])
 @patch("edgewalker.core.scanner_service.password_scan.scan", new_callable=AsyncMock)
-@patch("edgewalker.core.scanner_service.save_results")
+@patch("edgewalker.core.result_store.save_results")
 @patch("edgewalker.core.scanner_service.submit_scan_data")
 def test_run_credential_scan_from_file(
     mock_submit, mock_save, mock_scan, mock_input, mock_file, mock_settings
@@ -75,7 +75,7 @@ def test_run_credential_scan_from_file(
 )
 @patch("edgewalker.utils.get_input", side_effect=["1.1.1.1", "all"])
 @patch("edgewalker.core.scanner_service.password_scan.scan", new_callable=AsyncMock)
-@patch("edgewalker.core.scanner_service.save_results")
+@patch("edgewalker.core.result_store.save_results")
 @patch("edgewalker.core.scanner_service.submit_scan_data")
 def test_run_credential_scan_manual_target(
     mock_submit, mock_save, mock_scan, mock_input, mock_file, mock_settings
@@ -419,7 +419,7 @@ def test_run_credential_scan_no_target(mock_settings, mock_input, tmp_path):
 
 @patch("edgewalker.utils.get_input", side_effect=["1.1.1.1", "invalid"])
 @patch("edgewalker.core.scanner_service.password_scan.scan", new_callable=AsyncMock)
-@patch("edgewalker.core.scanner_service.save_results")
+@patch("edgewalker.core.result_store.save_results")
 @patch("edgewalker.cli.controller.settings")
 @patch("edgewalker.core.scanner_service.submit_scan_data")
 def test_run_credential_scan_invalid_top_n(
@@ -580,7 +580,7 @@ def test_interactive_mode_manual_report_confirm(
 
 @patch("edgewalker.utils.get_input", side_effect=["1.1.1.1", "10"])
 @patch("edgewalker.core.scanner_service.password_scan.scan", new_callable=AsyncMock)
-@patch("edgewalker.core.scanner_service.save_results")
+@patch("edgewalker.core.result_store.save_results")
 @patch("edgewalker.cli.controller.settings")
 @patch("edgewalker.core.scanner_service.submit_scan_data")
 def test_run_credential_scan_target_provided(

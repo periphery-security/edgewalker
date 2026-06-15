@@ -62,7 +62,7 @@ def mock_results():
 @pytest.mark.asyncio
 @patch("edgewalker.core.scanner_service.port_scan.quick_scan", new_callable=AsyncMock)
 @patch("edgewalker.utils.get_input", return_value="1.1.1.1")
-@patch("edgewalker.core.scanner_service.save_results", return_value="path")
+@patch("edgewalker.core.result_store.save_results", return_value="path")
 @patch("edgewalker.core.scanner_service.submit_scan_data")
 async def test_run_port_scan(mock_submit, mock_save, mock_input, mock_quick, mock_results):
     mock_quick.return_value = mock_results
@@ -76,7 +76,7 @@ async def test_run_port_scan(mock_submit, mock_save, mock_input, mock_quick, moc
 @pytest.mark.asyncio
 @patch("edgewalker.core.scanner_service.port_scan.full_scan", new_callable=AsyncMock)
 @patch("edgewalker.utils.get_input", return_value="1.1.1.1")
-@patch("edgewalker.core.scanner_service.save_results", return_value="path")
+@patch("edgewalker.core.result_store.save_results", return_value="path")
 @patch("edgewalker.core.scanner_service.submit_scan_data")
 async def test_run_port_scan_full(mock_submit, mock_save, mock_input, mock_full, mock_results):
     mock_full.return_value = mock_results
