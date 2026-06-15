@@ -562,17 +562,19 @@ class SqliteResultStore:
         new: dict[Optional[int], set[str]] = {}
 
         for res in getattr(result, "results", []):
-            if str(res.login_attempt) not in ("successful", "StatusEnum.successful"):
+            status = getattr(res.login_attempt, "value", str(res.login_attempt))
+            if status != "successful":
                 continue
+            service = getattr(res.service, "value", str(res.service))
             host_id = ip_map.get(str(res.ip))
-            new.setdefault(host_id, set()).add(str(res.service))
+            new.setdefault(host_id, set()).add(service)
             self._insert_finding(
                 conn,
                 scan_id,
                 host_id,
                 kind="cred",
                 severity="HIGH",
-                ref=str(res.service),
+                ref=service,
                 detail={"port": res.port},
             )
 

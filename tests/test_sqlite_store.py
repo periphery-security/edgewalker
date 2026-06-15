@@ -148,8 +148,11 @@ def test_save_credential_findings_only_for_successful(store):
     )
     store.save_scan("password_scan", pwd)
     with sqlite3.connect(store.db_path) as conn:
+        conn.row_factory = sqlite3.Row
         rows = conn.execute("SELECT * FROM findings WHERE kind = 'cred'").fetchall()
         assert len(rows) == 1  # only the successful login is a finding
+        # The service ref is the clean enum value, not the "ServiceEnum.ssh" repr.
+        assert rows[0]["ref"] == "ssh"
 
 
 def test_record_assessment_writes_score_row(store):
