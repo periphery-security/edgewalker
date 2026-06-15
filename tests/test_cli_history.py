@@ -136,3 +136,35 @@ def test_history_command_runs_with_empty_db(tmp_path):
     result = CliRunner().invoke(app, ["history"])
     assert result.exit_code == 0
     assert "No history yet" in result.stdout
+
+
+def _seed_assessments(tmp_path):
+    # First Party
+    from edgewalker.core.config import settings
+    from edgewalker.core.sqlite_store import SqliteResultStore
+
+    settings.db_path = tmp_path / "edgewalker.db"
+    store = SqliteResultStore(settings.db_path)
+    store.record_assessment("net", 80, "B")
+    store.record_assessment("net", 58, "D")
+    return store
+
+
+def test_history_list_flag_shows_reports(tmp_path):
+    _seed_assessments(tmp_path)
+    result = CliRunner().invoke(app, ["history", "--list"])
+    assert result.exit_code == 0
+    assert "Reports" in result.stdout
+
+
+def test_compare_command_renders_comparison(tmp_path):
+    _seed_assessments(tmp_path)
+    result = CliRunner().invoke(app, ["compare", "1", "2"])
+    assert result.exit_code == 0
+    assert "Comparing" in result.stdout
+
+
+def test_compare_command_invalid_reports_exits_nonzero(tmp_path):
+    _seed_assessments(tmp_path)
+    result = CliRunner().invoke(app, ["compare", "1", "9"])
+    assert result.exit_code == 1
