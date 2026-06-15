@@ -26,6 +26,78 @@ def test_scanner_service_init():
     assert service.telemetry_callback == telemetry_cb
 
 
+def test_init_defaults_to_real_telemetry_and_no_demo():
+    # First Party
+    from edgewalker.core.telemetry import TelemetryManager
+
+    service = ScannerService()
+    assert isinstance(service.telemetry, TelemetryManager)
+    assert service.demo_service is None
+    assert service.demo_mode is False
+
+
+def test_init_injects_telemetry_collaborator():
+    fake_telemetry = MagicMock()
+    service = ScannerService(telemetry=fake_telemetry)
+    assert service.telemetry is fake_telemetry
+
+
+def test_init_demo_service_enables_demo_mode():
+    fake_demo = MagicMock()
+    service = ScannerService(demo_service=fake_demo)
+    assert service.demo_service is fake_demo
+    assert service.demo_mode is True
+
+
+def test_from_env_without_demo_env_has_no_demo_service():
+    with patch.dict("os.environ", {}, clear=False):
+        # Ensure the var is absent for this test.
+        # Standard Library
+        import os as _os
+
+        _os.environ.pop("EW_DEMO_MODE", None)
+        service = ScannerService.from_env()
+        assert service.demo_service is None
+        assert service.demo_mode is False
+
+
+def test_from_env_with_demo_env_builds_demo_service():
+    # First Party
+    from edgewalker.core.demo_service import DemoService
+
+    with patch.dict("os.environ", {"EW_DEMO_MODE": "1"}):
+        cb = MagicMock()
+        service = ScannerService.from_env(progress_callback=cb)
+        assert isinstance(service.demo_service, DemoService)
+        assert service.demo_mode is True
+        assert service.progress_callback is cb
+
+
+@pytest.mark.asyncio
+async def test_demo_mode_routes_port_scan_to_demo_service():
+    """A demo service short-circuits the real scan."""
+    # First Party
+    from edgewalker.modules.port_scan.models import PortScanModel
+
+    demo = MagicMock()
+    demo.perform_port_scan = AsyncMock(return_value=PortScanModel(success=True, target="demo"))
+    service = ScannerService(demo_service=demo)
+
+    res = await service.perform_port_scan("1.1.1.1")
+    assert res.target == "demo"
+    demo.perform_port_scan.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_demo_mode_skips_telemetry_submission():
+    service = ScannerService(demo_service=MagicMock())
+    cb = MagicMock()
+    service.telemetry_callback = cb
+    # In demo mode, _submit_telemetry returns immediately without touching callback.
+    await service._submit_telemetry("port_scan", {})
+    cb.assert_not_called()
+
+
 def test_notify(scanner_service):
     cb = MagicMock()
     scanner_service.progress_callback = cb

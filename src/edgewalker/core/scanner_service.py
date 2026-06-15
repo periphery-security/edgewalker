@@ -28,18 +28,50 @@ class ScannerService:
         self,
         progress_callback: Optional[Callable[[str, str], None]] = None,
         telemetry_callback: Optional[Callable[[str], None]] = None,
+        telemetry: Optional[TelemetryManager] = None,
+        demo_service: Optional[DemoService] = None,
     ) -> None:
         """Initialize the scanner service.
+
+        Telemetry and demo mode are injected collaborators rather than wired up
+        from the environment here, so the engine has no opinion about who is
+        calling it. A daemon can pass its own (or no) telemetry and never run
+        demo mode; tests can inject mocks. Use :meth:`from_env` for the
+        env-driven CLI/TUI default.
 
         Args:
             progress_callback: Optional callback for progress updates.
             telemetry_callback: Optional callback for telemetry status.
+            telemetry: Telemetry manager to use. Defaults to a real
+                ``TelemetryManager`` bound to the active settings.
+            demo_service: When provided, scans return canned demo data and no
+                telemetry is sent. ``None`` (the default) runs real scans.
         """
         self.progress_callback = progress_callback
         self.telemetry_callback = telemetry_callback
-        self.telemetry = TelemetryManager(settings)
-        self.demo_mode = os.environ.get("EW_DEMO_MODE") == "1"
-        self.demo_service = DemoService(progress_callback) if self.demo_mode else None
+        self.telemetry = telemetry if telemetry is not None else TelemetryManager(settings)
+        self.demo_service = demo_service
+        self.demo_mode = demo_service is not None
+
+    @classmethod
+    def from_env(
+        cls,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
+        telemetry_callback: Optional[Callable[[str], None]] = None,
+    ) -> "ScannerService":
+        """Build a service honoring ``EW_DEMO_MODE`` — the CLI/TUI entry point.
+
+        This is the one place the demo-mode environment variable is read, keeping
+        that coupling out of the engine constructor.
+        """
+        demo_service = (
+            DemoService(progress_callback) if os.environ.get("EW_DEMO_MODE") == "1" else None
+        )
+        return cls(
+            progress_callback=progress_callback,
+            telemetry_callback=telemetry_callback,
+            demo_service=demo_service,
+        )
 
     def _notify(self, event_type: str, message: str) -> None:
         """Notify the progress callback if it exists."""

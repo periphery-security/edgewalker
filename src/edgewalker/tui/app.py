@@ -183,7 +183,7 @@ class EdgeWalkerApp(App):
     def __init__(self, **kwargs: object) -> None:
         """Initialize the EdgeWalker application."""
         super().__init__(**kwargs)
-        self.scanner = ScannerService(telemetry_callback=self._update_telemetry_status)
+        self.scanner = ScannerService.from_env(telemetry_callback=self._update_telemetry_status)
         self.is_scanning = False
         self.current_scan_target = ""
         self.scan_progress_log: list[tuple[str, str]] = []

@@ -34,7 +34,7 @@ class ScanController:
         Args:
             scanner_service: Optional service for scan orchestration.
         """
-        self.scanner = scanner_service or ScannerService()
+        self.scanner = scanner_service or ScannerService.from_env()
 
     async def run_port_scan(
         self,

@@ -110,7 +110,7 @@ class Engine:
             scanner: Optional pre-built scanner service (lets a front-end share
                 a single service instance with its telemetry callbacks wired up).
         """
-        self.scanner = scanner or ScannerService()
+        self.scanner = scanner or ScannerService.from_env()
 
     @property
     def progress_callback(self) -> Optional[ProgressCallback]:
