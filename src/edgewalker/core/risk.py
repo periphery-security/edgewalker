@@ -18,7 +18,7 @@ from edgewalker.core.config import settings
 from edgewalker.modules.cve_scan.models import CveScanModel
 from edgewalker.modules.password_scan.models import PasswordScanModel
 from edgewalker.modules.port_scan.models import PortScanModel
-from edgewalker.modules.sql_scan.models import SqlScanModel
+from edgewalker.modules.sql_scan.models import SQL_VULNERABLE_STATUSES, SqlScanModel
 from edgewalker.modules.web_scan.models import WebScanModel
 
 T = TypeVar("T")
@@ -401,7 +401,7 @@ class RiskEngine:
 
         max_sev = 0
         for res in sql_results:
-            if res.get("status") in ["successful", "anonymous"]:
+            if res.get("status") in SQL_VULNERABLE_STATUSES:
                 svc = str(res.get("service", "")).lower()
                 if "." in svc:
                     svc = svc.split(".")[-1]

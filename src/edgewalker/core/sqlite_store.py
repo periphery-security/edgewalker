@@ -36,6 +36,7 @@ from edgewalker.core.diff import (
 from edgewalker.core.models import Base
 from edgewalker.core.risk import RiskEngine
 from edgewalker.modules.port_scan.models import Host, PortScanModel, TcpPort
+from edgewalker.modules.sql_scan.models import SQL_VULNERABLE_STATUSES
 
 SCHEMA_VERSION = 1
 
@@ -217,15 +218,9 @@ class SqliteResultStore:
 
     # ------------------------------------------------------------- history views
 
-    def recent_change_events(self, limit: int = 20) -> list[dict]:
-        """Return the most recent change events (newest first), with host context."""
-        with closing(self._connect()) as conn:
-            rows = conn.execute(
-                "SELECT ce.created_at, ce.event_type, ce.severity, ce.detail, "
-                "h.stable_key, h.label FROM change_events ce "
-                "LEFT JOIN hosts h ON h.id = ce.host_id ORDER BY ce.id DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
+    @staticmethod
+    def _event_rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict]:
+        """Map change_event rows joined to host context into plain dicts."""
         return [
             {
                 "created_at": r["created_at"],
@@ -237,6 +232,17 @@ class SqliteResultStore:
             }
             for r in rows
         ]
+
+    def recent_change_events(self, limit: int = 20) -> list[dict]:
+        """Return the most recent change events (newest first), with host context."""
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT ce.created_at, ce.event_type, ce.severity, ce.detail, "
+                "h.stable_key, h.label FROM change_events ce "
+                "LEFT JOIN hosts h ON h.id = ce.host_id ORDER BY ce.id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return self._event_rows_to_dicts(rows)
 
     def score_trend(self, limit: int = 30) -> list[dict]:
         """Return recent assessment scores oldest-first (for a trend/sparkline)."""
@@ -329,17 +335,7 @@ class SqliteResultStore:
                 "WHERE ce.created_at > ? AND ce.created_at <= ? ORDER BY ce.id DESC",
                 (start_at, end_at),
             ).fetchall()
-        return [
-            {
-                "created_at": r["created_at"],
-                "event_type": r["event_type"],
-                "severity": r["severity"],
-                "detail": json.loads(r["detail"]) if r["detail"] else {},
-                "stable_key": r["stable_key"],
-                "label": r["label"],
-            }
-            for r in rows
-        ]
+        return self._event_rows_to_dicts(rows)
 
     # ------------------------------------------------------------- write helpers
 
@@ -363,14 +359,21 @@ class SqliteResultStore:
         row = conn.execute("SELECT id FROM hosts WHERE stable_key = ?", (stable_key,)).fetchone()
         return int(row["id"])
 
-    def _host_id_by_ip(self, conn: sqlite3.Connection, ip: str) -> Optional[int]:
-        """Resolve a host id from a current IP recorded in host_state fingerprint."""
-        rows = conn.execute("SELECT host_id, fingerprint FROM host_state").fetchall()
-        for r in rows:
+    @staticmethod
+    def _ip_to_host_id_map(conn: sqlite3.Connection) -> dict[str, int]:
+        """Build an IP -> host_id map in one pass (the IP lives in fingerprint JSON).
+
+        Findings link to hosts by IP; computing this map once per scan turns the
+        per-finding lookup from a full host_state scan + JSON parse (O(hosts) each,
+        O(hosts x findings) overall) into an O(1) dict lookup.
+        """
+        mapping: dict[str, int] = {}
+        for r in conn.execute("SELECT host_id, fingerprint FROM host_state").fetchall():
             fp = json.loads(r["fingerprint"]) if r["fingerprint"] else {}
-            if fp.get("ip") == ip:
-                return int(r["host_id"])
-        return None
+            ip = fp.get("ip")
+            if ip is not None:
+                mapping.setdefault(str(ip), int(r["host_id"]))
+        return mapping
 
     def _host_id_by_key(self, conn: sqlite3.Connection, stable_key: str) -> Optional[int]:
         """Resolve a host id from its stable_key."""
@@ -526,10 +529,11 @@ class SqliteResultStore:
         """Write CVE findings (linked to host by IP) and emit cve change events."""
         prior_scan_id = self._prior_scan_id(conn, "cve_scan", scan_id)
         prior = self._refs_by_host_for_scan(conn, prior_scan_id, "cve")
+        ip_map = self._ip_to_host_id_map(conn)
         new: dict[Optional[int], dict[str, str]] = {}
 
         for res in getattr(result, "results", []):
-            host_id = self._host_id_by_ip(conn, str(res.ip))
+            host_id = ip_map.get(str(res.ip))
             for cve in res.cves:
                 new.setdefault(host_id, {})[cve.id] = cve.severity
                 self._insert_finding(
@@ -554,12 +558,13 @@ class SqliteResultStore:
         """Write exposed-credential findings (by IP) and emit credential change events."""
         prior_scan_id = self._prior_scan_id(conn, "password_scan", scan_id)
         prior = self._refs_by_host_for_scan(conn, prior_scan_id, "cred")
+        ip_map = self._ip_to_host_id_map(conn)
         new: dict[Optional[int], set[str]] = {}
 
         for res in getattr(result, "results", []):
             if str(res.login_attempt) not in ("successful", "StatusEnum.successful"):
                 continue
-            host_id = self._host_id_by_ip(conn, str(res.ip))
+            host_id = ip_map.get(str(res.ip))
             new.setdefault(host_id, set()).add(str(res.service))
             self._insert_finding(
                 conn,
@@ -586,15 +591,16 @@ class SqliteResultStore:
         """
         prior_scan_id = self._prior_scan_id(conn, "sql_scan", scan_id)
         prior = self._refs_by_host_for_scan(conn, prior_scan_id, "sql")
+        ip_map = self._ip_to_host_id_map(conn)
         new: dict[Optional[int], dict[str, str]] = {}
 
         for res in getattr(result, "results", []):
             status = getattr(res.status, "value", str(res.status))
-            if status not in ("successful", "anonymous"):
+            if status not in SQL_VULNERABLE_STATUSES:
                 continue
             svc = getattr(res.service, "value", str(res.service))
             severity = self._severity_of_sql(svc)
-            host_id = self._host_id_by_ip(conn, str(res.ip))
+            host_id = ip_map.get(str(res.ip))
             new.setdefault(host_id, {})[svc] = severity
             self._insert_finding(
                 conn,
@@ -621,10 +627,11 @@ class SqliteResultStore:
         """
         prior_scan_id = self._prior_scan_id(conn, "web_scan", scan_id)
         prior = self._refs_by_host_for_scan(conn, prior_scan_id, "web")
+        ip_map = self._ip_to_host_id_map(conn)
         new: dict[Optional[int], dict[str, str]] = {}
 
         for res in getattr(result, "results", []):
-            host_id = self._host_id_by_ip(conn, str(res.ip))
+            host_id = ip_map.get(str(res.ip))
             for issue, severity in self._web_issues(res).items():
                 new.setdefault(host_id, {})[issue] = severity
                 self._insert_finding(

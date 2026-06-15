@@ -30,6 +30,13 @@ class SqlStatusEnum(str, Enum):
     anonymous = "anonymous"
 
 
+#: Statuses that mean a SQL service is exposed (default credentials or anonymous
+#: access). Single source of truth shared by the risk engine, the findings
+#: summary, and the SQLite store so the "what counts as vulnerable" rule can't
+#: drift between them.
+SQL_VULNERABLE_STATUSES = frozenset({SqlStatusEnum.successful.value, SqlStatusEnum.anonymous.value})
+
+
 class SqlCredentialsModel(BaseModel):
     """Credentials found for a SQL service."""
 

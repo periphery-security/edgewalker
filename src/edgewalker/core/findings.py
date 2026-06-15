@@ -17,6 +17,7 @@ from typing import Any, Optional
 
 # First Party
 from edgewalker.core.risk import RiskEngine
+from edgewalker.modules.sql_scan.models import SQL_VULNERABLE_STATUSES
 
 #: Sort weight for severities (lower sorts first / most severe).
 SEVERITY_ORDER: dict[str, int] = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
@@ -86,7 +87,7 @@ def _device_findings(ip: str, risk: dict[str, Any]) -> list[Finding]:
 
     for res in risk.get("sql_findings", []):
         status = res.get("status")
-        if status in ("successful", "anonymous"):
+        if status in SQL_VULNERABLE_STATUSES:
             service = res.get("service", "database")
             label = "Default credentials" if status == "successful" else "Anonymous access"
             out.append(Finding("HIGH", f"{label} · {service}", ip, "Unsecured SQL service"))
