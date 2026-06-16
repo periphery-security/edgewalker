@@ -46,8 +46,10 @@ class AssessmentOptions:
     unprivileged: bool = False
     top_n: int | None = 10
 
+
 class Engine:
     """Headless orchestration. No Rich, no Textual, no console I/O."""
+
     def __init__(self, scanner: ScannerService | None = None): ...
 
     async def run_port_scan(self, opts, *, on_event=None) -> PortScanModel: ...
