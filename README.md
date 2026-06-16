@@ -117,11 +117,11 @@ compare them.
 
 <table align="center">
   <tr>
-    <td align="center"><strong>CLI: history &amp; compare</strong></td>
+    <td align="center"><strong>CLI: scan &rarr; report &rarr; history &amp; compare</strong></td>
     <td align="center"><strong>TUI: History view</strong></td>
   </tr>
   <tr>
-    <td><img src="images/cli-demo.gif" alt="EdgeWalker history & compare (CLI)" width="100%"></td>
+    <td><img src="images/cli-demo.gif" alt="EdgeWalker CLI demo (scan, report, history & compare)" width="100%"></td>
     <td><img src="images/tui-history.gif" alt="EdgeWalker History view (TUI)" width="100%"></td>
   </tr>
 </table>
