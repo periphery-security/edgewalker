@@ -32,14 +32,6 @@ class ServiceEnum(str, Enum):
 class CredentialsModel(BaseModel):
     """Model for storing credentials used in password authentication attempts."""
 
-    def __getitem__(self, key: str) -> object:
-        """Allow subscriptable access."""
-        return getattr(self, key)
-
-    def get(self, key: str, default: object = None) -> object:
-        """Allow .get() access."""
-        return getattr(self, key, default)
-
     user: str = Field(description="Username")
     password: str = Field(description="Password")
 
@@ -127,19 +119,6 @@ class PasswordScanResultModel(BaseModel):
 
 class PasswordScanModel(Base):
     """Model for storing password scan results."""
-
-    def __getitem__(self, key: str) -> object:
-        """Allow subscriptable access."""
-        if not isinstance(key, str):
-            raise TypeError(f"attribute name must be string, not {type(key).__name__!r}")
-        try:
-            return getattr(self, key)
-        except AttributeError as e:
-            raise KeyError(key) from e
-
-    def get(self, key: str, default: object = None) -> object:
-        """Allow .get() access."""
-        return getattr(self, key, default)
 
     # Password scan specific fields
 

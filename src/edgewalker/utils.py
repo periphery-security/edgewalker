@@ -89,8 +89,29 @@ def is_physical_mac(mac: str) -> bool:
     return second_digit not in "2367ABEF"
 
 
+def stable_host_key(mac: str | None, ip: object) -> str:
+    """Return a stable per-host identity key for tracking a device across scans.
+
+    Prefers the physical MAC (globally unique and stable across DHCP-driven IP
+    changes); falls back to the IP for hosts whose MAC is missing or randomized
+    (locally-administered), since those are not reliable identifiers.
+
+    The key is namespaced (``mac:`` / ``ip:``) so the two never collide. It
+    embeds the raw MAC, so it is for *local* correlation only and must never be
+    sent to telemetry (which anonymizes MAC/IP).
+    """
+    if mac and is_physical_mac(mac):
+        return f"mac:{mac.upper()}"
+    return f"ip:{ip}"
+
+
 def get_device_id(macs: str | list[str] | None = None) -> str:
-    """Return the persistent unique identifier for this installation."""
+    """Return the persistent unique identifier for this installation.
+
+    Note: this is the *scanner installation* id, not a per-scanned-host key.
+    Use :func:`stable_host_key` to identify individual devices on the network.
+    The ``macs`` argument is accepted for backward compatibility and ignored.
+    """
     return settings.device_id
 
 

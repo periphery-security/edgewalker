@@ -46,6 +46,37 @@ def test_cli_results():
         assert mock_view.called
 
 
+def test_cli_findings_empty():
+    """findings prints the empty-state when there is no scan data."""
+    with patch("edgewalker.cli.cli.Engine.load_report_inputs", return_value={}):
+        result = runner.invoke(app, ["findings"])
+        assert result.exit_code == 0
+        assert "No assessment yet" in result.stdout
+
+
+def test_cli_findings_lists_findings(tmp_path):
+    """findings renders the prioritised list from build_summary."""
+    # First Party
+    from edgewalker.core.findings import AssessmentSummary, Finding
+
+    summary = AssessmentSummary(
+        grade="F",
+        grade_reason="Default credentials found.",
+        score=85,
+        target="192.168.1.0/24",
+        device_count=1,
+        open_ports=2,
+        gateway_ip="192.168.1.1",
+        devices_with_creds=1,
+        findings=[Finding("CRITICAL", "Default credentials", "192.168.1.42", "admin / admin")],
+        devices=[],
+    )
+    with patch("edgewalker.core.findings.build_summary", return_value=summary):
+        result = runner.invoke(app, ["findings"])
+        assert result.exit_code == 0
+        assert "Default credentials" in result.stdout
+
+
 def test_cli_clear():
     with patch("edgewalker.cli.cli.ResultManager.clear_results") as mock_clear:
         result = runner.invoke(app, ["clear"])

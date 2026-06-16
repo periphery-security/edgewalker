@@ -4,13 +4,14 @@ from __future__ import annotations
 
 # Standard Library
 import asyncio
-import json
 import os
 from typing import Callable, Optional
 
 # First Party
 from edgewalker.core.config import settings
 from edgewalker.core.demo_service import DemoService
+from edgewalker.core.result_store import CompositeStore, JsonResultStore, ResultStore
+from edgewalker.core.sqlite_store import SqliteResultStore
 from edgewalker.core.telemetry import TelemetryManager
 from edgewalker.modules import cve_scan, password_scan, port_scan, sql_scan, web_scan
 from edgewalker.modules.cve_scan.models import CveScanModel
@@ -18,7 +19,6 @@ from edgewalker.modules.password_scan.models import PasswordScanModel
 from edgewalker.modules.port_scan.models import PortScanModel
 from edgewalker.modules.sql_scan.models import SqlScanModel
 from edgewalker.modules.web_scan.models import WebScanModel
-from edgewalker.utils import save_results
 
 
 class ScannerService:
@@ -28,18 +28,59 @@ class ScannerService:
         self,
         progress_callback: Optional[Callable[[str, str], None]] = None,
         telemetry_callback: Optional[Callable[[str], None]] = None,
+        telemetry: Optional[TelemetryManager] = None,
+        demo_service: Optional[DemoService] = None,
+        store: Optional[ResultStore] = None,
     ) -> None:
         """Initialize the scanner service.
+
+        Telemetry, demo mode, and persistence are injected collaborators rather
+        than wired up here, so the engine has no opinion about who is calling it
+        or where results land. A daemon can pass its own (or no) telemetry,
+        never run demo mode, and swap in a database-backed store; tests can
+        inject mocks. Use :meth:`from_env` for the env-driven CLI/TUI default.
 
         Args:
             progress_callback: Optional callback for progress updates.
             telemetry_callback: Optional callback for telemetry status.
+            telemetry: Telemetry manager to use. Defaults to a real
+                ``TelemetryManager`` bound to the active settings.
+            demo_service: When provided, scans return canned demo data and no
+                telemetry is sent. ``None`` (the default) runs real scans.
+            store: Where results are persisted and read back from. Defaults to
+                :class:`JsonResultStore` (the one-off file behaviour).
         """
         self.progress_callback = progress_callback
         self.telemetry_callback = telemetry_callback
-        self.telemetry = TelemetryManager(settings)
-        self.demo_mode = os.environ.get("EW_DEMO_MODE") == "1"
-        self.demo_service = DemoService(progress_callback) if self.demo_mode else None
+        self.telemetry = telemetry if telemetry is not None else TelemetryManager(settings)
+        self.demo_service = demo_service
+        self.demo_mode = demo_service is not None
+        self.store = store if store is not None else JsonResultStore()
+
+    @classmethod
+    def from_env(
+        cls,
+        progress_callback: Optional[Callable[[str, str], None]] = None,
+        telemetry_callback: Optional[Callable[[str], None]] = None,
+    ) -> "ScannerService":
+        """Build a service honoring ``EW_DEMO_MODE`` — the CLI/TUI entry point.
+
+        This is the one place the demo-mode environment variable is read, keeping
+        that coupling out of the engine constructor. The one-off path dual-writes
+        through a :class:`CompositeStore`: the JSON files stay the portable
+        artifact every existing reader consumes, while the SQLite store
+        accumulates per-device history and change events across runs.
+        """
+        demo_service = (
+            DemoService(progress_callback) if os.environ.get("EW_DEMO_MODE") == "1" else None
+        )
+        store = CompositeStore(JsonResultStore(), SqliteResultStore(settings.db_path))
+        return cls(
+            progress_callback=progress_callback,
+            telemetry_callback=telemetry_callback,
+            demo_service=demo_service,
+            store=store,
+        )
 
     def _notify(self, event_type: str, message: str) -> None:
         """Notify the progress callback if it exists."""
@@ -124,14 +165,10 @@ class ScannerService:
         if not results.success:
             raise ValueError(results.error or "Unknown port scan error")
 
-        results_dict = results.model_dump(mode="json")
-        filename = f"port_scan_{results.device_id}.json"
-        save_results(results_dict, filename)
-        # Also save as port_scan.json for backward compatibility/latest
-        save_results(results_dict, "port_scan.json")
+        self.store.save_scan("port_scan", results)
 
         # Submit telemetry
-        await self._submit_telemetry("port_scan", results_dict)
+        await self._submit_telemetry("port_scan", results.model_dump(mode="json"))
 
         return results
 
@@ -148,12 +185,9 @@ class ScannerService:
         self._notify("phase", "Testing for default passwords...")
 
         if port_results is None:
-            port_file = settings.output_dir / "port_scan.json"
-            if not port_file.exists():
+            port_results = self.store.get_latest_port_scan()
+            if port_results is None:
                 raise FileNotFoundError("Port scan results missing.")
-            with open(port_file) as f:
-                port_data = json.load(f)
-            port_results = PortScanModel(**port_data)
 
         hosts = [h for h in port_results.hosts if h.state == "up"]
         if not hosts:
@@ -171,14 +205,10 @@ class ScannerService:
         if isinstance(results, dict):
             results = PasswordScanModel(**results)
 
-        results_dict = results.model_dump(mode="json")
-        filename = f"password_scan_{results.device_id}.json"
-        save_results(results_dict, filename)
-        # Also save as password_scan.json for backward compatibility/latest
-        save_results(results_dict, "password_scan.json")
+        self.store.save_scan("password_scan", results)
 
         # Submit telemetry
-        await self._submit_telemetry("password_scan", results_dict)
+        await self._submit_telemetry("password_scan", results.model_dump(mode="json"))
 
         return results
 
@@ -193,12 +223,9 @@ class ScannerService:
         self._notify("phase", "Checking for known vulnerabilities...")
 
         if port_results is None:
-            port_file = settings.output_dir / "port_scan.json"
-            if not port_file.exists():
+            port_results = self.store.get_latest_port_scan()
+            if port_results is None:
                 raise FileNotFoundError("Port scan results missing.")
-            with open(port_file) as f:
-                port_data = json.load(f)
-            port_results = PortScanModel(**port_data)
 
         hosts = [h for h in port_results.hosts if h.state == "up"]
         if not hosts:
@@ -214,14 +241,10 @@ class ScannerService:
         if isinstance(results, dict):
             results = CveScanModel(**results)
 
-        results_dict = results.model_dump(mode="json")
-        filename = f"cve_scan_{results.device_id}.json"
-        save_results(results_dict, filename)
-        # Also save as cve_scan.json for backward compatibility/latest
-        save_results(results_dict, "cve_scan.json")
+        self.store.save_scan("cve_scan", results)
 
         # Submit telemetry
-        await self._submit_telemetry("cve_scan", results_dict)
+        await self._submit_telemetry("cve_scan", results.model_dump(mode="json"))
 
         return results
 
@@ -238,12 +261,9 @@ class ScannerService:
         self._notify("phase", "Auditing SQL services...")
 
         if port_results is None:
-            port_file = settings.output_dir / "port_scan.json"
-            if not port_file.exists():
+            port_results = self.store.get_latest_port_scan()
+            if port_results is None:
                 raise FileNotFoundError("Port scan results missing.")
-            with open(port_file) as f:
-                port_data = json.load(f)
-            port_results = PortScanModel(**port_data)
 
         hosts = [h.model_dump(mode="json") for h in port_results.hosts if h.state == "up"]
         if not hosts:
@@ -252,9 +272,8 @@ class ScannerService:
         scanner = sql_scan.SqlScanner(target=port_results.target, top_n=top_n, verbose=verbose)
         results = await scanner.scan(hosts=hosts)
 
-        results_dict = results.model_dump(mode="json")
-        save_results(results_dict, "sql_scan.json")
-        await self._submit_telemetry("sql_scan", results_dict)
+        self.store.save_scan("sql_scan", results, keep_snapshot=False)
+        await self._submit_telemetry("sql_scan", results.model_dump(mode="json"))
 
         return results
 
@@ -268,12 +287,9 @@ class ScannerService:
         self._notify("phase", "Auditing web services...")
 
         if port_results is None:
-            port_file = settings.output_dir / "port_scan.json"
-            if not port_file.exists():
+            port_results = self.store.get_latest_port_scan()
+            if port_results is None:
                 raise FileNotFoundError("Port scan results missing.")
-            with open(port_file) as f:
-                port_data = json.load(f)
-            port_results = PortScanModel(**port_data)
 
         hosts = [h.model_dump(mode="json") for h in port_results.hosts if h.state == "up"]
         if not hosts:
@@ -282,9 +298,8 @@ class ScannerService:
         scanner = web_scan.WebScanner(target=port_results.target, verbose=verbose)
         results = await scanner.scan(hosts=hosts)
 
-        results_dict = results.model_dump(mode="json")
-        save_results(results_dict, "web_scan.json")
-        await self._submit_telemetry("web_scan", results_dict)
+        self.store.save_scan("web_scan", results, keep_snapshot=False)
+        await self._submit_telemetry("web_scan", results.model_dump(mode="json"))
 
         return results
 

@@ -34,6 +34,7 @@ from edgewalker.core.config import (
     settings,
     update_setting,
 )
+from edgewalker.core.engine import AssessmentOptions, Engine
 from edgewalker.core.logger_config import setup_logging
 from edgewalker.tui.app import EdgeWalkerApp
 from edgewalker.utils import (
@@ -198,11 +199,22 @@ def run_guided_scan(
     """
     print_logo()
 
-    # Check for security warnings and overrides
-    security_warnings = settings.get_security_warnings()
-    overrides = get_active_overrides()
+    # Check for security warnings and overrides via the shared engine preflight,
+    # so the CLI and TUI gate on identical logic.
+    preflight = Engine.preflight(
+        AssessmentOptions(
+            full_scan=full,
+            full_creds=full_creds,
+            target=target,
+            unprivileged=unprivileged,
+            verbose=verbose,
+            allow_override=allow_override,
+        )
+    )
+    security_warnings = preflight.warnings
+    overrides = preflight.overrides
 
-    if (security_warnings or overrides) and not allow_override:
+    if preflight.has_blockers:
         if security_warnings and not settings.suppress_warnings:
             console.print(
                 f"\n[bold {theme.RISK_CRITICAL}]SECURITY WARNING: "
@@ -285,6 +297,72 @@ def report() -> None:
     """View the latest security risk assessment report."""
     print_logo()
     ScanController().view_device_risk()
+
+
+@app.command()
+def history(
+    limit: int = typer.Option(20, help="Number of recent change events (or reports) to show."),
+    list_reports: bool = typer.Option(
+        False,
+        "--list",
+        "-l",
+        help="List past assessment reports (numbered) instead of recent changes.",
+    ),
+) -> None:
+    """Show recent network changes and the security score trend.
+
+    With ``--list``, show the numbered list of past assessment reports instead;
+    pass two of those numbers to ``edgewalker compare`` to see what changed.
+    """
+    # First Party
+    from edgewalker.core.config import settings  # noqa: PLC0415
+    from edgewalker.core.sqlite_store import SqliteResultStore  # noqa: PLC0415
+    from edgewalker.tui.widgets.overview import (  # noqa: PLC0415
+        build_history_view,
+        build_report_list_view,
+    )
+
+    print_logo()
+    store = SqliteResultStore(settings.db_path)
+    if list_reports:
+        console.print(build_report_list_view(store.list_assessments(limit)))
+        return
+    console.print(build_history_view(store.recent_change_events(limit), store.score_trend()))
+
+
+@app.command()
+def compare(
+    from_report: int = typer.Argument(
+        ..., metavar="FROM", help="Older report number (see `edgewalker history --list`)."
+    ),
+    to_report: int = typer.Argument(..., metavar="TO", help="Newer report number."),
+) -> None:
+    """Compare two assessment reports and show what changed between them."""
+    # First Party
+    from edgewalker.core.config import settings  # noqa: PLC0415
+    from edgewalker.core.sqlite_store import SqliteResultStore  # noqa: PLC0415
+    from edgewalker.tui.widgets.overview import build_comparison_view  # noqa: PLC0415
+
+    print_logo()
+    store = SqliteResultStore(settings.db_path)
+    try:
+        comparison = store.compare_assessments(from_report, to_report)
+    except ValueError as e:
+        console.print(f"[{theme.WARNING}]{e}[/{theme.WARNING}]")
+        raise typer.Exit(code=1) from e
+    console.print(build_comparison_view(comparison))
+
+
+@app.command()
+def findings() -> None:
+    """List prioritised findings from the latest assessment."""
+    # First Party
+    from edgewalker.core.findings import build_summary  # noqa: PLC0415
+    from edgewalker.tui.widgets.overview import build_findings_view  # noqa: PLC0415
+
+    print_logo()
+    summary = build_summary(Engine.load_report_inputs())
+    console.print(build_findings_view(summary))
 
 
 @app.command()

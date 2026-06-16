@@ -28,6 +28,21 @@ def global_telemetry_safety():
         yield
 
 
+@pytest.fixture(autouse=True)
+def isolate_db(tmp_path_factory):
+    """Point the scan-history DB at a per-test file so runs never accumulate.
+
+    ``from_env()`` builds a SqliteResultStore at ``settings.db_path``; without
+    isolation every test (and every test run) would share the stable test data
+    dir's DB and cross-contaminate.
+    """
+    # First Party
+    from edgewalker.core.config import settings
+
+    settings.db_path = tmp_path_factory.mktemp("ewdb") / "edgewalker.db"
+    yield
+
+
 @pytest.fixture
 def mock_config_dir(tmp_path):
     """Fixture for a temporary config directory."""

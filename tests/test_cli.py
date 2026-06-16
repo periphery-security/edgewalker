@@ -62,7 +62,7 @@ def mock_results():
 @pytest.mark.asyncio
 @patch("edgewalker.core.scanner_service.port_scan.quick_scan", new_callable=AsyncMock)
 @patch("edgewalker.utils.get_input", return_value="1.1.1.1")
-@patch("edgewalker.core.scanner_service.save_results", return_value="path")
+@patch("edgewalker.core.result_store.save_results", return_value="path")
 @patch("edgewalker.core.scanner_service.submit_scan_data")
 async def test_run_port_scan(mock_submit, mock_save, mock_input, mock_quick, mock_results):
     mock_quick.return_value = mock_results
@@ -76,7 +76,7 @@ async def test_run_port_scan(mock_submit, mock_save, mock_input, mock_quick, moc
 @pytest.mark.asyncio
 @patch("edgewalker.core.scanner_service.port_scan.full_scan", new_callable=AsyncMock)
 @patch("edgewalker.utils.get_input", return_value="1.1.1.1")
-@patch("edgewalker.core.scanner_service.save_results", return_value="path")
+@patch("edgewalker.core.result_store.save_results", return_value="path")
 @patch("edgewalker.core.scanner_service.submit_scan_data")
 async def test_run_port_scan_full(mock_submit, mock_save, mock_input, mock_full, mock_results):
     mock_full.return_value = mock_results
@@ -85,10 +85,14 @@ async def test_run_port_scan_full(mock_submit, mock_save, mock_input, mock_full,
 
 
 @pytest.mark.asyncio
-@patch("edgewalker.utils.get_scan_status")
-@patch("edgewalker.cli.controller.ScanController.run_port_scan", new_callable=AsyncMock)
-@patch("edgewalker.cli.controller.ScanController.run_credential_scan", new_callable=AsyncMock)
-@patch("edgewalker.cli.controller.ScanController.run_cve_scan", new_callable=AsyncMock)
+@patch("edgewalker.core.scanner_service.ScannerService.perform_web_scan", new_callable=AsyncMock)
+@patch("edgewalker.core.scanner_service.ScannerService.perform_sql_scan", new_callable=AsyncMock)
+@patch("edgewalker.core.scanner_service.ScannerService.perform_cve_scan", new_callable=AsyncMock)
+@patch(
+    "edgewalker.core.scanner_service.ScannerService.perform_credential_scan",
+    new_callable=AsyncMock,
+)
+@patch("edgewalker.core.scanner_service.ScannerService.perform_port_scan", new_callable=AsyncMock)
 @patch("edgewalker.cli.controller.ScanController.view_device_risk")
 @patch("edgewalker.cli.guided.GuidedScanner._show_scan_type_selection", return_value=False)
 @patch("edgewalker.utils.get_input", return_value="1.1.1.1")
@@ -98,26 +102,21 @@ async def test_automatic_mode(
     mock_input,
     mock_type,
     mock_risk,
-    mock_cve,
-    mock_pwd,
     mock_port,
-    mock_status,
+    mock_pwd,
+    mock_cve,
+    mock_sql,
+    mock_web,
     mock_results,
 ):
-    mock_status.return_value = {
-        "port_scan": True,
-        "port_scan_type": "quick",
-        "password_scan": True,
-        "cve_scan": True,
-        "sql_scan": False,
-        "web_scan": False,
-        "devices_found": 1,
-        "vulnerable_devices": 0,
-        "cves_found": 0,
-        "sql_vulns": 0,
-        "web_vulns": 0,
-    }
-    mock_port.return_value = mock_results
+    # First Party
+    from edgewalker.modules.cve_scan.models import CveScanModel
+    from edgewalker.modules.password_scan.models import PasswordScanModel
+
+    mock_port.return_value = mock_results  # one host, state "up"
+    mock_pwd.return_value = PasswordScanModel(results=[], summary={"vulnerable_hosts": 0})
+    mock_cve.return_value = CveScanModel(results=[], summary={"total_cves": 0})
+    # SQL/Web have no console renderer, so simple doubles are fine.
 
     controller = cli.ScanController()
     guided = cli.GuidedScanner(controller)
@@ -125,6 +124,7 @@ async def test_automatic_mode(
     assert mock_port.called
     assert mock_pwd.called
     assert mock_cve.called
+    mock_risk.assert_called_once()
 
 
 @patch("edgewalker.utils.get_input")
@@ -417,32 +417,39 @@ def test_interactive_mode_manual_clear(
     assert mock_clear.called
 
 
+@patch("edgewalker.cli.controller.ScanController.view_device_risk")
 @patch("edgewalker.utils.get_input", return_value="1")
 @patch(
-    "edgewalker.cli.controller.ScanController.run_port_scan",
+    "edgewalker.core.scanner_service.ScannerService.perform_port_scan",
     new_callable=AsyncMock,
-    return_value=None,
+    side_effect=ValueError("scan failed"),
 )
 @patch("edgewalker.utils.press_enter")
-def test_automatic_mode_fail(mock_press, mock_run, mock_input):
+def test_automatic_mode_fail(mock_press, mock_run, mock_input, mock_risk):
     controller = cli.ScanController()
     guided = cli.GuidedScanner(controller)
     asyncio.run(guided.automatic_mode())
     assert mock_run.called
+    mock_risk.assert_not_called()
 
 
+@patch("edgewalker.cli.controller.ScanController.view_device_risk")
 @patch("edgewalker.utils.get_input", return_value="1")
 @patch(
-    "edgewalker.cli.controller.ScanController.run_port_scan",
+    "edgewalker.core.scanner_service.ScannerService.perform_port_scan",
     new_callable=AsyncMock,
-    return_value={"hosts": []},
 )
 @patch("edgewalker.utils.press_enter")
-def test_automatic_mode_no_hosts(mock_press, mock_run, mock_input):
+def test_automatic_mode_no_hosts(mock_press, mock_run, mock_input, mock_risk):
+    # First Party
+    from edgewalker.modules.port_scan.models import PortScanModel
+
+    mock_run.return_value = PortScanModel(hosts=[])
     controller = cli.ScanController()
     guided = cli.GuidedScanner(controller)
     asyncio.run(guided.automatic_mode())
     assert mock_run.called
+    mock_risk.assert_not_called()
 
 
 @patch("edgewalker.utils.get_scan_status")

@@ -3,11 +3,17 @@ from unittest.mock import patch
 
 # Third Party
 import pytest
+from textual.screen import Screen
 
 # First Party
 from edgewalker.tui.app import EdgeWalkerApp
-from edgewalker.tui.screens.home import HomeScreen
-from edgewalker.tui.widgets.navigation import NavigationPanel, NavItem, StatusBadge, TelemetryStatus
+from edgewalker.tui.widgets.navigation import (
+    NavigationPanel,
+    NavItem,
+    ScanProgress,
+    StatusBadge,
+    TelemetryStatus,
+)
 
 
 @pytest.mark.asyncio
@@ -27,7 +33,127 @@ async def test_status_badge():
 @pytest.mark.asyncio
 async def test_nav_item():
     item = NavItem("1", "Test")
-    assert "[1] Test" in item.render()
+    assert "[1] Test" in str(item.render())
+
+
+@pytest.mark.asyncio
+async def test_status_badge_phase_states():
+    badge = StatusBadge("Network")
+    badge.set_phase("queued")
+    assert "queued" in badge.render() and "○" in badge.render()
+    badge.set_phase("running")
+    assert "running" in badge.render() and "◐" in badge.render()
+    badge.set_phase("done")
+    assert "done" in badge.render() and "●" in badge.render()
+
+    # Setting a post-scan result clears the live phase state.
+    badge.set_status(True, "quick")
+    assert badge.phase_state == ""
+    assert "quick" in badge.render()
+
+
+@pytest.mark.asyncio
+async def test_nav_item_compact_render():
+    item = NavItem("o", "Overview", view="overview")
+    assert "Overview" in str(item.render())
+    item.set_compact(True)
+    rendered = str(item.render())
+    assert "[o]" in rendered
+    assert "Overview" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_status_badge_compact_render():
+    badge = StatusBadge("Network")
+    badge.set_compact(True)
+    # Icon only, no label, in the narrow rail.
+    assert "Network" not in badge.render()
+    assert "○" in badge.render()
+    badge.set_phase("running")
+    assert "◐" in badge.render()
+
+
+@pytest.mark.asyncio
+async def test_navigation_panel_scan_progress_section():
+    app = EdgeWalkerApp()
+    async with app.run_test() as pilot:
+        # Third Party
+        from textual.widgets import Static
+
+        panel = NavigationPanel()
+        screen = Screen()
+        await app.push_screen(screen)
+        await screen.mount(panel)
+        await pilot.pause()
+
+        progress = panel.query_one("#nav-progress")
+        # Hidden while idle.
+        assert progress.display is False
+
+        panel.show_scan_progress(2, 4, "Credential check…")
+        await pilot.pause()
+        assert progress.display is True
+        assert "Step 2 of 4" in str(panel.query_one("#nav-progress-step", Static).render())
+        assert "Credential check" in str(panel.query_one("#nav-progress-activity", Static).render())
+        # The cancel control is available.
+        assert panel.query_one("#nav-cancel", NavItem).action == "go_home"
+
+        panel.hide_scan_progress()
+        await pilot.pause()
+        assert progress.display is False
+
+
+@pytest.mark.asyncio
+async def test_navigation_panel_set_compact():
+    app = EdgeWalkerApp()
+    async with app.run_test() as pilot:
+        panel = NavigationPanel()
+        screen = Screen()
+        await app.push_screen(screen)
+        await screen.mount(panel)
+        await pilot.pause()
+
+        panel.set_compact(True)
+        await pilot.pause()
+        assert panel.has_class("-compact")
+        assert panel.query_one("#nav-overview", NavItem).compact is True
+        assert panel.query_one("#status-port", StatusBadge).compact is True
+
+        panel.set_compact(False)
+        await pilot.pause()
+        assert not panel.has_class("-compact")
+        assert panel.query_one("#nav-overview", NavItem).compact is False
+
+
+@pytest.mark.asyncio
+async def test_scan_progress_render():
+    sp = ScanProgress()
+    # Nothing before a scan.
+    assert str(sp.render()) == ""
+
+    sp.set_progress("192.168.1.0/24", "Credential check", 2, 4, True)
+    text = str(sp.render())
+    assert "192.168.1.0/24" in text
+    assert "Credential check" in text
+    assert "step 2/4" in text
+
+    sp.set_progress("192.168.1.0/24", "", 0, 0, False)
+    assert "complete" in str(sp.render())
+
+
+@pytest.mark.asyncio
+async def test_nav_item_active_toggle():
+    item = NavItem("o", "Overview", view="overview")
+    assert item.view == "overview"
+    assert item.active is False
+
+    item.set_active(True)
+    assert item.active is True
+    assert item.has_class("-active")
+
+    item.set_active(False)
+    assert item.active is False
+    assert not item.has_class("-active")
 
 
 @pytest.mark.asyncio
@@ -35,7 +161,7 @@ async def test_telemetry_status():
     app = EdgeWalkerApp()
     async with app.run_test() as pilot:
         status = TelemetryStatus()
-        screen = HomeScreen()
+        screen = Screen()
         await app.push_screen(screen)
         await screen.mount(status)
         await pilot.pause()
@@ -69,7 +195,7 @@ async def test_navigation_panel_update():
     ):
         async with app.run_test() as pilot:
             panel = NavigationPanel()
-            screen = HomeScreen()
+            screen = Screen()
             await app.push_screen(screen)
             await screen.mount(panel)
             await pilot.pause()
@@ -85,3 +211,33 @@ async def test_navigation_panel_update():
             cve_badge = panel.query_one("#status-cve", StatusBadge)
             assert cve_badge.active is True
             assert cve_badge.detail == "5c"
+
+
+@pytest.mark.asyncio
+async def test_navigation_panel_groups_and_active_view():
+    app = EdgeWalkerApp()
+    async with app.run_test() as pilot:
+        panel = NavigationPanel()
+        screen = Screen()
+        await app.push_screen(screen)
+        await screen.mount(panel)
+        await pilot.pause()
+
+        # SCAN, VIEW, and the CONTROL (cancel) mnemonics are present.
+        items = {item.key: item for item in panel.query(NavItem)}
+        assert set(items) == {"s", "S", "r", "o", "d", "f", "h", "l", "esc"}
+        assert items["esc"].action == "go_home"
+
+        # View items carry their ContentSwitcher name; scan items do not.
+        assert items["o"].view == "overview"
+        assert items["d"].view == "devices"
+        assert items["h"].view == "history"
+        assert items["s"].view is None
+
+        # Overview is the default active view on mount.
+        assert items["o"].active is True
+        assert items["d"].active is False
+
+        panel.set_active_view("devices")
+        assert items["d"].active is True
+        assert items["o"].active is False

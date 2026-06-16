@@ -92,3 +92,23 @@ def test_get_device_id():
     assert utils.get_device_id(["00:11:22:33:44:55", "B4:2E:99:11:22:33"]) == settings.device_id
     assert utils.get_device_id([]) == settings.device_id
     assert utils.get_device_id("") == settings.device_id
+
+
+def test_stable_host_key():
+    """Stable per-host key prefers a physical MAC, else falls back to IP."""
+    # Physical MAC -> mac-namespaced key, uppercased.
+    assert utils.stable_host_key("00:11:22:33:44:55", "192.168.1.5") == "mac:00:11:22:33:44:55"
+    assert utils.stable_host_key("b4:2e:99:11:22:33", "10.0.0.9") == "mac:B4:2E:99:11:22:33"
+
+    # Randomized/locally-administered MAC is not stable -> fall back to IP.
+    assert utils.stable_host_key("02:11:22:33:44:55", "192.168.1.5") == "ip:192.168.1.5"
+    assert utils.stable_host_key("AA:11:22:33:44:55", "192.168.1.5") == "ip:192.168.1.5"
+
+    # No MAC -> IP.
+    assert utils.stable_host_key(None, "192.168.1.5") == "ip:192.168.1.5"
+    assert utils.stable_host_key("", "192.168.1.5") == "ip:192.168.1.5"
+
+    # The mac and ip namespaces never collide.
+    assert utils.stable_host_key("00:11:22:33:44:55", "1.2.3.4") != utils.stable_host_key(
+        None, "00:11:22:33:44:55"
+    )

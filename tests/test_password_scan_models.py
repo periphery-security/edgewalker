@@ -14,10 +14,8 @@ from edgewalker.modules.password_scan.models import (
 
 def test_credentials_model():
     creds = CredentialsModel(user="admin", password="password123")
-    assert creds["user"] == "admin"
-    assert creds["password"] == "password123"
-    assert creds.get("user") == "admin"
-    assert creds.get("nonexistent", "default") == "default"
+    assert creds.user == "admin"
+    assert creds.password == "password123"
 
 
 def test_password_scan_result_model():
@@ -99,10 +97,4 @@ def test_password_scan_result_serialization():
 
 def test_password_scan_model():
     model = PasswordScanModel(results=[])
-    assert model.get("results") == []
-    assert model["results"] == []
-
-    with pytest.raises(TypeError):
-        model[123]
-    with pytest.raises(KeyError):
-        model["nonexistent"]
+    assert model.results == []

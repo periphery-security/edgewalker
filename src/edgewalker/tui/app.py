@@ -29,6 +29,26 @@ from edgewalker.tui.modals.dialogs import ConfirmModal, PermissionModal, Telemet
 from edgewalker.utils import has_any_results
 
 
+class AboutProvider(Provider):
+    """A command provider for the About panel."""
+
+    async def discover(self) -> Iterable[Hit]:
+        """Yield commands to show when the palette is first opened."""
+        yield Hit(1, "About", self.app.action_about, help="About EdgeWalker & Periphery")
+
+    async def search(self, query: str) -> Iterable[Hit]:
+        """Search for the About command."""
+        matcher = self.matcher(query)
+        score = matcher.match("About")
+        if score > 0:
+            yield Hit(
+                score,
+                matcher.highlight("About"),
+                self.app.action_about,
+                help="About EdgeWalker & Periphery",
+            )
+
+
 class VersionProvider(Provider):
     """A command provider for version information."""
 
@@ -155,7 +175,7 @@ class EdgeWalkerApp(App):
         Binding("q", "quit_app", "Quit", show=True),
     ]
 
-    COMMANDS = App.COMMANDS | {SettingsProvider, ThemeProvider, VersionProvider}
+    COMMANDS = App.COMMANDS | {AboutProvider, SettingsProvider, ThemeProvider, VersionProvider}
 
     telemetry_status = reactive("idle")
     has_nmap_permissions = reactive(True)
@@ -163,7 +183,7 @@ class EdgeWalkerApp(App):
     def __init__(self, **kwargs: object) -> None:
         """Initialize the EdgeWalker application."""
         super().__init__(**kwargs)
-        self.scanner = ScannerService(telemetry_callback=self._update_telemetry_status)
+        self.scanner = ScannerService.from_env(telemetry_callback=self._update_telemetry_status)
         self.is_scanning = False
         self.current_scan_target = ""
         self.scan_progress_log: list[tuple[str, str]] = []
@@ -185,7 +205,7 @@ class EdgeWalkerApp(App):
         from loguru import logger  # noqa: PLC0415
 
         # First Party
-        from edgewalker.tui.screens.home import HomeScreen  # noqa: PLC0415
+        from edgewalker.tui.screens.dashboard import DashboardScreen  # noqa: PLC0415
 
         # Add a log sink to redirect warnings/errors to TUI notifications
         def tui_log_sink(message: Message) -> None:
@@ -217,23 +237,34 @@ class EdgeWalkerApp(App):
         if self.telemetry.settings.telemetry_enabled is False:
             self.telemetry_status = "disabled"
 
-        # First-run telemetry notification
-        if not self.telemetry.has_seen_telemetry_prompt():
+        # First Party
+        from edgewalker.core.config import is_testing  # noqa: PLC0415
+        from edgewalker.tui.screens.splash import SplashScreen  # noqa: PLC0415
 
-            def on_dismiss(_: None) -> None:
-                """Handle notification modal dismissal."""
-                self.telemetry.set_telemetry_status(True)
+        def after_splash() -> None:
+            """First-run consent and environment checks, once the splash clears."""
+            if not self.telemetry.has_seen_telemetry_prompt():
+
+                def on_dismiss(_: None) -> None:
+                    self.telemetry.set_telemetry_status(True)
+                    self._check_nmap_permissions()
+                    self._check_previous_results()
+                    self._check_config_overrides()
+
+                self.push_screen(TelemetryModal(), on_dismiss)
+            else:
                 self._check_nmap_permissions()
                 self._check_previous_results()
                 self._check_config_overrides()
 
-            self.push_screen(HomeScreen())
-            self.push_screen(TelemetryModal(), on_dismiss)
+        # The dashboard is the home surface. A brief branded splash dissolves
+        # into it on real launches; tests skip the cosmetic splash for
+        # determinism (the splash is covered by its own unit tests).
+        self.push_screen(DashboardScreen(show_report=has_any_results()))
+        if is_testing():
+            after_splash()
         else:
-            self.push_screen(HomeScreen())
-            self._check_nmap_permissions()
-            self._check_previous_results()
-            self._check_config_overrides()
+            self.push_screen(SplashScreen(), lambda _: after_splash())
 
     def _check_config_overrides(self) -> bool:
         """Check for configuration overrides and notify the user.
@@ -311,6 +342,13 @@ class EdgeWalkerApp(App):
             title="Version Info",
             timeout=10,
         )
+
+    def action_about(self) -> None:
+        """Open the About panel (company / project / version)."""
+        # First Party
+        from edgewalker.tui.modals.about import AboutModal  # noqa: PLC0415
+
+        self.push_screen(AboutModal())
 
     def action_theme_select(self) -> None:
         """Open a new command palette specifically for theme selection."""

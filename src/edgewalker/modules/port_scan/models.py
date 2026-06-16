@@ -15,6 +15,7 @@ from pydantic import (
 
 # First Party
 from edgewalker.core.models import Base, validate_mac
+from edgewalker.utils import stable_host_key
 
 
 class UdpPort(BaseModel):
@@ -126,6 +127,15 @@ class Host(BaseModel):
             return self.tcp
         return self.udp if key == "udp_ports" else getattr(self, key, default)
 
+    @property
+    def stable_key(self) -> str:
+        """Stable identity for this host across scans (physical MAC, else IP).
+
+        Not a serialized field: it embeds the raw MAC and is for local
+        correlation/diffing only, never telemetry.
+        """
+        return stable_host_key(self.mac, self.ip)
+
     ip: IPvAnyAddress = Field(description="IP Address of host")
     mac: Annotated[str, PlainValidator(validate_mac)] = Field(description="MAC Address of host")
     hostname: str = Field(default="", description="Hostname of host")
@@ -190,19 +200,6 @@ class PortScanModel(Base):
     """Port scan model."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def __getitem__(self, key: str) -> object:
-        """Allow subscriptable access."""
-        if not isinstance(key, str):
-            raise TypeError(f"attribute name must be string, not {type(key).__name__!r}")
-        try:
-            return getattr(self, key)
-        except AttributeError as e:
-            raise KeyError(key) from e
-
-    def get(self, key: str, default: object = None) -> object:
-        """Allow .get() access."""
-        return getattr(self, key, default)
 
     hosts: list[Host] = Field(default_factory=list, description="List of hosts found")
     gateway_ip: Optional[str] = Field(

@@ -1,22 +1,42 @@
 /* EdgeWalker TCSS stylesheet */
 
+/* ── Semantic design tokens ──────────────────────────────────────────────
+   Brand palette is wired through theme_manager / skins as Textual theme
+   vars. Reference UI *roles* below, never raw hex in widget styles:
+
+     $primary   Electric Violet — structure, borders, the active accent
+     $accent    Cyan — focus & interactive accents ONLY
+     $success / $warning / $error — severity greens / ambers / reds
+     $background / $surface / $panel — layered depth, darkest → lightest
+
+   The tokens below derive the de-emphasised "muted" and "hairline" roles so
+   widgets stop repeating an ad-hoc `$foreground 50%`. */
+$ew-muted: $foreground 50%;
+$ew-hairline: $primary 40%;
+
+/* Secondary / metadata text. Pair with a symbol or label — never rely on
+   the dim colour alone (NO_COLOR + colour-blind safety). */
+.muted {
+    color: $ew-muted;
+}
+
 Screen {
     background: $background;
 }
 
-HomeScreen, GuidedAssessmentScreen, ModalScreen {
+SplashScreen, ModalScreen {
     align: center middle;
 }
 
-/* ── Home Screen ── */
+/* ── Splash Screen ── */
 
-#home-container {
+#splash-container {
     width: 80;
     height: auto;
     align: center middle;
 }
 
-#home-logo {
+#splash-logo {
     height: auto;
     max-height: 12;
     width: 100%;
@@ -24,11 +44,51 @@ HomeScreen, GuidedAssessmentScreen, ModalScreen {
     background: transparent;
 }
 
-#home-tagline {
+#splash-tagline {
     width: 100%;
     text-align: center;
     color: $accent;
     text-style: italic;
+    margin-bottom: 1;
+}
+
+#splash-spinner {
+    width: 100%;
+    text-align: center;
+    margin-top: 1;
+}
+
+/* ── About Modal ── */
+
+#about-container {
+    width: 72;
+}
+
+#about-logo {
+    width: 100%;
+    content-align: center middle;
+    height: auto;
+    max-height: 10;
+}
+
+#about-tagline {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#about-blurb {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#about-meta {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#about-close {
+    margin-top: 1;
 }
 
 #home-desc {
@@ -41,7 +101,7 @@ HomeScreen, GuidedAssessmentScreen, ModalScreen {
 #home-prompt {
     width: 100%;
     text-align: center;
-    color: $foreground 50%;
+    color: $ew-muted;
     margin-top: 1;
 }
 
@@ -59,7 +119,7 @@ HomeScreen, GuidedAssessmentScreen, ModalScreen {
 #home-contributors {
     width: 100%;
     text-align: center;
-    color: $foreground 50%;
+    color: $ew-muted;
     margin-top: 2;
 }
 
@@ -79,22 +139,55 @@ HomeScreen, GuidedAssessmentScreen, ModalScreen {
     background: $background;
 }
 
-#log-container {
-    height: 1fr;
+/* Filter box (/) — revealed above the active view on demand. */
+#filter-input {
     width: 100%;
-    padding: 1 2;
+    height: 3;
+    dock: top;
 }
 
-#wizard-log, #report-container {
+#view-switcher {
     width: 100%;
     height: 100%;
 }
 
-#report-content {
+/* The named views fill the content area. */
+#overview, #devices, #findings, #history {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+}
+
+/* History: a summary panel, the selectable reports table, then the comparison. */
+#history-reports {
+    height: auto;
+    max-height: 20;
+    margin: 1 0;
+}
+
+#live-log {
+    width: 100%;
+    height: 100%;
+}
+
+#scan-header {
+    width: 100%;
+    height: auto;
+    padding: 0 2;
+}
+
+#report-content, #findings-content {
     width: 100%;
     height: auto;
     padding: 0 1;
 }
+
+#wizard-log {
+    width: 100%;
+    height: 1fr;
+    padding: 1 2;
+}
+
 #button-bar {
     height: 3;
     width: 100%;
@@ -111,19 +204,71 @@ HomeScreen, GuidedAssessmentScreen, ModalScreen {
     margin-bottom: 1;
 }
 
-#nav-subtitle {
+.nav-group {
     text-style: bold;
     color: $primary;
+    margin: 1 0 0 0;
+}
+
+NavSeparator {
+    width: 100%;
+    height: 1;
     margin: 1 0;
+    color: $ew-hairline;
 }
 
 .nav-link {
     color: $foreground;
-    padding-left: 1;
+    /* Reserve the left cursor bar on every item so active/inactive align. */
+    border-left: tall $surface;
+    padding: 0 1;
+}
+
+/* Clickable affordance — items respond to the mouse as well as the keyboard. */
+.nav-link:hover {
+    background: $primary 15%;
+}
+
+/* Cursor highlight on the active dashboard view (mockup: .navline.sel). */
+.nav-link.-active {
+    background: $primary 28%;
+    border-left: tall $accent;
+    text-style: bold;
 }
 
 StatusBadge {
     margin: 0 0;
+}
+
+/* Narrow terminals: collapse the sidebar to an icon/key rail. */
+#nav-panel.-compact {
+    width: 6;
+    padding: 1 0;
+    content-align: center top;
+}
+
+#nav-panel.-compact #nav-title,
+#nav-panel.-compact .nav-group,
+#nav-panel.-compact NavSeparator,
+#nav-panel.-compact #nav-progress-step,
+#nav-panel.-compact #nav-progress-activity,
+#nav-panel.-compact #telemetry-status {
+    display: none;
+}
+
+#nav-panel.-compact .nav-link {
+    border-left: none;
+    padding: 0 1;
+}
+
+#nav-progress {
+    height: auto;
+    width: 100%;
+}
+
+#nav-progress-step, #nav-progress-bar, #nav-progress-activity {
+    width: 100%;
+    padding: 0 1;
 }
 
 #nav-bottom-spacer {
@@ -138,28 +283,38 @@ StatusBadge {
     text-style: italic;
 }
 
-/* ── Wizard / Guided Assessment ── */
+/* ── Scan configuration (modal over the dimmed dashboard) ── */
 
-#wizard-outer {
-    width: 100%;
-    height: 100%;
+/* Translucent background so the persistent dashboard stays visible behind.
+   The box is the screen's only child (no full-size wrapper) — otherwise the
+   compositor treats the screen as opaque and nothing shows through. */
+GuidedAssessmentScreen {
     align: center middle;
+    background: $background 60%;
 }
 
-.wizard-text {
-    color: $foreground;
-    margin-bottom: 1;
+#scan-config {
+    width: 64;
+    height: auto;
+    max-height: 90%;
 }
 
-.wizard-options {
-    height: 3;
+/* Section labels with a hairline rule above for quiet grouping. */
+.wizard-section {
     width: 100%;
-    align: center middle;
-    margin-top: 1;
+    text-style: bold;
+    color: $primary;
+    border-top: solid $ew-hairline;
+    margin: 1 0 0 0;
 }
 
-.wizard-options Button {
-    margin: 0 1;
+/* A dependent option, indented under and gated on its parent toggle. */
+.dependent-option {
+    margin-left: 3;
+}
+
+.dependent-option:disabled {
+    color: $ew-muted;
 }
 
 Checkbox {
@@ -173,7 +328,7 @@ Checkbox:focus {
 }
 
 Checkbox > .toggle {
-    color: $foreground 50%;
+    color: $ew-muted;
 }
 
 Checkbox.-on > .toggle {
@@ -182,7 +337,7 @@ Checkbox.-on > .toggle {
 }
 
 RadioButton > .toggle {
-    color: $foreground 50%;
+    color: $ew-muted;
 }
 
 RadioButton.-on > .toggle {
@@ -223,6 +378,27 @@ RadioButton.-on > .toggle {
     margin: 0 1;
 }
 
+/* ── Help overlay ── */
+
+#help-container {
+    width: 56;
+}
+
+#help-body {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#help-hint {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#help-close {
+    width: 100%;
+}
+
 /* ── Common ── */
 
 Header {
@@ -233,12 +409,12 @@ Header {
 
 Footer {
     background: $surface;
-    color: $foreground 50%;
+    color: $ew-muted;
 }
 
 Input {
     background: $panel;
-    border: solid $foreground 50%;
+    border: solid $ew-muted;
     color: $foreground;
 }
 
@@ -328,7 +504,7 @@ Input:focus {
 
 .config-help {
     width: 100%;
-    color: $foreground 50%;
+    color: $ew-muted;
     text-style: italic;
     margin-bottom: 1;
     padding-left: 2;
@@ -339,13 +515,7 @@ Input:focus {
     margin-bottom: 0;
 }
 
-/* ── Topology Screen ── */
-
-#topology-container {
-    width: 100%;
-    height: 100%;
-    padding: 1 2;
-}
+/* ── Topology / Devices view ── */
 
 #topology-tree {
     background: transparent;

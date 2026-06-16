@@ -6,6 +6,19 @@ from pydantic import IPvAnyAddress
 from edgewalker.modules.port_scan.models import Host, PortScanModel, TcpPort, UdpPort
 
 
+def test_host_stable_key():
+    """Host.stable_key uses the physical MAC, falling back to IP, and is not serialized."""
+    physical = Host(ip="192.168.1.5", mac="00:11:22:33:44:55", state="up")
+    assert physical.stable_key == "mac:00:11:22:33:44:55"
+
+    # Randomized (locally-administered) MAC falls back to IP.
+    randomized = Host(ip="192.168.1.6", mac="02:11:22:33:44:55", state="up")
+    assert randomized.stable_key == "ip:192.168.1.6"
+
+    # It is a derived property, not a serialized field (keeps the raw MAC out of dumps).
+    assert "stable_key" not in physical.model_dump()
+
+
 def test_udp_port_model():
     port = UdpPort(port=53, name="dns", product_name="bind", product_version="9.16")
     assert port["port"] == 53
@@ -93,11 +106,4 @@ def test_host_serialization():
 
 def test_port_scan_model():
     model = PortScanModel(target="192.168.1.0/24")
-    assert model["target"] == "192.168.1.0/24"
-    assert model.get("target") == "192.168.1.0/24"
-    assert model.get("nonexistent", "default") == "default"
-
-    with pytest.raises(TypeError):
-        model[123]
-    with pytest.raises(KeyError):
-        model["nonexistent"]
+    assert model.target == "192.168.1.0/24"

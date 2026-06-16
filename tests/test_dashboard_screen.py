@@ -13,6 +13,33 @@ from edgewalker.tui.screens.dashboard import DashboardScreen
 
 
 @pytest.mark.asyncio
+async def test_run_all_terminus_records_assessment_snapshot():
+    """The TUI run-all terminus drives a score-trend snapshot (Issue 1 regression).
+
+    Before the fix the dashboard ran perform_*() directly and never recorded
+    an assessment, so the score trend stayed empty on the path users use most.
+    """
+    app = EdgeWalkerApp()
+    with (
+        patch("textual.widgets.Header", return_value=MagicMock()),
+        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
+    ):
+        async with app.run_test() as pilot:
+            screen = DashboardScreen()
+            await app.push_screen(screen)
+            await pilot.pause()
+
+            screen._auto_target = "192.168.1.0/24"
+            with patch("edgewalker.tui.screens.dashboard.Engine") as mock_engine:
+                screen._record_assessment_snapshot()
+
+            mock_engine.assert_called_once_with(app.scanner)
+            mock_engine.return_value.record_assessment_snapshot.assert_called_once_with(
+                "192.168.1.0/24"
+            )
+
+
+@pytest.mark.asyncio
 async def test_dashboard_screen_mount_welcome():
     app = EdgeWalkerApp()
     with (
@@ -22,6 +49,11 @@ async def test_dashboard_screen_mount_welcome():
         async with app.run_test() as pilot:
             screen = DashboardScreen()
             await app.push_screen(screen)
+            await pilot.pause()
+
+            # The welcome text lives on the live-log view; make it current so
+            # the RichLog computes its rendered lines.
+            screen.action_live_log()
             await pilot.pause()
 
             log = screen.query_one("#wizard-log", RichLog)
@@ -67,6 +99,9 @@ async def test_dashboard_screen_progress_updates():
         async with app.run_test() as pilot:
             screen = DashboardScreen()
             await app.push_screen(screen)
+            await pilot.pause()
+
+            screen.action_live_log()
             await pilot.pause()
 
             log = screen.query_one("#wizard-log", RichLog)
@@ -194,6 +229,8 @@ async def test_dashboard_screen_scan_error():
             await pilot.pause()
 
             screen._on_scan_error("Fatal Error")
+            screen.action_live_log()
+            await pilot.pause()
             log = screen.query_one("#wizard-log", RichLog)
             assert any("Fatal Error" in line.text for line in log.lines)
 
@@ -337,15 +374,12 @@ async def test_dashboard_screen_run_scans():
 @pytest.mark.asyncio
 async def test_dashboard_screen_go_home():
     app = EdgeWalkerApp()
-    # First Party
-    from edgewalker.tui.screens.home import HomeScreen
 
     with (
         patch("textual.widgets.Header", return_value=MagicMock()),
         patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
     ):
         async with app.run_test() as pilot:
-            # HomeScreen is already there by default
             screen = DashboardScreen()
             await app.push_screen(screen)
             await pilot.pause()
@@ -353,4 +387,10 @@ async def test_dashboard_screen_go_home():
             assert app.screen == screen
             await screen.action_go_home()
             await pilot.pause()
-            assert isinstance(app.screen, HomeScreen)
+            # The dashboard is the root surface; "home" is the overview, shown
+            # in place rather than navigating to a separate screen.
+            assert app.screen == screen
+            # Third Party
+            from textual.widgets import ContentSwitcher
+
+            assert screen.query_one("#view-switcher", ContentSwitcher).current == "overview"

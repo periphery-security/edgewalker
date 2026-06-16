@@ -70,3 +70,38 @@ def test_controller_view_risk(tmp_path):
     controller = ScanController()
     with patch("edgewalker.cli.controller.build_risk_report", return_value=([], {})):
         controller.view_device_risk()
+
+
+def test_view_risk_records_score_trend_point(tmp_path):
+    """The report path lands a score-trend point (Issue 1 regression).
+
+    Before the fix, only the guided CLI flow recorded an assessment; viewing
+    the risk report (the `report` command / menu) recorded nothing.
+    """
+    # First Party
+    from edgewalker.core.config import settings
+    from edgewalker.core.sqlite_store import SqliteResultStore
+
+    settings.output_dir = tmp_path
+    (tmp_path / "port_scan.json").write_text(
+        json.dumps({
+            "target": "192.168.1.0/24",
+            "hosts": [
+                {
+                    "ip": "192.168.1.42",
+                    "mac": "00:00:00:00:00:00",
+                    "vendor": "Acme",
+                    "state": "up",
+                    "tcp": [{"port": 23, "name": "telnet"}],
+                }
+            ],
+            "summary": {},
+        })
+    )
+
+    # Real ScannerService.from_env() store (SqliteResultStore at the isolated db_path).
+    ScanController().view_device_risk()
+
+    trend = SqliteResultStore(settings.db_path).score_trend()
+    assert len(trend) == 1
+    assert trend[0]["grade"]

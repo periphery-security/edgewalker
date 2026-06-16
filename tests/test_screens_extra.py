@@ -7,26 +7,6 @@ import pytest
 # First Party
 from edgewalker.tui.app import EdgeWalkerApp
 from edgewalker.tui.screens.dashboard import DashboardScreen
-from edgewalker.tui.screens.guided import GuidedAssessmentScreen
-from edgewalker.tui.screens.home import HomeScreen
-
-
-@pytest.mark.asyncio
-async def test_home_screen_actions(tmp_path):
-    app = EdgeWalkerApp()
-    # Mock Header to avoid HeaderTitle issues and permissions to allow scan
-    with (
-        patch("textual.widgets.Header", return_value=MagicMock()),
-        patch("edgewalker.tui.app.check_nmap_permissions", return_value=True),
-    ):
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            assert isinstance(app.screen, HomeScreen)
-
-            # Test action_start_guided
-            app.screen.action_start_guided()
-            await pilot.pause()
-            assert isinstance(app.screen, GuidedAssessmentScreen)
 
 
 @pytest.mark.asyncio

@@ -7,26 +7,59 @@ import pytest
 # First Party
 from edgewalker.cli.controller import ScanController
 from edgewalker.cli.guided import GuidedScanner
+from edgewalker.core.engine import PhaseResult
+from edgewalker.modules.port_scan.models import Host, PortScanModel
 
 
 @pytest.mark.asyncio
 async def test_guided_automatic_mode():
     controller = MagicMock(spec=ScanController)
-    controller.run_port_scan = AsyncMock(
-        return_value={"hosts": [{"ip": "127.0.0.1", "state": "up"}]}
-    )
-    controller.run_credential_scan = AsyncMock()
-    controller.run_cve_scan = AsyncMock()
+    controller.view_device_risk = MagicMock()
+
+    port_model = PortScanModel(hosts=[Host(ip="127.0.0.1", mac="00:00:00:00:00:00", state="up")])
+
+    async def fake_run_assessment(opts, *, port_results=None):
+        yield PhaseResult("port", port_model)
+        yield PhaseResult("credential", MagicMock())
+        yield PhaseResult("cve", MagicMock())
+        yield PhaseResult("sql", MagicMock())
+        yield PhaseResult("web", MagicMock())
 
     guided = GuidedScanner(controller)
+    guided.engine.run_assessment = fake_run_assessment
+    # Rendering is exercised separately; keep this focused on sequencing.
+    guided._render_phase = MagicMock()
 
     with patch("edgewalker.utils.get_input", side_effect=["1", "127.0.0.1"]):
         with patch("edgewalker.utils.clear_screen"):
             with patch("edgewalker.utils.print_logo"):
                 await guided.automatic_mode()
-                assert controller.run_port_scan.called
-                assert controller.run_credential_scan.called
-                assert controller.run_cve_scan.called
+
+    assert guided._render_phase.call_count == 5
+    controller.view_device_risk.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_guided_automatic_mode_no_hosts_skips_report():
+    controller = MagicMock(spec=ScanController)
+    controller.view_device_risk = MagicMock()
+
+    empty_port_model = PortScanModel(hosts=[])
+
+    async def fake_run_assessment(opts, *, port_results=None):
+        yield PhaseResult("port", empty_port_model)
+
+    guided = GuidedScanner(controller)
+    guided.engine.run_assessment = fake_run_assessment
+    guided._render_phase = MagicMock()
+
+    with patch("edgewalker.utils.get_input", side_effect=["1", "127.0.0.1"]):
+        with patch("edgewalker.utils.clear_screen"):
+            with patch("edgewalker.utils.print_logo"):
+                with patch("edgewalker.utils.press_enter"):
+                    await guided.automatic_mode()
+
+    controller.view_device_risk.assert_not_called()
 
 
 @pytest.mark.asyncio

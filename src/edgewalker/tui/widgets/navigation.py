@@ -6,6 +6,7 @@ from __future__ import annotations
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Static
 
@@ -15,7 +16,19 @@ from edgewalker.utils import get_scan_status
 
 
 class StatusBadge(Static):
-    """A small badge showing scan status."""
+    """A small badge showing scan status.
+
+    Two modes: a *live phase* state (queued / running / done) driven by an
+    active scan's state machine, and the post-scan *result* view (active +
+    detail) derived from the saved files. Setting one clears the other.
+    """
+
+    #: Live-phase rendering: state -> (icon, style, label).
+    _PHASE = {
+        "queued": ("○", "muted", "queued"),
+        "running": ("◐", "accent", "running"),
+        "done": ("●", "success", "done"),
+    }
 
     def __init__(self, label: str, **kwargs: object) -> None:
         """Initialize the status badge."""
@@ -23,9 +36,44 @@ class StatusBadge(Static):
         self.label = label
         self.active = False
         self.detail = ""
+        self.phase_state = ""
+        self.compact = False
+
+    def set_compact(self, compact: bool) -> None:
+        """Toggle the icon-only rendering used in the narrow sidebar."""
+        self.compact = compact
+        self.refresh()
+
+    def _icon_color(self) -> tuple[str, str]:
+        """Return (icon, color) for the current state — used by compact mode."""
+        if self.phase_state in self._PHASE:
+            icon, style_key, _word = self._PHASE[self.phase_state]
+            color = {"muted": theme.MUTED, "accent": theme.ACCENT, "success": theme.SUCCESS}[
+                style_key
+            ]
+            return icon, color
+        if not self.active:
+            return theme.ICON_CIRCLE, theme.MUTED
+        color = theme.SUCCESS
+        if self.detail == "vulnerable" or (self.detail and "c" in self.detail):
+            color = theme.RISK_CRITICAL
+        return theme.ICON_CIRCLE_FILLED, color
 
     def render(self) -> str:
-        """Render the badge."""
+        """Render the badge (live phase state takes precedence while scanning)."""
+        if self.compact:
+            icon, color = self._icon_color()
+            return f"[{color}]{icon}[/{color}]"
+
+        if self.phase_state in self._PHASE:
+            icon, style_key, word = self._PHASE[self.phase_state]
+            color = {
+                "muted": theme.MUTED,
+                "accent": theme.ACCENT,
+                "success": theme.SUCCESS,
+            }[style_key]
+            return f"[{color}]{icon} {self.label}[/{color}] [{theme.MUTED}]({word})[/{theme.MUTED}]"
+
         if not self.active:
             return f"[{theme.MUTED}]{theme.ICON_CIRCLE} {self.label}[/{theme.MUTED}]"
 
@@ -39,33 +87,148 @@ class StatusBadge(Static):
         return res
 
     def set_status(self, active: bool, detail: str = "") -> None:
-        """Update the badge status."""
+        """Update the post-scan result status (clears any live phase state)."""
         self.active = active
         self.detail = detail
+        self.phase_state = ""
+        self.refresh()
+
+    def set_phase(self, state: str) -> None:
+        """Set the live phase state ("queued" / "running" / "done" / "")."""
+        self.phase_state = state
         self.refresh()
 
 
 class NavItem(Static):
-    """A single navigation item."""
+    """A single navigation item.
 
-    def __init__(self, key: str, label: str, **kwargs: object) -> None:
+    Renders ``[key] label`` with the mnemonic key emphasised. When the item
+    represents a dashboard view it carries the ContentSwitcher ``view`` name so
+    the panel can paint a cursor highlight on the active view.
+    """
+
+    class Selected(Message):
+        """Posted when a nav item is clicked, carrying its bound action name."""
+
+        def __init__(self, action: str) -> None:
+            """Initialize the message.
+
+            Args:
+                action: The dashboard action name to run.
+            """
+            self.action = action
+            super().__init__()
+
+    def __init__(
+        self,
+        key: str,
+        label: str,
+        view: str | None = None,
+        action: str | None = None,
+        **kwargs: object,
+    ) -> None:
         """Initialize the navigation item."""
         super().__init__(**kwargs)
         self.key = key
         self.label = label
+        self.view = view
+        self.action = action
+        self.active = False
+        self.compact = False
+        self.add_class("nav-link")
 
-    def render(self) -> str:
-        """Render the navigation item."""
-        # The test expects "[1] Test" literally in the output
-        return f"[{self.key}] {self.label}"
+    def on_click(self) -> None:
+        """Run the bound action when the item is clicked (mouse parity)."""
+        if self.action:
+            self.post_message(self.Selected(self.action))
+
+    def set_compact(self, compact: bool) -> None:
+        """Toggle the key-only rendering used in the narrow sidebar."""
+        self.compact = compact
+        self.refresh()
+
+    def render(self) -> Text:
+        """Render the navigation item.
+
+        Returns a Rich ``Text`` so the literal ``[key]`` is never parsed as
+        console markup (``[s]`` would otherwise toggle strikethrough). The
+        rendered plain text stays ``[key] label`` for muscle memory and tests.
+        """
+        text = Text()
+        text.append(f"[{self.key}]", style="bold")
+        if not self.compact:
+            text.append(f" {self.label}")
+        return text
+
+    def set_active(self, active: bool) -> None:
+        """Toggle the active-view cursor highlight (driven by CSS)."""
+        self.active = active
+        self.set_class(active, "-active")
 
 
 class NavSeparator(Static):
-    """A separator in the navigation panel."""
+    """A hairline divider in the navigation panel.
 
-    def render(self) -> str:
-        """Render the separator."""
-        return f"[{theme.MUTED}]------------------[/{theme.MUTED}]"
+    Renders an uncoloured box-drawing rule; the hairline tint comes from the
+    ``$ew-hairline`` CSS token so it tracks the active skin's primary colour.
+    """
+
+    def render(self) -> Text:
+        """Render a thin box-drawing hairline instead of an ASCII rule."""
+        return Text(theme.ICON_LINE * 20)
+
+
+class ScanProgress(Static):
+    """Live-scan header: target · spinner phase · step N/total (MOCK 2)."""
+
+    _FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+    def __init__(self, **kwargs: object) -> None:
+        """Initialize the scan progress header."""
+        super().__init__(**kwargs)
+        self.target = ""
+        self.phase = ""
+        self.step = 0
+        self.total = 0
+        self.active = False
+        self._frame = 0
+
+    def on_mount(self) -> None:
+        """Animate the spinner while a scan is active."""
+        self.set_interval(0.12, self._tick)
+
+    def _tick(self) -> None:
+        if self.active:
+            self._frame = (self._frame + 1) % len(self._FRAMES)
+            self.refresh()
+
+    def set_progress(self, target: str, phase: str, step: int, total: int, active: bool) -> None:
+        """Update the header from the scan state machine."""
+        self.target = target
+        self.phase = phase
+        self.step = step
+        self.total = total
+        self.active = active
+        self.refresh()
+
+    def render(self) -> Text:
+        """Render the header, or nothing before any scan has run."""
+        if not self.target and not self.phase:
+            return Text("")
+
+        text = Text()
+        text.append(self.target or "—", style=theme.TEXT)
+        text.append("  ·  ", style=theme.MUTED)
+        if self.active:
+            spinner = self._FRAMES[self._frame % len(self._FRAMES)]
+            text.append(f"{spinner} ", style=f"bold {theme.ACCENT}")
+            text.append(self.phase or "scanning…", style=f"bold {theme.ACCENT}")
+        else:
+            text.append("complete", style=f"bold {theme.SUCCESS}")
+        if self.total:
+            text.append("  ·  ", style=theme.MUTED)
+            text.append(f"step {self.step}/{self.total}", style=theme.MUTED)
+        return text
 
 
 class TelemetryStatus(Static):
@@ -110,12 +273,27 @@ class NavPanel(Vertical):
         yield StatusBadge("SQL Audit", id="status-sql")
         yield StatusBadge("Web Audit", id="status-web")
         yield NavSeparator()
-        yield Static("SHORTCUTS", id="nav-subtitle")
-        yield NavItem("1", "Risk Report")
-        yield NavItem("2", "Topology")
-        yield NavItem("3", "Quick Scan")
-        yield NavItem("4", "Full Scan")
-        yield NavItem("5", "Clear All")
+
+        yield Static("SCAN", classes="nav-group")
+        yield NavItem("s", "Quick scan", action="quick_scan", id="nav-quick")
+        yield NavItem("S", "Full scan", action="full_scan", id="nav-full")
+        yield NavItem("r", "Re-run all", action="run_all", id="nav-rerun")
+
+        yield Static("VIEW", classes="nav-group")
+        yield NavItem("o", "Overview", view="overview", action="overview", id="nav-overview")
+        yield NavItem("d", "Devices", view="devices", action="devices", id="nav-devices")
+        yield NavItem("f", "Findings", view="findings", action="findings", id="nav-findings")
+        yield NavItem("h", "History", view="history", action="history", id="nav-history")
+        yield NavItem("l", "Live log", view="live-log", action="live_log", id="nav-live-log")
+
+        # Live-scan only: progress + cancel control (hidden while idle).
+        with Vertical(id="nav-progress"):
+            yield Static("PROGRESS", classes="nav-group")
+            yield Static(id="nav-progress-step")
+            yield Static(id="nav-progress-bar")
+            yield Static(id="nav-progress-activity")
+            yield Static("CONTROL", classes="nav-group")
+            yield NavItem("esc", "Cancel scan", action="go_home", id="nav-cancel")
 
         # Add telemetry status at the bottom
         yield Vertical(id="nav-bottom-spacer")
@@ -123,7 +301,46 @@ class NavPanel(Vertical):
 
     def on_mount(self) -> None:
         """Update status on mount."""
+        self.query_one("#nav-progress").display = False
         self.update_status()
+        self.set_active_view("overview")
+
+    _PROGRESS_BAR_WIDTH = 18
+
+    def show_scan_progress(self, step: int, total: int, activity: str) -> None:
+        """Reveal and update the live-scan PROGRESS section."""
+        self.query_one("#nav-progress").display = True
+        total = max(total, 1)
+        step = max(0, min(step, total))
+        self.query_one("#nav-progress-step", Static).update(
+            f"[{theme.MUTED}]Step {step} of {total}[/{theme.MUTED}]"
+        )
+        filled = round(step / total * self._PROGRESS_BAR_WIDTH)
+        bar = Text()
+        bar.append("█" * filled, style=theme.ACCENT)
+        bar.append("░" * (self._PROGRESS_BAR_WIDTH - filled), style=theme.MUTED)
+        self.query_one("#nav-progress-bar", Static).update(bar)
+        self.query_one("#nav-progress-activity", Static).update(
+            f"[{theme.MUTED}]{activity}[/{theme.MUTED}]"
+        )
+
+    def hide_scan_progress(self) -> None:
+        """Hide the live-scan PROGRESS section once the scan ends."""
+        self.query_one("#nav-progress").display = False
+
+    def set_active_view(self, view: str) -> None:
+        """Highlight the nav item for the active dashboard view."""
+        for item in self.query(NavItem):
+            if item.view is not None:
+                item.set_active(item.view == view)
+
+    def set_compact(self, compact: bool) -> None:
+        """Collapse the sidebar to an icon/key rail (narrow terminals)."""
+        self.set_class(compact, "-compact")
+        for badge in self.query(StatusBadge):
+            badge.set_compact(compact)
+        for item in self.query(NavItem):
+            item.set_compact(compact)
 
     def update_status(self) -> None:
         """Update all status badges."""

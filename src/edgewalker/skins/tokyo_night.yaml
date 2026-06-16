@@ -16,7 +16,7 @@ theme:
   boost: "#2f3549"
   dark: true
   variables:
-    muted: "#565f89"
+    muted: "#6b74a0"  # lifted from #565f89 (2.76:1) to clear WCAG's 3:1 floor
     text: "#c0caf5"
     danger: "#f7768e"
     surface-alt: "#414868"

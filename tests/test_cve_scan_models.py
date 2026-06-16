@@ -1,5 +1,4 @@
 # Third Party
-import pytest
 from pydantic import IPvAnyAddress
 
 # First Party
@@ -8,9 +7,8 @@ from edgewalker.modules.cve_scan.models import CveModel, CveScanModel, CveScanRe
 
 def test_cve_model():
     cve = CveModel(id="CVE-2021-1234", description="Test CVE", severity="High", score=8.5)
-    assert cve["id"] == "CVE-2021-1234"
-    assert cve.get("severity") == "High"
-    assert cve.get("nonexistent", "default") == "default"
+    assert cve.id == "CVE-2021-1234"
+    assert cve.severity == "High"
 
 
 def test_cve_scan_result_model():
@@ -24,9 +22,9 @@ def test_cve_scan_result_model():
         cves=[cve],
     )
 
-    assert result["ip"] == IPvAnyAddress("192.168.1.1")
-    assert result.get("product") == "nginx"
-    assert result.get("nonexistent", "default") == "default"
+    assert result.ip == IPvAnyAddress("192.168.1.1")
+    assert result.product == "nginx"
+    assert result.cves[0].id == "CVE-2021-1234"
 
 
 def test_cve_scan_result_serialization():
@@ -60,10 +58,4 @@ def test_cve_scan_result_serialization():
 
 def test_cve_scan_model():
     model = CveScanModel(results=[])
-    assert model.get("results") == []
-    assert model["results"] == []
-
-    with pytest.raises(TypeError):
-        model[123]
-    with pytest.raises(KeyError):
-        model["nonexistent"]
+    assert model.results == []

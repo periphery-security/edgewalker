@@ -40,7 +40,7 @@ async def test_scanner_service_port_scan():
 
     with patch("edgewalker.modules.port_scan.quick_scan", new_callable=AsyncMock) as mock_quick:
         mock_quick.return_value = mock_results
-        with patch("edgewalker.core.scanner_service.save_results"):
+        with patch("edgewalker.core.result_store.save_results"):
             with patch.object(service, "_submit_telemetry", new_callable=AsyncMock):
                 results = await service.perform_port_scan("127.0.0.1")
                 assert results == mock_results
@@ -57,7 +57,7 @@ async def test_scanner_service_credential_scan():
 
     with patch("edgewalker.modules.password_scan.scan", new_callable=AsyncMock) as mock_scan:
         mock_scan.return_value = mock_results
-        with patch("edgewalker.core.scanner_service.save_results"):
+        with patch("edgewalker.core.result_store.save_results"):
             with patch.object(service, "_submit_telemetry", new_callable=AsyncMock):
                 results = await service.perform_credential_scan(port_results=port_results)
                 assert results == mock_results
@@ -74,7 +74,7 @@ async def test_scanner_service_cve_scan():
 
     with patch("edgewalker.modules.cve_scan.scan", new_callable=AsyncMock) as mock_scan:
         mock_scan.return_value = mock_results
-        with patch("edgewalker.core.scanner_service.save_results"):
+        with patch("edgewalker.core.result_store.save_results"):
             with patch.object(service, "_submit_telemetry", new_callable=AsyncMock):
                 results = await service.perform_cve_scan(port_results=port_results)
                 assert results == mock_results
@@ -87,7 +87,7 @@ async def test_scanner_service_port_scan_full():
 
     with patch("edgewalker.modules.port_scan.full_scan", new_callable=AsyncMock) as mock_full:
         mock_full.return_value = mock_results
-        with patch("edgewalker.core.scanner_service.save_results"):
+        with patch("edgewalker.core.result_store.save_results"):
             with patch.object(service, "_submit_telemetry", new_callable=AsyncMock):
                 results = await service.perform_port_scan("127.0.0.1", full=True)
                 assert results == mock_results
@@ -113,7 +113,7 @@ async def test_scanner_service_sql_scan():
 
     with patch("edgewalker.modules.sql_scan.SqlScanner.scan", new_callable=AsyncMock) as mock_scan:
         mock_scan.return_value = mock_results
-        with patch("edgewalker.core.scanner_service.save_results"):
+        with patch("edgewalker.core.result_store.save_results"):
             with patch.object(service, "_submit_telemetry", new_callable=AsyncMock):
                 results = await service.perform_sql_scan(port_results=port_results)
                 assert results == mock_results
@@ -139,7 +139,7 @@ async def test_scanner_service_web_scan():
 
     with patch("edgewalker.modules.web_scan.WebScanner.scan", new_callable=AsyncMock) as mock_scan:
         mock_scan.return_value = mock_results
-        with patch("edgewalker.core.scanner_service.save_results"):
+        with patch("edgewalker.core.result_store.save_results"):
             with patch.object(service, "_submit_telemetry", new_callable=AsyncMock):
                 results = await service.perform_web_scan(port_results=port_results)
                 assert results == mock_results
@@ -159,6 +159,6 @@ async def test_scanner_service_load_from_file(tmp_path):
 
     with patch("edgewalker.modules.password_scan.scan", new_callable=AsyncMock) as mock_scan:
         mock_scan.return_value = PasswordScanModel(results=[], summary={})
-        with patch("edgewalker.core.scanner_service.save_results"):
+        with patch("edgewalker.core.result_store.save_results"):
             results = await service.perform_credential_scan(port_results=None)
             assert results is not None

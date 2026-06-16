@@ -101,6 +101,33 @@ edgewalker cve                     # Check for known CVEs
 edgewalker report                  # View security report
 ```
 
+### Change Tracking & History
+Repeated scans accumulate per-device history, a network score trend, and a log
+of material changes (ports, CVEs, exposed credentials, SQL/web issues, devices
+appearing/disappearing, grade moves):
+```bash
+edgewalker history                 # Recent changes + score-trend sparkline
+edgewalker history --list          # Numbered list of past assessment reports
+edgewalker compare 1 3             # What changed between report #1 and #3
+edgewalker findings                # Prioritised findings from the latest scan
+```
+In the TUI, press `h` for the **History** view: the score trend, the change
+log, and a scrollable report list — press <kbd>enter</kbd> on two reports to
+compare them.
+
+<table align="center">
+  <tr>
+    <td align="center"><strong>CLI: scan &rarr; report &rarr; history &amp; compare</strong></td>
+    <td align="center"><strong>TUI: History view</strong></td>
+  </tr>
+  <tr>
+    <td><img src="images/cli-demo.gif" alt="EdgeWalker CLI demo (scan, report, history & compare)" width="100%"></td>
+    <td><img src="images/tui-history.gif" alt="EdgeWalker History view (TUI)" width="100%"></td>
+  </tr>
+</table>
+
+<!-- Render with `vhs cli-demo.tape` and `vhs tui-history.tape` (see those files). -->
+
 ### CI/CD & Automation
 EdgeWalker supports non-interactive execution for automated environments:
 ```bash
