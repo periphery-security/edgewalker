@@ -22,7 +22,7 @@ jobs:
 
           // This is a simplified version, usually people use actions/stale
           // but I'll use the official one for better reliability.
-    - uses: actions/stale@v10
+    - uses: actions/stale@v11
       with:
         repo-token: ${{ secrets.GITHUB_TOKEN }}
         stale-issue-message: 'This issue is stale because it has been open 60 days with no activity. Remove stale label or comment or this will be closed in 7 days.'
